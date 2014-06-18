@@ -1,0 +1,55 @@
+[Event "FICS Unrated game"]
+[Site "FICS"]
+[Date "2009.01.29"]
+[Round "1"]
+[White "GuestGZMB"]
+[Black "Bramary, Julien"]
+[Result "0-1"]
+[WhiteElo "?"]
+[BlackElo "?"]
+
+1.	e4	e6
+2.	d4	d5
+3.	exd5	exd5
+4.	Nc3	Nf6
+5.	Bg5	Be7
+6.	Nf3	h6
+7.	Bh4	g5
+8.	Bg3	Nh5
+9.	Be5	f6
+10.	Bg3	Nxg3
+11.	hxg3	Bg4
+12.	Be2	c6
+13.	Nh2	Bf5
+14.	Bh5+	Kd7
+15.	Qf3	Be6
+16.	O-O-O	Kc7
+17.	Ng4	Nd7
+18.	Rhe1	f5
+19.	Rxe6	fxg4
+20.	Bxg4	Nf6
+21.	Qf5	Rf8
+22.	Qe5+	Bd6
+23.	Rxd6	Qxd6
+24.	Qxd6+	Kxd6
+25.	Bf3	Rae8
+26.	Rh1	Rh8
+27.	Bh5	Re7
+28.	Bg6	h5
+29.	Bf5	g4
+30.	f3	Rhe8
+31.	fxg4	Re1+
+32.	Rxe1	Rxe1+
+33.	Kd2	Rg1
+34.	gxh5	Rxg2+
+35.	Ke3	Rxg3+
+36.	Kf4	Rg8
+37.	Bg6	b6
+38.	Kg5	Ke7
+39.	Ne2	c5
+40.	dxc5	bxc5
+41.	Nf4	Ne4+
+42.	Kf5	Ng3+
+43.	Ke5	Nxh5
+44.	Bxh5	Rg5#
+	0-1
