@@ -200,8 +200,7 @@ int is_check_mate(int whose_turn, chess_square sq[8][8]) {
 		for (j = 0; j < 8; j++) {
 			chess_piece *piece = sq[i][j].piece;
 			if (piece != NULL && piece->colour == whose_turn) {
-				// don't consider castle
-				// if king can castle he can do other things so no checkmate
+				// don't consider castle: since the king is checked castling is illegal
 				count = get_possible_moves( piece, sq, selected_moves, 0);
 				for (k = 0; k < count; k++) {
 					if ( is_move_legal(piece, selected_moves[k][0], selected_moves[k][1], whose_turn, sq) ) {
