@@ -104,28 +104,29 @@ void draw_board_surface(int width, int height) {
 //	cairo_pattern_add_color_stop_rgba (dPattern, 0.0f, 1, 1, 1, 0.4f);
 //	cairo_pattern_add_color_stop_rgba (dPattern, 1.0f, 1, 1, 1, 0.0f);
 
+	cairo_pattern_t *dPattern = cairo_pattern_create_radial(.0, .0, .0, .0, .0, (tx + ty) / 3.0f);
+	cairo_pattern_t *lPattern = cairo_pattern_create_radial(.0, .0, .0, .0, .0, (tx + ty) / 3.0f);
+	cairo_pattern_add_color_stop_rgba(lPattern, 0.0f, 0, 0, 0, 0.1f);
+	cairo_pattern_add_color_stop_rgba(lPattern, 1.0f, 0, 0, 0, 0.0f);
+	cairo_pattern_add_color_stop_rgba(dPattern, 0.0f, 1, 1, 1, 0.1f);
+	cairo_pattern_add_color_stop_rgba(dPattern, 1.0f, 1, 1, 1, 0.0f);
+
 //	cairo_pattern_t *dPattern = cairo_pattern_create_radial (.0, .0, .0, .0, .0, (tx+ty)/2.0f);
 //	cairo_pattern_t *lPattern = cairo_pattern_create_radial (.0, .0, .0, .0, .0, (tx+ty)/2.0f);
-//	cairo_pattern_add_color_stop_rgba (lPattern, 0.0f, 0, 0, 0, 0.0f);
-//	cairo_pattern_add_color_stop_rgba (lPattern, 1.0f, 0, 0, 0, 0.0f);
-//	cairo_pattern_add_color_stop_rgba (dPattern, 0.0f, 1, 1, 1, 0.0f);
+//	cairo_pattern_add_color_stop_rgba (lPattern, 0.0f, 0, 0, 0, 0.4f);
+//	cairo_pattern_add_color_stop_rgba (lPattern, 1.0f, 1, 0, 0, 0.0f);
+//	cairo_pattern_add_color_stop_rgba (dPattern, 0.0f, 1, 1, 1, 0.4f);
 //	cairo_pattern_add_color_stop_rgba (dPattern, 1.0f, 1, 1, 1, 0.0f);
-
-	cairo_pattern_t *dPattern = cairo_pattern_create_radial (.0, .0, .0, .0, .0, (tx+ty)/2.0f);
-	cairo_pattern_t *lPattern = cairo_pattern_create_radial (.0, .0, .0, .0, .0, (tx+ty)/2.0f);
-	cairo_pattern_add_color_stop_rgba (lPattern, 0.0f, 0, 0, 0, 0.4f);
-	cairo_pattern_add_color_stop_rgba (lPattern, 1.0f, 1, 0, 0, 0.0f);
-	cairo_pattern_add_color_stop_rgba (dPattern, 0.0f, 1, 1, 1, 0.4f);
-	cairo_pattern_add_color_stop_rgba (dPattern, 1.0f, 1, 1, 1, 0.0f);
 
 	// Draw Dark Squares
 	cairo_set_source_rgb(cr, dr, dg, db);
 	for (j = 0; j < 8; j++) {
-		for (k = 0; k < 8; k++)	{
+		for (k = 0; k < 8; k++) {
 			if (get_square_colour(j, k)) {
 				cairo_rectangle(cr, j*tx, k*ty, tx, ty);
 				cairo_fill(cr);
 
+                // Inner shadow effect
 				cairo_save(cr);
 				cairo_translate(cr, j*tx, k*ty);
 				cairo_set_source (cr, dPattern);
@@ -140,7 +141,7 @@ void draw_board_surface(int width, int height) {
 	// Draw Light Squares
 	cairo_set_source_rgb (cr, lr, lg, lb);
 	for (j = 0; j < 8; j++) {
-		for (k = 0; k < 8; k++)	{
+		for (k = 0; k < 8; k++) {
 			if (!get_square_colour(j, k)) {
 				cairo_rectangle(cr, j*tx, k*ty, tx, ty);
 				cairo_fill(cr);
@@ -156,29 +157,19 @@ void draw_board_surface(int width, int height) {
 	}
 
 	// Draw Grid
-	cairo_set_operator (cr, CAIRO_OPERATOR_OVER);
-	cairo_set_source_rgb (cr, 0.1f, 0.1f, 0.1f);
-
-//	int line_width = round(tx*2.0f/60.0f);
-	double line_width = tx*2.0f/60.0f;
-	if (line_width < 1.0f) {
-		line_width = 1.0f;
-	}
-	cairo_set_line_width(cr, line_width);
+	cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
+	cairo_set_source_rgb(cr, (dr + lr) / 2.0f, (dg + lg) / 2.0f, (db + lb) / 2.0f);
+	cairo_set_line_width(cr, 1.0f);
 
 	// Vertical lines
 	for (j = 0; j <= 8; j++) {
-//		cairo_move_to (cr, round(j*tx), 0);
-//		cairo_line_to(cr, round(j*tx), height);
-		cairo_move_to (cr, j*tx, 0);
-		cairo_line_to(cr, j*tx, height);
+		cairo_move_to (cr, j * tx, 0);
+		cairo_line_to(cr, j * tx, height);
 	}
 	// Horizontal lines
 	for (j = 0; j <= 8; j++) {
-//		cairo_move_to (cr, 0, round(j*ty));
-//		cairo_line_to(cr, width, round(j*ty));
-		cairo_move_to (cr, 0, j*ty);
-		cairo_line_to(cr, width, j*ty);
+		cairo_move_to (cr, 0, j * ty);
+		cairo_line_to(cr, width, j * ty);
 	}
 	cairo_stroke (cr);
 	cairo_destroy(cr);

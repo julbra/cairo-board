@@ -269,12 +269,12 @@ chess_piece *auto_selected_piece = NULL;
 int needs_update;
 int needs_scale;
 
-double dr = 80.0/255.0;
-double dg = 110.0/255.0;
-double db = 150.0/255.0;
-double lr = 245.0/255.0;
-double lg = 240.0/255.0;
-double lb = 150.0/255.0;
+double dr = 181.0/255.0;
+double dg = 136.0/255.0;
+double db = 99.0/255.0;
+double lr = 240.0/255.0;
+double lg = 217.0/255.0;
+double lb = 181.0/255.0;
 
 /* Prototypes */
 char *get_eco_long(const char *fen_key);
@@ -1217,9 +1217,9 @@ static gboolean on_configure_event (GtkWidget *pWidget, GdkEventConfigure *event
 	return FALSE;
 }
 
-//char theme_dir[] = "themes/commons/";
+char theme_dir[] = "themes/commons/";
 //char theme_dir[] = "themes/eyes/";
-char theme_dir[] = "themes/fantasy/";
+//char theme_dir[] = "themes/fantasy/";
 
 static int load_piecesSvg() {
 
