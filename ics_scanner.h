@@ -11,7 +11,7 @@ void ics_scanner_restart (FILE *input_file);
 typedef unsigned int yy_size_t;
 #endif
 
-extern yy_size_t ics_scanner_leng;
+extern int ics_scanner_leng;
 
 enum _ics_match_type {
 	EOF_TYPE = -1,
