@@ -126,6 +126,7 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	int my_color = -1;
 	int warn_me = 0;
 	static int warn_toggle = 1;
+	double halfWidth = (double) wi / 2.0f;
 
 	if (cf->clock->relation > 0) {
 		my_color = 0;
@@ -155,8 +156,15 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	else {
 		cairo_set_source_rgb(buff_crt, 1, 1, 1);
 	}
-	cairo_rectangle(buff_crt, 0, 0, ((double)wi/2.0f), hi);
+	cairo_rectangle(buff_crt, 0, 0, halfWidth, hi);
 	cairo_fill(buff_crt);
+
+	// paint separator on boundary to avoid aliasing
+	cairo_set_source_rgb(buff_crt, 1, 1, 1);
+	cairo_move_to (buff_crt, halfWidth, 0);
+	cairo_line_to(buff_crt, halfWidth, hi);
+	cairo_set_line_width(buff_crt, 1.0f);
+	cairo_stroke(buff_crt);
 
 	// paint white's clock text
 	if (wa) {
@@ -166,17 +174,17 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 		cairo_set_source_rgb(buff_crt, 0, .4, .7);
 	}
 
-	double tx = .5*(wi/2.0f - pix_width);
-	double ty = .5*(hi - pix_height);
+	double tx = .5 * (wi / 2.0f - pix_width);
+	double ty = .5 * (hi - pix_height);
 
-	cairo_translate (buff_crt, tx, ty);
+	cairo_translate(buff_crt, tx, ty);
 	pango_cairo_show_layout (buff_crt, layout);
 
 
 	cairo_restore(buff_crt);
 
 	// paint black's clock background
-	cairo_translate (buff_crt, ((double)wi/2.0f), 0);
+	cairo_translate(buff_crt, halfWidth, 0);
 
 	if (ba) {
 		if (warn_me && warn_toggle < 2) {
@@ -189,7 +197,7 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	else {
 		cairo_set_source_rgb(buff_crt, 1, 1, 1);
 	}
-	cairo_rectangle(buff_crt, 0, 0, ((double)wi/2.0f), hi);
+	cairo_rectangle(buff_crt, 0, 0, halfWidth, hi);
 	cairo_fill(buff_crt);
 
 	// paint black's clock text
@@ -201,22 +209,22 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	}
 
 	pango_layout_set_text(layout, black, -1);
-	pango_layout_get_pixel_size (layout, &pix_width, &pix_height);
-	tx = .5*(wi/2.0f - pix_width);
-	cairo_translate (buff_crt, tx, ty);
-	pango_cairo_show_layout (buff_crt, layout);
+	pango_layout_get_pixel_size(layout, &pix_width, &pix_height);
+	tx = .5 * (wi / 2.0f - pix_width);
+	cairo_translate(buff_crt, tx, ty);
+	pango_cairo_show_layout(buff_crt, layout);
 
 	g_object_unref (layout);
 
 	cairo_destroy(buff_crt);
 
 	// Apply cache surface to crt
-	cairo_set_source_surface (crt, buffer_surf, 0.0f, 0.0f);
+	cairo_set_source_surface(crt, buffer_surf, 0.0f, 0.0f);
 	cairo_paint(crt);
 
 	cairo_surface_destroy(buffer_surf);
 
-	pthread_mutex_unlock( &mutex_drawing );
+	pthread_mutex_unlock(&mutex_drawing);
 }
 
 static gboolean clock_face_expose(GtkWidget *clock_face, GdkEventExpose *event) {
