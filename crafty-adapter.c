@@ -15,10 +15,10 @@ int crafty_in;
 int crafty_out;
 int crafty_err;
 
-int crafty_scanner_scan_bytes(const char*, int length);
+int crafty_scanner__scan_bytes(const char*, int length);
 
 void write_to_crafty(char *message) {
-	if(write(crafty_in, message, strlen(message)) == -1) {
+	if (write(crafty_in, message, strlen(message)) == -1) {
 		perror(NULL);
 	}
 }
@@ -28,17 +28,17 @@ int write_crafty_fd(void) {
 	int i;
 	i = read(STDIN_FILENO, buff, BSIZE);
 
-	if(!i) {
-		fprintf(stderr,"Read 0 bytes?!\n");
+	if (!i) {
+		fprintf(stderr, "Read 0 bytes?!\n");
 		return 1;
 	}
 
-	if(i < 0) {
+	if (i < 0) {
 		perror(NULL);
 		return -1;
 	}
 
-	if(write(crafty_in, buff, i) == -1) {
+	if (write(crafty_in, buff, i) == -1) {
 		perror(NULL);
 		return -1;
 	}
@@ -110,7 +110,7 @@ void parse_crafty_buffer(void) {
 	if (nread < 1) {
 		fprintf(stderr, "ERROR: failed to read data from Crafty pipe\n");
 	}
-	crafty_scanner_scan_bytes(raw_buff, nread);
+	crafty_scanner__scan_bytes(raw_buff, nread);
 	int i = 0;
 	while (i > -1) {
 		i = crafty_scanner_lex();
@@ -143,12 +143,12 @@ void parse_crafty_buffer(void) {
 	}
 }
 
-void *parse_crafty_function( void *ptr ) {
+void *parse_crafty_function(void *ptr) {
 
 	while(g_atomic_int_get(&running_flag)) {
 		parse_crafty_buffer();
 	}
 
-	fprintf(stdout, "[parse ics thread] - Closing ICS parser\n");
+	fprintf(stdout, "[parse Crafty thread] - Closing Crafty parser\n");
 	return 0;
 }

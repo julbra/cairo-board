@@ -296,8 +296,8 @@ static void parse_ics_buffer(void);
 void send_to_ics(char*);
 
 // parser funcs
-int san_scanner_scan_string();
-int ics_scanner_scan_bytes();
+int san_scanner__scan_string();
+int ics_scanner__scan_bytes();
 
 void set_header_label(const char *w_name, const char *b_name, const char *w_rating, const char *b_rating);
 void insert_text_moves_list_view(const gchar *text, gboolean should_lock_threads);
@@ -1502,7 +1502,7 @@ void load_game(const char* file_path, int game_num) {
 	while (i != -1) {
 		i = san_scanner_lex();
 
-		if ( i == 2) {
+		if (i == 2) {
 			if (!inside_tags) {
 				if (found_my_game) {
 					break;
@@ -1520,7 +1520,7 @@ void load_game(const char* file_path, int game_num) {
 				i = san_scanner_lex();
 			}
 		}
-		if ( i != -1) {
+		if (i != -1) {
 			if (inside_tags) {
 				inside_tags = FALSE;
 				if (found_my_game) {
@@ -1613,8 +1613,8 @@ gboolean auto_play_one_move(gpointer data) {
 			}
 			end_game();
 			waiting = 1;
-			wait_until_time.tv_sec = current_time.tv_sec;
-			wait_until_time.tv_usec = current_time.tv_usec+900000;
+			wait_until_time.tv_sec = current_time.tv_sec + auto_play_delay / 1000;
+			wait_until_time.tv_usec = current_time.tv_usec + (auto_play_delay * 1000) % 1000000;
 			return TRUE;
 		}
 
@@ -1702,7 +1702,7 @@ gboolean auto_play_one_ics_move(gpointer data) {
 	char lm[MOVE_BUFF_SIZE];
 
 	get_last_move(lm);
-	san_scanner_scan_string(lm);
+	san_scanner__scan_string(lm);
 	i = san_scanner_lex();
 
 	if ( i != -1) {
@@ -1734,13 +1734,13 @@ gboolean auto_play_one_ics_move(gpointer data) {
 }
 
 gboolean auto_play_one_crafty_move(gpointer data) {
-	debug("Autoplay one ics move\n");
+	debug("Autoplay one crafty move\n");
 	int i;
 	int resolved_move[4];
 	char lm[MOVE_BUFF_SIZE];
 
 	get_last_move(lm);
-	san_scanner_scan_string(lm);
+	san_scanner__scan_string(lm);
 	i = san_scanner_lex();
 
 	if ( i != -1) {
@@ -2298,7 +2298,7 @@ int parse_start_message(char *message, long *game_num, char w_name[128], char b_
 		fprintf(stderr, "Bug in ICS parser, token length for Start message should be more than 5\n");
 		exit(1);
 	}
-	
+
 	memset(w_name, 0, 128);
 	memset(b_name, 0, 128);
 
@@ -2378,7 +2378,7 @@ int parse_end_message(char *message, char end_token[32]) {
 		fprintf(stderr, "Bug in ICS parser, token length for Start message should be more than 5\n");
 		exit(1);
 	}
-	
+
 	char w_name[128];
 	char b_name[128];
 	long game_num;
@@ -2425,7 +2425,7 @@ int parse_end_message(char *message, char end_token[32]) {
 }
 
 int scan_append_ply(char* ply) {
-	san_scanner_scan_string(ply);
+	san_scanner__scan_string(ply);
 	int i = san_scanner_lex();
 	if ( i != -1) {
 		playing = 1;
@@ -2949,7 +2949,7 @@ void parse_ics_buffer(void) {
 	// read at most ICS_BUFF_SIZE bytes from the ICS pipe
 	int nread = read(ics_data_pipe[0], &raw_buff, ICS_BUFF_SIZE);
 	if (nread < 1) {
-		fprintf(stderr, "ERROR: failed to read data from ICS pipe\n");	
+		fprintf(stderr, "ERROR: failed to read data from ICS pipe\n");
 	}
 
 	// Uncomment following block to generate a log of the raw FICS output
@@ -2989,7 +2989,7 @@ void parse_ics_buffer(void) {
 	memset(buff, 0, nread+1);
 
 
-	/* Remove NULLs and \r which confuse the hell out of flex. 
+	/* Remove NULLs and \r which confuse the hell out of flex.
 	 * If some variable is set, FICS will also send 0x7 (bell) characters
 	 * to notifiy of a move, we filter that out here as well */
 	j = 0;
@@ -3013,7 +3013,7 @@ void parse_ics_buffer(void) {
 
 	/* Detect a chopped line if the last character in the buffer
 	 * is not a \n.
-	 * If a chopped line is detected, chopped_len is set appropriately 
+	 * If a chopped line is detected, chopped_len is set appropriately
 	 * and we copy the chopped bit to the next scanned buff*/
 	char *buff_end = strchr(buff, '\0') - 1; // first null is end of string
 	if (*buff_end != '\n') {
@@ -3048,7 +3048,7 @@ void parse_ics_buffer(void) {
 			memcpy(buff, chopped_bit, chopped_len);
 			free(chopped_bit);
 
-			/* move buff pointer to the beginning of the unchopped data 
+			/* move buff pointer to the beginning of the unchopped data
 			 * This means we won't parse the chopped bit this time round */
 			buff += chopped_len;
 		}
@@ -3059,9 +3059,9 @@ void parse_ics_buffer(void) {
 	}
 
 	char *post_buff = calloc(current_buff_alloc-chopped_len+1, sizeof(char));
-	
 
-	ics_scanner_scan_bytes(buff, current_buff_alloc-chopped_len);
+
+	ics_scanner__scan_bytes(buff, current_buff_alloc-chopped_len);
 	i = 0;
 	while (i > -1) {
 
@@ -3199,7 +3199,7 @@ void parse_ics_buffer(void) {
 			case CREATE_MESSAGE: {
 				gboolean rated;
 				if (parse_create_message(ics_scanner_text, &rated, &init_time, &increment) == 5) {
-					debug("Successfully parsed create message: player names and ratings\n");				
+					debug("Successfully parsed create message: player names and ratings\n");
 					debug("%s : %s - %s : %s, rated? %d - init: %d, inc: %d\n", current_players[0], current_ratings[0], current_players[1], current_ratings[1], rated, init_time, increment);
 					requested_start = 1;
 				}

@@ -400,6 +400,36 @@ void free_all_channels(void) {
 	g_hash_table_foreach(channel_map, free_channel_function, NULL);
 }
 
+char *states[] = {
+    "normal", "active", "prelight", "selected", "insensitive"
+};
+
+void print_color (GdkColor *c) {
+    printf ("\"#%02x%02x%02x\"", c->red / 256, c->green / 256, c->blue / 256);
+}
+
+void print_colors (char *name, GdkColor *x, int n) {
+    int i;
+    printf ("(%s", name);
+    for (i = 0; i < n; i++)
+    {
+	printf (" (%s . ", states[i]);
+	print_color (x + i);
+	printf (")");
+    }
+    printf (")\n");
+}
+
+void print_style (GtkStyle *style) {
+    print_colors ("fg", style->fg, 5);
+    print_colors ("bg", style->bg, 5);
+    print_colors ("light", style->light, 5);
+    print_colors ("dark", style->dark, 5);
+    print_colors ("mid", style->mid, 5);
+    print_colors ("text", style->text, 5);
+    print_colors ("base", style->base, 5);
+}
+
 /* allocates a new channel and create associated widgets
  * call free_channel() to free up the allocated resources */
 channel* create_channel(int channel_num) {
@@ -407,6 +437,9 @@ channel* create_channel(int channel_num) {
 	if (!gtk_widget_get_visible(channels_notebook)) {
 		gtk_widget_show(channels_notebook);
 	}
+	
+	GtkStyle *style = gtk_widget_get_style(channels_notebook);
+	print_style(style);
 
 	channel *new_channel = malloc(sizeof(channel));
 	new_channel->num = channel_num;
@@ -555,6 +588,9 @@ void insert_text_channel_view(int channel_num, char *username, char *message, gb
 		// Killed? tough!
 		return;
 	}
+	
+	GtkStyle *style = gtk_widget_get_style(channel->text_view);
+	print_style(style);
 
 	/* append the text at the end of the buffer */
 	GtkTextMark *end_mark = gtk_text_buffer_get_mark(channel->text_view_buffer, "end_bookmark");
@@ -570,7 +606,7 @@ void insert_text_channel_view(int channel_num, char *username, char *message, gb
 
 	GtkTextIter mark_it;
 	gtk_text_buffer_get_iter_at_mark(channel->text_view_buffer, &mark_it, end_mark);
-	gtk_text_buffer_insert_with_tags_by_name(channel->text_view_buffer, &mark_it, final_username,-1, "blue_fg",NULL);
+	gtk_text_buffer_insert_with_tags_by_name(channel->text_view_buffer, &mark_it, final_username, -1, "blue_fg", NULL);
 	gtk_text_buffer_get_iter_at_mark(channel->text_view_buffer, &mark_it, end_mark);
 	gtk_text_buffer_insert(channel->text_view_buffer, &mark_it, final_message, -1);
 

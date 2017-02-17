@@ -22,3 +22,8 @@
 *.x86_64
 *.hex
 cairo-board
+
+# IDE
+.idea/
+cairo_board
+cmake-build-debug/

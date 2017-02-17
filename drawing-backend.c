@@ -66,7 +66,8 @@ void update_pieces_surfaces(int wi, int hi) {
 	int i;
 	for (i = 0 ; i < 12 ; i++) {
 		cairo_surface_destroy (piecesSurf[i]);
-		piecesSurf[i] = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, ((double)wi)/8.0f, ((double)hi)/8.0f);
+		piecesSurf[i] = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, (int) (((double)wi) / 8.0f),
+												   (int) (((double)hi) / 8.0f));
 		dc = cairo_create (piecesSurf[i]);
 		cairo_scale(dc, wi*svg_w, hi*svg_h);
 		rsvg_handle_render_cairo (piecesSvg[i], dc);
@@ -1134,7 +1135,7 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 			}
 		}
 
-		//points_to_plot *= 2.0f;
+		points_to_plot *= 2.0f;
 		//points_to_plot /= 3.0f;
 
 		int **anim_steps;
@@ -1183,7 +1184,7 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 
 		g_hash_table_insert(anims_map, animation->piece, animation);
 
-		g_timeout_add(1000/60, animate_one_step, animation);
+		g_timeout_add(1000/120, animate_one_step, animation);
 //		g_timeout_add(1000/3, animate_one_step, animation);
 //		g_timeout_add(1000/120, animate_one_step, animation);
 		return TRUE;
@@ -1865,7 +1866,7 @@ void *process_moves(void *ptr) {
 			/* I'm sure this was here for a reason... but now it seems useless */
 			//g_main_context_wakeup(NULL);
 		}
-		usleep(1000000/60);
+		usleep(1000000/120);
 //		usleep(1000000/560);
 	}
 	return 0;
