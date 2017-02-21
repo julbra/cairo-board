@@ -1400,6 +1400,9 @@ void send_to_ics(char *s) {
 }
 
 void send_to_uci(char *s) {
+	if (ics_mode) {
+		return;
+	}
 	debug("Would send to ICS %s", s);
 	size_t len = strlen(s);
 	s[len - 1] = '\0';
@@ -4327,8 +4330,10 @@ int main (int argc, char **argv) {
 		}
 	}
 
-	spawn_uci_engine();
-	debug("Spawned UCI engine\n");
+	if (!ics_mode) {
+		spawn_uci_engine();
+		debug("Spawned UCI engine\n");
+	}
 
 	spawn_mover();
 
@@ -4341,7 +4346,9 @@ int main (int argc, char **argv) {
 //	startNewUciGame();
 	///////////////////////
 
-	g_timeout_add(0, delayed_start_uci_game, NULL);
+	if (!ics_mode) {
+		g_timeout_add(0, delayed_start_uci_game, NULL);
+	}
 
 	// Start Gdk Main Loop
 	gtk_main();
