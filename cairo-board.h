@@ -273,6 +273,7 @@ char type_to_char(int);
 char type_to_fen_char(int type);
 int move_piece(chess_piece *piece, int col, int row, int check_legality, int move_source, char san_move[SAN_MOVE_SIZE], int blacks_ply, chess_piece w_set[16], chess_piece b_set[16], gboolean lock_threads);
 void send_to_ics(char *s);
+void send_to_uci(char *s);
 void insert_san_move(const char*, gboolean should_lock_threads);
 void check_ending_clause(void);
 void xy_to_loc(int x, int y, int *pos, int wi, int hi);
@@ -281,7 +282,7 @@ void flip_board(int wi, int hi);
 wint_t type_to_unicode_char(int type);
 gboolean can_i_move_piece(chess_piece* piece);
 void set_last_move(char *move);
-void start_game(char *w_name, char *b_name, int seconds, int increment, int relation);
+void start_game(char *w_name, char *b_name, int seconds, int increment, int relation, bool should_lock);
 void update_eco_tag(gboolean should_lock_threads);
 void popup_join_channel_dialog(gboolean lock_threads);
 

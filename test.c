@@ -46,7 +46,7 @@ gboolean test_random_flip(gpointer trash) {
 				b_name[i] = 'a'+(rand()%26);
 			}
 		}
-	start_game(w_name, b_name, 60, 0, (rand() % 2) ? 1 : -1);
+	start_game(w_name, b_name, 60, 0, (rand() % 2) ? 1 : -1, false);
 //	auto_move(&white_set[PAWN5], 4, 3, 0, MANUAL_SOURCE);
 //	set_last_move("e4");
 //	g_signal_emit_by_name(board, "got_move");

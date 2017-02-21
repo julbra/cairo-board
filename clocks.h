@@ -32,7 +32,7 @@ typedef struct _chess_clock {
 /* Prototypes */
 chess_clock *clock_new(int initial_time_s, int incerement_s, int relation);
 void clock_destroy(chess_clock *);
-void clock_reset(chess_clock *clock, int initial_time, int increment, int relation);
+void clock_reset(chess_clock *clock, int initial_time, int increment, int relation, bool should_lock);
 void clock_freeze(chess_clock *clock);
 void *black_clock_runner_function(void *);
 void *white_clock_runner_function(void *);

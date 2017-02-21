@@ -4,11 +4,8 @@
 #include <string.h>
 
 #include "chess-backend.h"
-#include "clocks.h"
 #include "uci-adapter.h"
 #include "uci_scanner.h"
-
-#define BSIZE 512
 
 static int uci_in;
 static int uci_out;
@@ -22,13 +19,11 @@ static regex_t bestMoveMatcher;
 static char engine_name[256] = "";
 static bool uci_ok = false;
 static bool uci_ready = false;
-static char ponderedMove[4];
 static unsigned int plyNum;
-static bool toPlay;
+static int toPlay;
 static bool pondering;
 
 int uci_scanner__scan_bytes(const char *, int length);
-void *uci_read_function();
 void *parse_uci_function();
 void wait_for_engine(void);
 void user_move_to_uci(char *move);
@@ -93,7 +88,7 @@ int spawn_uci_engine(void) {
 	pthread_create(&uci_read_thread, NULL, parse_uci_function, (void *) (&i));
 	write_to_uci("uci\n");
 	while (!uci_ok) {
-		usleep(5000);
+		usleep(500);
 	}
 	printf("UCI OK!\n");
 
@@ -106,16 +101,16 @@ int spawn_uci_engine(void) {
 
 static char allMoves[8192];
 
-void startNewUciGame(void) {
+void startNewUciGame(int time) {
 	debug("Start UCI game\n");
 	write_to_uci("ucinewgame\n");
 	wait_for_engine();
-	write_to_uci("position startpos\n");
-	start_game("You", engine_name, 30, 0, -1);
-	write_to_uci("go wtime 30000 btime 30000\n");
+	debug("Before start_game\n");
+	start_game("You", engine_name, time, 0, 1, false);
+	debug("After start_game\n");
 	memcpy(allMoves, "position startpos moves", 24);
 	plyNum = 1;
-	toPlay = false;
+	toPlay = 0;
 	pondering = false;
 }
 
@@ -131,33 +126,41 @@ void appendMove(char *newMove) {
 	size_t movesLength = strlen(allMoves);
 	allMoves[movesLength] = ' ';
 	memcpy(allMoves + movesLength + 1, newMove, newMoveLen + 1); // includes terminating null
+	toPlay = toPlay ? 0 : 1;
+
 	debug("appendMove: allMoves '%s'\n", allMoves);
-	if (plyNum == 2) {
-		debug("appendMove: update_clocks\n");
-		update_clocks(main_clock, 30, 30, false);
-		debug("appendMove: starte_one_clock\n");
-		start_one_clock(main_clock, 0);
-		debug("appendMove: started one_clock\n");
-	} else if (plyNum > 2) {
+	if (plyNum == 1) {
+		start_one_clock(main_clock, toPlay);
+	} else if (plyNum > 1) {
 		start_one_stop_other_clock(main_clock, toPlay, false);
 	}
-	toPlay = !toPlay;
+
 	plyNum++;
 }
 
 void user_move_to_uci(char *move) {
 	debug("User move to UCI! '%s'\n", move);
+
 	// Append move
+	debug("appendMove go %s\n", move);
 	appendMove(move);
+
 	char moves[8192];
 	sprintf(moves, "%s\n", allMoves);
-	debug("MOVES: '%s'\n", moves);
-	write_to_uci("stop\n");
+	debug("moves %s\n", moves);
+
+	if (pondering) {
+		write_to_uci("stop\n");
+	}
+	wait_for_engine();
+
 	write_to_uci(moves);
+	debug("before go\n");
 	char go[256];
 	sprintf(go, "go wtime %ld btime %ld\n", get_remaining_time(main_clock, 0), get_remaining_time(main_clock, 1));
-	debug("GO: '%s'\n", go);
+	debug("before go %s\n", go);
 	write_to_uci(go);
+	debug("after go %s\n", go);
 }
 
 void parseOption(char *optionText) {
@@ -240,10 +243,10 @@ void parseMoveWithPonder(char *moveText) {
 	size_t bestMoveLen = strlen(bestMove);
 
 	if (bestMoveLen > 4) {
-		debug("Handling promotion from Engine '%s' promo: '%c'\n", bestMove, bestMove[4]);
 		promo_type = char_to_type((char) (bestMove[4] - 32));
 		debug("Handling promotion from Engine %c -> %d\n", bestMove[4], promo_type);
 	}
+
 	// Append move
 	appendMove(bestMove);
 
@@ -259,7 +262,6 @@ void parseMoveWithPonder(char *moveText) {
 
 void parse_uci_buffer(void) {
 
-	int status;
 	char raw_buff[BUFSIZ];
 
 	memset(raw_buff, 0, BUFSIZ);
@@ -282,7 +284,7 @@ void parse_uci_buffer(void) {
 			}
 			case UCI_ID_NAME: {
 				printf("Got UCI Name: %s\n", uci_scanner_text);
-				strcpy(engine_name, uci_scanner_text);
+				strcpy(engine_name, uci_scanner_text + 8);
 				break;
 			}
 			case UCI_ID_AUTHOR: {

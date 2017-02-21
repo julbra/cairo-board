@@ -1006,11 +1006,7 @@ static gboolean animate_one_step(gpointer data) {
 
 }
 
-
-
-
 gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legality, int move_source) {
-	debug("auto_move a\n");
 	if (piece == NULL) {
 		debug("NULL PIECE auto_move a\n");
 	}
@@ -1022,7 +1018,6 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 	old_col = piece->pos.column;
 	old_row = piece->pos.row;
 
-	debug("auto_move b\n");
 	gboolean lock_threads = !(move_source == MANUAL_SOURCE);
 
 	/* handle special case when auto moved piece is being dragged by user */
@@ -1059,10 +1054,8 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 			gdk_threads_leave();
 		}
 
-
 	}
 
-	debug("auto_move 1\n");
 	if (lock_threads) {
 		gdk_threads_enter();
 	}
@@ -1070,12 +1063,10 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 	if (lock_threads) {
 		gdk_threads_leave();
 	}
-	debug("auto_move 2\n");
 
 	// actual move
 	int move_result = move_piece(piece, new_col, new_row, check_legality, move_source, last_san_move, whose_turn, white_set, black_set, lock_threads);
 
-	debug("auto_move 3\n");
 	if (move_result >= 0) {
 
 		// send move ASAP
@@ -1091,6 +1082,7 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 						'a'+old_col, '1'+old_row, 'a'+new_col, '1'+new_row);
 			}
 			send_to_ics(ics_mv);
+			send_to_uci(ics_mv);
 		}
 
 		if (!delay_from_promotion) {
@@ -1408,15 +1400,23 @@ void handle_button_release(void) {
 					if (!delay_from_promotion) {
 						char ics_mv[MOVE_BUFF_SIZE];
 						if (move_result & PROMOTE) {
+							char uci_mv[MOVE_BUFF_SIZE];
 							sprintf(ics_mv, "%c%c%c%c=%c\n",
 									'a' + p_old_col, '1' + p_old_row, 'a' + ij[0], '1' + ij[1],
 									type_to_char(mouse_dragged_piece->type));
+							sprintf(uci_mv, "%c%c%c%c%c\n",
+									'a' + p_old_col, '1' + p_old_row, 'a' + ij[0], '1' + ij[1],
+									(char) (type_to_char(mouse_dragged_piece->type) + 32));
+							send_to_ics(ics_mv);
+							send_to_uci(uci_mv);
 						}
 						else {
 							sprintf(ics_mv, "%c%c%c%c\n",
 									'a' + p_old_col, '1' + p_old_row, 'a' + ij[0], '1' + ij[1]);
+							send_to_ics(ics_mv);
+							send_to_uci(ics_mv);
 						}
-						send_to_ics(ics_mv);
+
 						if (crafty_mode) {
 							write_to_crafty(ics_mv);
 						}
@@ -1445,7 +1445,7 @@ void handle_button_release(void) {
 				}
 			}
 		}
-		if(!piece_moved) {
+		if (!piece_moved) {
 			restore_piece_to_surface(wi, hi, mouse_dragged_piece);
 		}
 
@@ -2169,8 +2169,11 @@ void choose_promote(int last_promote, gboolean only_surfaces, int ocol, int orow
 	// send the delayed move to ICS
 	if (delay_from_promotion) {
 		char ics_mv[MOVE_BUFF_SIZE];
-		sprintf(ics_mv, "%c%c%c%c=%c\n", 'a'+ocol, '1'+orow, 'a'+ncol, '1'+nrow, type_to_char(to_promote->type));
+		sprintf(ics_mv, "%c%c%c%c=%c\n", 'a' + ocol, '1' + orow, 'a' + ncol, '1' + nrow, type_to_char(to_promote->type));
+		char uci_mv[MOVE_BUFF_SIZE];
+		sprintf(uci_mv, "%c%c%c%c%c\n", 'a' + ocol, '1' + orow, 'a' + ncol, '1' + nrow, (char) (type_to_char(to_promote->type) + 32));
 		send_to_ics(ics_mv);
+		send_to_uci(uci_mv);
 
 		char bufstr[8];
 		memset(bufstr, 0, sizeof(bufstr));

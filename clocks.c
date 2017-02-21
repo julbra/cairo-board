@@ -143,12 +143,12 @@ void clock_freeze(chess_clock *clock) {
 	}
 }
 
-void clock_reset(chess_clock *clock, int initial_time, int increment, int relation) {
+void clock_reset(chess_clock *clock, int initial_time, int increment, int relation, bool should_lock) {
 	clock_freeze(clock);
 	clock->initial_time = initial_time;
 	clock->increment = increment;
 	clock->relation = relation;
-	update_clocks(clock, clock->initial_time, clock->initial_time, true);
+	update_clocks(clock, clock->initial_time, clock->initial_time, should_lock);
 }
 
 void clock_destroy(chess_clock *clock) {

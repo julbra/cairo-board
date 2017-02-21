@@ -205,8 +205,6 @@ static int de_scale_timer = 0;
 static int auto_play_timer = 0;
 static int clock_refresher = 0;
 
-static int clock_display_timer = 0;
-
 // globals
 int promo_type = 0;
 int mouse_clicked[2] = {-1, -1};
@@ -1398,12 +1396,15 @@ void send_to_ics(char *s) {
 	}
 	else {
 		debug("Would send to ICS %s", s);
-		size_t len = strlen(s);
-		s[len - 1] = '\0';
-		user_move_to_uci(s);
 	}
 }
 
+void send_to_uci(char *s) {
+	debug("Would send to ICS %s", s);
+	size_t len = strlen(s);
+	s[len - 1] = '\0';
+	user_move_to_uci(s);
+}
 
 /* move must be a NULL terminated string */
 int resolve_move(int t, char *move, int resolved_move[4], int blacks_ply, chess_piece w_set[16], chess_piece b_set[16], chess_square sq[8][8]) {
@@ -1634,7 +1635,7 @@ gboolean auto_play_one_move(gpointer data) {
 	if (i != -1) {
 		if (! playing) {
 			playing = 1;
-			start_game(white_name, black_name, 0, 0, -2);
+			start_game(white_name, black_name, 0, 0, -2, true);
 			if (!strncmp("Kasparov, Gary", black_name, 16)) {
 				g_signal_emit_by_name(board, "flip-board");
 			}
@@ -1813,7 +1814,7 @@ gboolean auto_play_one_uci_move(gpointer data) {
 }
 
 gboolean delayed_start_uci_game(gpointer data) {
-	startNewUciGame();
+	startNewUciGame(60);
 	return FALSE;
 }
 
@@ -2031,7 +2032,6 @@ int parse_board12(char *string_chunk) {
 		if ( !clock_started && moveNum == 2 && relation && game_started && to_play == 'W' ) {
 			start_one_clock(main_clock, 0);
 			clock_started = 1;
-			//clock_display_timer = g_timeout_add(1000, print_main_clock, NULL);
 		}
 
 
@@ -2586,11 +2586,13 @@ void set_header_label(const char *w_name, const char *b_name, const char *w_rati
 
 }
 
-void start_game(char *w_name, char *b_name, int seconds, int increment, int relation) {
+void start_game(char *w_name, char *b_name, int seconds, int increment, int relation, bool should_lock) {
 
-	clock_reset(main_clock, seconds, increment, relation);
+	clock_reset(main_clock, seconds, increment, relation, should_lock);
 
-	gdk_threads_enter();
+	if (should_lock) {
+		gdk_threads_enter();
+	}
 
 //	if (mouse_dragged_piece != NULL) {
 //		g_atomic_int_set(&moveit_flag, 0);
@@ -2617,7 +2619,9 @@ void start_game(char *w_name, char *b_name, int seconds, int increment, int rela
 		gtk_window_set_title(GTK_WINDOW(main_window), title);
 	}
 
-	gdk_threads_leave();
+	if (should_lock) {
+		gdk_threads_leave();
+	}
 
 	switch (relation) {
 		case 1:
@@ -2646,10 +2650,6 @@ static void end_game(void) {
 	game_started = 0;
 	clock_started = 0;
 	my_game = 0;
-	if (clock_display_timer) {
-		g_source_remove(clock_display_timer);
-		clock_display_timer = 0;
-	}
 	clock_freeze(main_clock);
 }
 
@@ -3316,7 +3316,7 @@ void parse_ics_buffer(void) {
 						// determine relation
 						int relation = 1;
 						if (!strcmp(bn, my_handle)) relation = -1;
-						start_game(white_name, black_name, init_time*60, increment, relation);
+						start_game(white_name, black_name, init_time*60, increment, relation, true);
 						requested_start = 0;
 						if (crafty_mode) {
 							write_to_crafty("new\n");
@@ -3398,7 +3398,7 @@ void parse_ics_buffer(void) {
 				memset(name2, 0, 256);
 				sprintf(name1, "%s (%s)", w_name, w_rating);
 				sprintf(name2, "%s (%s)", b_name, b_rating);
-				start_game(name1, name2, 60*init_time, increment, 0);
+				start_game(name1, name2, 60*init_time, increment, 0, true);
 				requested_times = 1;
 				char request_moves[16];
 				snprintf(request_moves, 16, "moves %ld\n", game_num);
@@ -3468,7 +3468,7 @@ void parse_ics_buffer(void) {
 					// determine relation
 					int relation = 1;
 					if (!strcmp(bn, my_handle)) relation = -1;
-					start_game(white_name, black_name, init_time*60, increment, relation);
+					start_game(white_name, black_name, init_time*60, increment, relation, true);
 					requested_start = 0;
 				}
 				/////
