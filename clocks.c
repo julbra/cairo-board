@@ -3,6 +3,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 #include "clocks.h"
 #include "clock-widget.h"
@@ -134,11 +135,11 @@ chess_clock *clock_new(int initial_time_s, int incerement_s, int relation) {
 }
 
 void clock_freeze(chess_clock *clock) {
-	if(is_active(clock, 0)) {
-		stop_one_clock(clock,  0);
+	if (is_active(clock, 0)) {
+		stop_one_clock(clock, 0, true);
 	}
-	if(is_active(clock, 1)) {
-		stop_one_clock(clock,  1);
+	if (is_active(clock, 1)) {
+		stop_one_clock(clock, 1, true);
 	}
 }
 
@@ -147,7 +148,7 @@ void clock_reset(chess_clock *clock, int initial_time, int increment, int relati
 	clock->initial_time = initial_time;
 	clock->increment = increment;
 	clock->relation = relation;
-	update_clocks(clock, clock->initial_time, clock->initial_time);
+	update_clocks(clock, clock->initial_time, clock->initial_time, true);
 }
 
 void clock_destroy(chess_clock *clock) {
@@ -167,20 +168,24 @@ void clock_destroy(chess_clock *clock) {
 }
 
 /* this is thread safe */
-void update_clocks(chess_clock *clock, int white_s, int black_s) {
+void update_clocks(chess_clock *clock, int white_s, int black_s, bool shouldLock) {
 	pthread_mutex_lock( &clock->update_mutex );
 	clock->remaining_time[0].tv_sec = white_s;
 	clock->remaining_time[0].tv_usec = 0;
 	clock->remaining_time[1].tv_sec = black_s;
 	clock->remaining_time[1].tv_usec = 0;
 	pthread_mutex_unlock( &clock->update_mutex );
-	gdk_threads_enter();
+	if (shouldLock) {
+		gdk_threads_enter();
+	}
 	refresh_both_clocks(GTK_WIDGET(clock->parent));
-	gdk_threads_leave();
+	if (shouldLock) {
+		gdk_threads_leave();
+	}
 }
 
 /* locks the associated runner funtion and reset the mtime */
-void stop_one_clock(chess_clock *clock, int color) {
+void stop_one_clock(chess_clock *clock, int color, bool shouldLock) {
 
 	sem_wait( (color ? &clock->sem_black : &clock->sem_white) );
 
@@ -188,9 +193,13 @@ void stop_one_clock(chess_clock *clock, int color) {
 	clock->last_modified_time[color].tv_sec = 0;
 	pthread_mutex_unlock( &clock->update_mutex );
 
-	gdk_threads_enter();
+	if (shouldLock) {
+		gdk_threads_enter();
+	}
 	refresh_one_clock(GTK_WIDGET(clock->parent), color);
-	gdk_threads_leave();
+	if (shouldLock) {
+		gdk_threads_leave();
+	}
 }
 
 /* unlocks the associated runner funtion */
@@ -204,7 +213,7 @@ int is_active(chess_clock *clock, int color) {
 	return ret;
 }
 
-void swap_clocks(chess_clock *clock) {
+void swap_clocks(chess_clock *clock, bool shouldLock) {
 	int w, b;
 	w = is_active(clock, 0);
 	b = is_active(clock, 1);
@@ -216,22 +225,28 @@ void swap_clocks(chess_clock *clock) {
 		fprintf(stderr, "ERROR: swap_clocks - both white and black semaphores are locked!\n");
 		return;
 	}
-	stop_one_clock(clock,  b ? 1 : 0);
+	stop_one_clock(clock,  b ? 1 : 0, shouldLock);
 	start_one_clock(clock, b ? 0 : 1);
 }
 
-void start_one_stop_other_clock(chess_clock *clock, int color_to_start) {
+void start_one_stop_other_clock(chess_clock *clock, int color_to_start, bool shouldLock) {
 	debug("start_one_stop_other_clock\n");
 	int to_start = color_to_start ? 1 : 0;
 	int to_stop  = color_to_start ? 0 : 1;
-	if (!is_active(clock, to_start))
+	if (!is_active(clock, to_start)) {
 		start_one_clock(clock, to_start);
-	if (is_active(clock, to_stop))
-		stop_one_clock(clock,  to_stop);
+	}
+	if (is_active(clock, to_stop)) {
+		stop_one_clock(clock, to_stop, shouldLock);
+	}
 }
 
 long get_remaining_time(chess_clock *clock, int color) {
-	return tv_to_ms(&clock->remaining_time[color]);
+	long millis = tv_to_ms(&clock->remaining_time[color]);
+	if (millis < 0) {
+		millis = 0;
+	}
+	return millis;
 }
 
 void print_clock(chess_clock *clock) {
@@ -256,7 +271,7 @@ void ms_to_string(long ms, char human[]) {
 	}
 
 	// prepare for use with strcat
-	memset(human, 0, sizeof(human));
+	memset(human, 0, strlen(human) + 1);
 
 	if (ms < 0) {
 		strcat(human, "-");
@@ -295,7 +310,7 @@ void clock_to_string(chess_clock *clock, int color, char clock_string[]) {
 	}
 
 	// prepare for use with strcat
-	memset(clock_string, 0, sizeof(clock_string));
+	memset(clock_string, 0, strlen(clock_string) + 1);
 	strcat(clock_string, color?"Black: ":"White: ");
 
 	if (ms < 0) {
@@ -355,29 +370,29 @@ int clock_main(void) {
 		usleep(100000);
 	}
 
-	swap_clocks(myclock);
+	swap_clocks(myclock, true);
 	for(i=0; i<40; i++) {
 		print_clock(myclock);
 		usleep(100000);
 	}
 
-	swap_clocks(myclock);
+	swap_clocks(myclock, true);
 	for(i=0; i<40; i++) {
 		print_clock(myclock);
 		usleep(100000);
 	}
 
-	swap_clocks(myclock);
+	swap_clocks(myclock, true);
 	for(i=0; i<40; i++) {
 		print_clock(myclock);
 		usleep(100000);
 	}
-	swap_clocks(myclock);
+	swap_clocks(myclock, true);
 	for(i=0; i<40; i++) {
 		print_clock(myclock);
 		usleep(100000);
 	}
-	swap_clocks(myclock);
+	swap_clocks(myclock, true);
 	for(i=0; i<40; i++) {
 		print_clock(myclock);
 		usleep(100000);

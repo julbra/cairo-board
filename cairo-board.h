@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <gtk/gtk.h>
 #include <wchar.h>
+#include "clocks.h"
 
 /* debug macro */
 #ifndef debug
@@ -259,6 +260,8 @@ extern gulong hide_handler_id;
 extern gboolean highlight_moves;
 extern gboolean has_chosen;
 extern gboolean highlight_last_move;
+
+extern chess_clock *main_clock;
 
 
 /* exported helpers */

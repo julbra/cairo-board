@@ -26,6 +26,7 @@ FIND_PACKAGE(FLEX)
 FLEX_TARGET(IcsScanner ics_scanner.lex  ${CMAKE_CURRENT_BINARY_DIR}/ics_scanner.c COMPILE_FLAGS "-Pics_scanner_")
 FLEX_TARGET(CraftyScanner crafty_scanner.lex  ${CMAKE_CURRENT_BINARY_DIR}/crafty_scanner.c COMPILE_FLAGS "-Pcrafty_scanner_")
 FLEX_TARGET(SanScanner san_scanner.lex  ${CMAKE_CURRENT_BINARY_DIR}/san_scanner.c COMPILE_FLAGS "-Psan_scanner_")
+FLEX_TARGET(UciScanner uci_scanner.lex  ${CMAKE_CURRENT_BINARY_DIR}/uci_scanner.c COMPILE_FLAGS "-Puci_scanner_")
 
 set(SOURCE_FILES
         cairo-board.h
@@ -53,7 +54,10 @@ set(SOURCE_FILES
         san_scanner.c
         san_scanner.h
         test.c
-        test.h)
+        test.h
+        uci-adapter.c
+        uci_scanner.c
+        uci_scanner.h)
 
 include_directories(
         ${CMAKE_CURRENT_SOURCE_DIR}

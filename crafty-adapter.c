@@ -23,40 +23,12 @@ void write_to_crafty(char *message) {
 	}
 }
 
-int write_crafty_fd(void) {
-	static char buff[BSIZE];
-	int i;
-	i = read(STDIN_FILENO, buff, BSIZE);
-
-	if (!i) {
-		fprintf(stderr, "Read 0 bytes?!\n");
-		return 1;
-	}
-
-	if (i < 0) {
-		perror(NULL);
-		return -1;
-	}
-
-	if (write(crafty_in, buff, i) == -1) {
-		perror(NULL);
-		return -1;
-	}
-
-	fprintf(stdout, "[crafty io thread] - Wrote to crafty\n");
-	return 0;
-}
-
 pthread_t crafty_read_thread;
-pthread_t crafty_write_thread;
 
-void *crafty_read_function( void *ptr );
-void *crafty_write_function( void *ptr );
 void *parse_crafty_function( void *ptr );
 
 int spawn_crafty(void) {
 	GPid child_pid;
-
 
 	int i;
 
@@ -69,7 +41,7 @@ int spawn_crafty(void) {
 	argv[1] = NULL;
 
 	const char* home_dir = g_get_home_dir();
-	char *crafty_directory = calloc(strlen(home_dir)+9, sizeof(char));
+    char *crafty_directory = calloc(strlen(home_dir) + 9, sizeof(char));
 	strcpy(crafty_directory, home_dir);
 	strcat(crafty_directory, "/.crafty");
 
@@ -88,16 +60,6 @@ int spawn_crafty(void) {
 //	}
 //	free(argv);
 
-	return 0;
-}
-
-void *crafty_write_function( void *ptr ) {
-
-	while(!write_crafty_fd()) {
-		;
-	}
-
-	fprintf(stdout, "[crafty io thread] - Closing Crafty Write thread\n");
 	return 0;
 }
 

@@ -4,8 +4,8 @@
 
 #define YY_NO_INPUT
 
-int ics_scannerlex(void);
-void ics_scannerrestart (FILE *input_file);
+int ics_scanner_lex(void);
+void ics_scanner_restart (FILE *input_file);
 #ifndef YY_TYPEDEF_YY_SIZE_T
 #define YY_TYPEDEF_YY_SIZE_T
 typedef unsigned int yy_size_t;

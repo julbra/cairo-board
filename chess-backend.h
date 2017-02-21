@@ -43,6 +43,7 @@ int check_hash_triplet(void);
 void init_zobrist_hash_history(void);
 
 void generate_fen_no_enpassant(char fen_string[128], chess_square sq[8][8], int castle_state[2][2], int whose_turn);
+void generate_fen(char fen_string[128], chess_square sq[8][8], int castle_state[2][2], int en_passant[8], int whose_turn);
 
 #endif
 

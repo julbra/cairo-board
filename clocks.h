@@ -5,6 +5,7 @@
 #include <semaphore.h>
 #include <sys/time.h>
 #include <gtk/gtk.h>
+#include <stdbool.h>
 
 typedef struct _chess_clock {
 	int initial_time; // in seconds
@@ -36,16 +37,16 @@ void clock_freeze(chess_clock *clock);
 void *black_clock_runner_function(void *);
 void *white_clock_runner_function(void *);
 void start_one_clock(chess_clock *, int);
-void stop_one_clock(chess_clock *, int);
-void swap_clocks(chess_clock *clock);
-void start_one_stop_other_clock(chess_clock *clock, int color_to_start);
+void stop_one_clock(chess_clock *, int, bool);
+void swap_clocks(chess_clock *clock, bool);
+void start_one_stop_other_clock(chess_clock *clock, int color_to_start, bool);
 int is_active(chess_clock *, int);
 int is_clock_expired(chess_clock *clock, int color);
 void print_clock(chess_clock *);
 long tv_to_ms(struct timeval *);
 void ms_to_string(long, char[]);
 void clock_to_string(chess_clock *, int, char[]);
-void update_clocks(chess_clock *, int, int);
+void update_clocks(chess_clock *, int, int, bool);
 long get_remaining_time(chess_clock *, int);
 int am_low_on_time(chess_clock *clock);
 void set_parent_widget(GtkWidget *parent);

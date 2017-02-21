@@ -24,6 +24,7 @@
 #include "clock-widget.h"
 #include "test.h"
 #include "crafty-adapter.h"
+#include "uci-adapter.h"
 #include "channels.h"
 
 #include <locale.h>
@@ -104,7 +105,7 @@ gboolean crafty_first_guest = FALSE;
 
 gboolean use_fig = FALSE;
 gboolean show_last_move = FALSE;
-gboolean always_promote_to_queen = TRUE;
+gboolean always_promote_to_queen = FALSE;
 gboolean highlight_moves = FALSE;
 gboolean highlight_last_move = FALSE;
 
@@ -128,8 +129,8 @@ char my_password[128];
 unsigned short ics_port;
 unsigned short default_ics_port = 5000;
 char file_to_load[PATH_MAX];
-int game_to_load = 1;
-int auto_play_delay = 1000;
+unsigned int game_to_load = 1;
+unsigned int auto_play_delay = 1000;
 
 static int requested_moves = 0;
 static int requested_start = 0;
@@ -150,7 +151,7 @@ char last_san_move[SAN_MOVE_SIZE];
 
 
 // clocks variables
-static chess_clock *main_clock;
+chess_clock *main_clock;
 int clock_started = 0;
 
 // <premove variables>
@@ -283,11 +284,12 @@ wint_t type_to_unicode_char(int type);
 int colorise_type(int tt, int colour);
 void draw_pieces_surface(int swi, int shi);
 int open_file(const char*);
-gboolean auto_play_one_move(gpointer);
-gboolean auto_play_loop_ics_move(gpointer);
-gboolean auto_play_one_ics_move(gpointer);
-void reset_moves_list_view(gboolean);
+gboolean auto_play_one_move(gpointer data);
+gboolean auto_play_loop_ics_move(gpointer data);
+gboolean auto_play_one_ics_move(gpointer data);
+void reset_moves_list_view(gboolean lock_threads);
 gboolean auto_play_one_crafty_move(gpointer data);
+gboolean auto_play_one_uci_move(gpointer data);
 
 static void reset_game(void);
 static void end_game(void);
@@ -350,9 +352,9 @@ void get_last_move(char *data) {
 
 /******** <Signals Stuff> ***********/
 void create_signals(void) {
-	g_type_init();
 	g_signal_new("got_move", GTK_TYPE_WIDGET, G_SIGNAL_RUN_FIRST, 0, NULL, NULL, /*marshaller*/g_cclosure_marshal_VOID__VOID, /*return type*/G_TYPE_NONE, 0);
 	g_signal_new("got-crafty-move", GTK_TYPE_WIDGET, G_SIGNAL_RUN_FIRST, 0, NULL, NULL, /*marshaller*/g_cclosure_marshal_VOID__VOID, /*return type*/G_TYPE_NONE, 0);
+	g_signal_new("got-uci-move", GTK_TYPE_WIDGET, G_SIGNAL_RUN_FIRST, 0, NULL, NULL, /*marshaller*/g_cclosure_marshal_VOID__VOID, /*return type*/G_TYPE_NONE, 0);
 	g_signal_new("flip-board", GTK_TYPE_WIDGET, G_SIGNAL_RUN_FIRST, 0, NULL, NULL, /*marshaller*/g_cclosure_marshal_VOID__VOID, /*return type*/G_TYPE_NONE, 0);
 }
 /******** </Signals Stuff> ***********/
@@ -846,8 +848,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 					}
 					choose_promote(1, FALSE, ocol, orow, col, row, lock_threads);
 				}
-			}
-			else {
+			} else {
 				delay_from_promotion = FALSE; // this means we can print the move when we return from this
 				char promo_string[8];
 				memset(promo_string, 0, 8);
@@ -866,8 +867,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 					// Else promo handled at end of anim because it's prettier
 				}
 			}
-		}
-		else {
+		} else {
 			delay_from_promotion = FALSE;
 		}
 
@@ -1106,26 +1106,32 @@ gboolean de_scale (gpointer data) {
 	return FALSE;
 }
 
-static gboolean on_get_move (GtkWidget *pWidget) {
+static gboolean on_get_move(GtkWidget *pWidget) {
 	debug("Got Move\n");
 	auto_play_one_ics_move(pWidget);
 
 	// Kludge to wake-up the window
-	//gdk_flush();
 	g_main_context_wakeup(NULL);
 
-	return TRUE;
+	return true;
 }
 
-static gboolean on_get_crafty_move (GtkWidget *pWidget) {
+static gboolean on_get_crafty_move(GtkWidget *pWidget) {
 	debug("Got Crafty Move\n");
 	auto_play_one_crafty_move(pWidget);
 
 	// Kludge to wake-up the window
-	//gdk_flush();
 	g_main_context_wakeup(NULL);
 
-	return TRUE;
+	return true;
+}
+
+static gboolean on_get_uci_move(GtkWidget *pWidget) {
+	debug("Got UCI Move\n");
+	auto_play_one_uci_move(pWidget);
+	// Kludge to wake-up the window
+	g_main_context_wakeup(NULL);
+	return true;
 }
 
 static gboolean on_flip_board (GtkWidget *pWidget) {
@@ -1346,25 +1352,25 @@ int ics_data_pipe[2];
 
 int crafty_data_pipe[2];
 
-void *read_message_function( void *ptr ) {
-	int *socket = (int*)(ptr);
+void *read_message_function(void *ptr) {
+    int *socket = (int *) (ptr);
 
-	while(!read_write_ics_fd(STDIN_FILENO, ics_data_pipe[1], *socket)) {
-		usleep(10000);
-	}
+    while (!read_write_ics_fd(STDIN_FILENO, ics_data_pipe[1], *socket)) {
+        usleep(10000);
+    }
 
-	fprintf(stdout, "[read ics thread] - Closing ICS reader\n");
-	return 0;
+    fprintf(stdout, "[read ics thread] - Closing ICS reader\n");
+    return 0;
 }
 
-void *parse_ics_function( void *ptr ) {
+void *parse_ics_function(void *ptr) {
 
-	while(g_atomic_int_get(&running_flag)) {
-			parse_ics_buffer();
-	}
+    while (g_atomic_int_get(&running_flag)) {
+        parse_ics_buffer();
+    }
 
-	fprintf(stdout, "[parse ics thread] - Closing ICS parser\n");
-	return 0;
+    fprintf(stdout, "[parse ics thread] - Closing ICS parser\n");
+    return 0;
 }
 
 
@@ -1392,6 +1398,9 @@ void send_to_ics(char *s) {
 	}
 	else {
 		debug("Would send to ICS %s", s);
+		size_t len = strlen(s);
+		s[len - 1] = '\0';
+		user_move_to_uci(s);
 	}
 }
 
@@ -1786,6 +1795,28 @@ gboolean auto_play_one_crafty_move(gpointer data) {
 	return FALSE;
 }
 
+gboolean auto_play_one_uci_move(gpointer data) {
+	debug("Autoplay one UCI move\n");
+	int resolved_move[4];
+	char lm[MOVE_BUFF_SIZE];
+
+	get_last_move(lm);
+	debug("lm %c%c %c%c\n", lm[0], lm[1], lm[2], lm[3]);
+	resolved_move[0] = lm[0] - 'a';
+	resolved_move[1] = lm[1] - '1';
+	resolved_move[2] = lm[2] - 'a';
+	resolved_move[3] = lm[3] - '1';
+	debug("resolved_move %d%d %d%d\n", resolved_move[0], resolved_move[1], resolved_move[2], resolved_move[3]);
+
+	auto_move(squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE);
+	return true;
+}
+
+gboolean delayed_start_uci_game(gpointer data) {
+	startNewUciGame();
+	return FALSE;
+}
+
 // handle max of 10 starmatches at once (per-looking at)
 char star_match[10][1024];
 
@@ -1967,7 +1998,7 @@ int parse_board12(char *string_chunk) {
 		/* Did we ask for times? */
 		if (requested_times) {
 			requested_times = 0;
-			update_clocks(main_clock, white_time, black_time);
+			update_clocks(main_clock, white_time, black_time, true);
 			if (!clock_started && moveNum >= 2) {
 				clock_started = 1;
 				start_one_clock(main_clock, (to_play == 'W')?0:1);
@@ -1978,7 +2009,7 @@ int parse_board12(char *string_chunk) {
 		
 		/* game and clocks started: update the clocks */
 		if ( game_started && clock_started) {
-			update_clocks(main_clock, white_time, black_time);
+			update_clocks(main_clock, white_time, black_time, true);
 		}
 
 
@@ -1986,7 +2017,7 @@ int parse_board12(char *string_chunk) {
 		if ( game_started && relation ) {
 			set_last_move(san_move);
 			if (clock_started) {
-				start_one_stop_other_clock(main_clock, (to_play == 'W')?0:1);
+				start_one_stop_other_clock(main_clock, (to_play == 'W') ? 0 : 1, true);
 			}
 		}
 
@@ -2007,25 +2038,25 @@ int parse_board12(char *string_chunk) {
 		if (relation > 0 && strncmp("none", san_move, 4)) {
 				debug("Emitting signal\n");
 				g_signal_emit_by_name(board, "got_move");
-				if (crafty_mode) {
-					char *command = calloc(256, sizeof(char));
-					int crafty_time = (to_play == 'W'?white_time:black_time);
-					int otime = (to_play == 'W'?black_time:white_time);
-					debug("Crafty Time %d - Opponent time: %d\n", crafty_time, otime);
-					snprintf(command, 256, "time %d\n", 100*crafty_time );
-					write_to_crafty(command);
-					memset(command, 0, 256);
-					snprintf(command, 256, "otime %d\n", 100*otime );
-					write_to_crafty(command);
-					memset(command, 0, 256);
-					snprintf(command, 256, "%s\n", san_move);
-					write_to_crafty(command);
-					free(command);
-				}
+			if (crafty_mode) {
+				char *command = calloc(256, sizeof(char));
+				int crafty_time = (to_play == 'W' ? white_time : black_time);
+				int otime = (to_play == 'W' ? black_time : white_time);
+				debug("Crafty Time %d - Opponent time: %d\n", crafty_time, otime);
+				snprintf(command, 256, "time %d\n", 100 * crafty_time);
+				write_to_crafty(command);
+				memset(command, 0, 256);
+				snprintf(command, 256, "otime %d\n", 100 * otime);
+				write_to_crafty(command);
+				memset(command, 0, 256);
+				snprintf(command, 256, "%s\n", san_move);
+				write_to_crafty(command);
+				free(command);
+			}
 		}
 		if (!relation || relation == -2) {
 			if (clock_started) {
-				start_one_stop_other_clock(main_clock, (to_play == 'W')?0:1);
+				start_one_stop_other_clock(main_clock, (to_play == 'W') ? 0 : 1, true);
 				debug("swap clocks\n");
 			}
 			if (gamenum == my_game && finished_parsing_moves) {
@@ -2034,7 +2065,7 @@ int parse_board12(char *string_chunk) {
 				}
 				if (!clock_started && moveNum >= 2) {
 					clock_started = 1;
-					update_clocks(main_clock, white_time, black_time);
+					update_clocks(main_clock, white_time, black_time, true);
 					start_one_clock(main_clock, (to_play == 'W')?0:1);
 					debug("start clocks\n");
 				}
@@ -2588,26 +2619,27 @@ void start_game(char *w_name, char *b_name, int seconds, int increment, int rela
 
 	gdk_threads_leave();
 
-	if (relation == -1) { //game started as black?
-		debug("Game started as Black\n");
-		g_signal_emit_by_name(board, "flip-board");
-		game_mode = I_PLAY_BLACK;
+	switch (relation) {
+		case 1:
+			debug("Game started as White\n");
+			game_mode = I_PLAY_WHITE;
+			break;
+		case -1:
+			debug("Game started as Black\n");
+			g_signal_emit_by_name(board, "flip-board");
+			game_mode = I_PLAY_BLACK;
+			break;
+		case 0:
+			debug("Observing played game\n");
+			game_mode = I_OBSERVE;
+			break;
+		case -2:
+			debug("Observing examined game\n");
+			game_mode = I_OBSERVE;
+			break;
+		default:
+			debug("Unknown relation %d\n", relation);
 	}
-	else if (relation == 1) {
-		debug("Game started as White\n");
-		game_mode = I_PLAY_WHITE;
-	}
-	else if (!relation) {
-		debug("Observing played game\n");
-		game_mode = I_OBSERVE;
-	}
-	else if (relation == -2) {
-		debug("Observing examined game\n");
-		game_mode = I_OBSERVE;
-	}
-
-
-
 }
 
 static void end_game(void) {
@@ -2615,7 +2647,7 @@ static void end_game(void) {
 	clock_started = 0;
 	my_game = 0;
 	if (clock_display_timer) {
-		g_source_remove (clock_display_timer);
+		g_source_remove(clock_display_timer);
 		clock_display_timer = 0;
 	}
 	clock_freeze(main_clock);
@@ -3113,7 +3145,7 @@ void parse_ics_buffer(void) {
 				break;
 			case CHANNEL_CHAT: {
 				parser_state = CAPTURING_CHAT;
-				last_message = calloc(ics_scanner_leng+1, sizeof(char));
+				last_message = calloc(ics_scanner_leng + 1, sizeof(char));
 				memset(last_user, 0, 32);
 				last_channel_number = parse_channel_chat(ics_scanner_text, last_user, last_message);
 				insert_text_channel_view(last_channel_number, last_user, last_message, TRUE);
@@ -3122,7 +3154,7 @@ void parse_ics_buffer(void) {
 			}
 			case PRIVATE_TELL: {
 				parser_state = CAPTURING_CHAT;
-				last_message = calloc(ics_scanner_leng+1, sizeof(char));
+				last_message = calloc(ics_scanner_leng + 1, sizeof(char));
 				memset(last_user, 0, 32);
 				parse_private_tell(ics_scanner_text, last_user, last_message);
 				insert_text_channel_view(last_channel_number, last_user, last_message, TRUE);
@@ -3987,7 +4019,6 @@ int main (int argc, char **argv) {
 	win_def_wi = 1024;
 	win_def_hi = 768;
 
-
 	create_signals();
 
 	// install signal handler for SIGABRT and SIGSEGV
@@ -4001,16 +4032,14 @@ int main (int argc, char **argv) {
 	init_anims_map();
 
 	/* Initilialise threading stuff */
-	g_thread_init(NULL);
 	gdk_threads_init();
 	gdk_threads_enter();
 
-	gtk_init (&argc, &argv);
+	gtk_init(&argc, &argv);
 
-	g_type_init ();
 	load_piecesSvg();
 
-	main_window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
+	main_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 
 	/* Update style for notebook close tab buttons */
 	gtk_rc_parse_string (
@@ -4217,7 +4246,7 @@ int main (int argc, char **argv) {
 	gtk_paned_pack2( GTK_PANED(split_pane), right_split_pane, FALSE, FALSE);
 
 	gtk_widget_set_size_request (moves_v_box, 256, -1);
-	gtk_paned_set_position( GTK_PANED(split_pane), -2+((double)clock_board_ratio)/((double)clock_board_ratio+1.0f)*win_def_hi);
+	gtk_paned_set_position(GTK_PANED(split_pane), (gint) (-2 + ((double) clock_board_ratio) / ((double) clock_board_ratio + 1.0f) * win_def_hi));
 
 	gtk_container_add (GTK_CONTAINER (main_window), split_pane);
 
@@ -4225,11 +4254,6 @@ int main (int argc, char **argv) {
 	gtk_widget_set_name (GTK_WIDGET (main_window), "Mother of all windows");
 	gtk_widget_set_name (GTK_WIDGET (board), "Board Area");
 
-	/* Unlike metacity, kwin doesn't seem to send a configure event
-	 * when the window first pops.
-	 * 'needs_update' needs to be initialised to '1' on kwin
-	 * I haven't noticed this bug on recent build of kwin so commenting out
-	 * */
 	needs_update = 0;
 	needs_scale = 0;
 
@@ -4240,15 +4264,16 @@ int main (int argc, char **argv) {
 	gtk_quit_add_destroy(1, GTK_OBJECT(main_window));
 	gtk_quit_add (1, cleanup, NULL);
 
- 	g_signal_connect (board, "expose-event", G_CALLBACK(on_board_expose), NULL);
+	g_signal_connect (board, "expose-event", G_CALLBACK(on_board_expose), NULL);
 
-	g_signal_connect (G_OBJECT (board), "button-press-event", G_CALLBACK (on_button_press), NULL);
-	g_signal_connect (G_OBJECT (board), "button-release-event", G_CALLBACK (on_button_release), NULL);
-	g_signal_connect (G_OBJECT (board), "motion_notify_event", G_CALLBACK (on_motion), NULL);
-	g_signal_connect (G_OBJECT (board), "configure_event", G_CALLBACK (on_configure_event), NULL);
-	g_signal_connect (G_OBJECT (board), "got_move", G_CALLBACK (on_get_move), NULL);
-	g_signal_connect (G_OBJECT (board), "got-crafty-move", G_CALLBACK (on_get_crafty_move), NULL);
-	g_signal_connect (G_OBJECT (board), "flip-board", G_CALLBACK (on_flip_board), NULL);
+	g_signal_connect (G_OBJECT(board), "button-press-event", G_CALLBACK(on_button_press), NULL);
+	g_signal_connect (G_OBJECT(board), "button-release-event", G_CALLBACK(on_button_release), NULL);
+	g_signal_connect (G_OBJECT(board), "motion_notify_event", G_CALLBACK(on_motion), NULL);
+	g_signal_connect (G_OBJECT(board), "configure_event", G_CALLBACK(on_configure_event), NULL);
+	g_signal_connect (G_OBJECT(board), "got_move", G_CALLBACK(on_get_move), NULL);
+	g_signal_connect (G_OBJECT(board), "got-crafty-move", G_CALLBACK(on_get_crafty_move), NULL);
+	g_signal_connect (G_OBJECT(board), "got-uci-move", G_CALLBACK(on_get_uci_move), NULL);
+	g_signal_connect (G_OBJECT(board), "flip-board", G_CALLBACK(on_flip_board), NULL);
 
 	/* Get the pieces SVG dimensions for rendering */
 	RsvgDimensionData g_DimensionData;
@@ -4302,6 +4327,9 @@ int main (int argc, char **argv) {
 		}
 	}
 
+	spawn_uci_engine();
+	debug("Spawned UCI engine\n");
+
 	spawn_mover();
 
 	///////////////////////
@@ -4309,13 +4337,17 @@ int main (int argc, char **argv) {
 //	test_crazy_flip();
 //	test_random_channel_insert();
 //	test_random_title();
-//	test_observe();
+//	test_random_flip();
+//	startNewUciGame();
 	///////////////////////
+
+	g_timeout_add(0, delayed_start_uci_game, NULL);
 
 	// Start Gdk Main Loop
 	gtk_main();
 
 	gdk_threads_leave();
+
 	return 0;
 }
 
