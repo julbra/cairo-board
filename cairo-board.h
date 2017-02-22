@@ -3,12 +3,15 @@
 #ifndef __CAIRO_BOARD_H__
 #define __CAIRO_BOARD_H__
 
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#include <gtk/gtk.h>
 #include <librsvg/rsvg.h>
-#include <sys/time.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <gtk/gtk.h>
+#include <sys/time.h>
 #include <wchar.h>
+
 #include "clocks.h"
 
 /* debug macro */
@@ -262,6 +265,8 @@ extern gboolean has_chosen;
 extern gboolean highlight_last_move;
 
 extern chess_clock *main_clock;
+
+extern cairo_font_face_t *sevenSegmentFace;
 
 
 /* exported helpers */

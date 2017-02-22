@@ -400,36 +400,6 @@ void free_all_channels(void) {
 	g_hash_table_foreach(channel_map, free_channel_function, NULL);
 }
 
-char *states[] = {
-    "normal", "active", "prelight", "selected", "insensitive"
-};
-
-void print_color (GdkColor *c) {
-    printf ("\"#%02x%02x%02x\"", c->red / 256, c->green / 256, c->blue / 256);
-}
-
-void print_colors (char *name, GdkColor *x, int n) {
-    int i;
-    printf ("(%s", name);
-    for (i = 0; i < n; i++)
-    {
-	printf (" (%s . ", states[i]);
-	print_color (x + i);
-	printf (")");
-    }
-    printf (")\n");
-}
-
-void print_style (GtkStyle *style) {
-    print_colors ("fg", style->fg, 5);
-    print_colors ("bg", style->bg, 5);
-    print_colors ("light", style->light, 5);
-    print_colors ("dark", style->dark, 5);
-    print_colors ("mid", style->mid, 5);
-    print_colors ("text", style->text, 5);
-    print_colors ("base", style->base, 5);
-}
-
 /* allocates a new channel and create associated widgets
  * call free_channel() to free up the allocated resources */
 channel* create_channel(int channel_num) {

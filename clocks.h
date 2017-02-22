@@ -45,7 +45,7 @@ int is_clock_expired(chess_clock *clock, int color);
 void print_clock(chess_clock *);
 long tv_to_ms(struct timeval *);
 void ms_to_string(long, char[]);
-void clock_to_string(chess_clock *, int, char[]);
+void clock_to_string(chess_clock *, int, char[], char[]);
 void update_clocks(chess_clock *, int, int, bool);
 long get_remaining_time(chess_clock *, int);
 int am_low_on_time(chess_clock *clock);

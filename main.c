@@ -12,6 +12,8 @@
 
 #include <string.h>
 
+#include <ft2build.h>
+#include FT_FREETYPE_H
 
 #include "cairo-board.h"
 #include "configuration.h"
@@ -51,6 +53,7 @@
 
 // wchar stuff
 #include <wchar.h>
+#include <cairo-ft.h>
 
 #define PRODUCT "cairo-board"
 
@@ -204,6 +207,10 @@ static int playing = 0;
 static int de_scale_timer = 0;
 static int auto_play_timer = 0;
 static int clock_refresher = 0;
+
+// FreeType
+FT_Library library;
+cairo_font_face_t *sevenSegmentFace;
 
 // globals
 int promo_type = 0;
@@ -1817,7 +1824,7 @@ gboolean auto_play_one_uci_move(gpointer data) {
 }
 
 gboolean delayed_start_uci_game(gpointer data) {
-	startNewUciGame(60);
+	startNewUciGame(20);
 	return FALSE;
 }
 
@@ -3880,6 +3887,34 @@ char *get_eco_short(const char* fen_key) {
 	return g_hash_table_lookup(eco_short, fen_key);
 }
 
+char *states[] = {
+		"normal", "active", "prelight", "selected", "insensitive"
+};
+
+void print_color(GdkColor *c) {
+	printf("\"#%02x%02x%02x\"", c->red / 256, c->green / 256, c->blue / 256);
+}
+
+void print_colors(char *name, GdkColor *x, int n) {
+	int i;
+	printf("(%s", name);
+	for (i = 0; i < n; i++) {
+		printf(" (%s . ", states[i]);
+		print_color(x + i);
+		printf(")");
+	}
+	printf(")\n");
+}
+
+void print_style(GtkStyle *style) {
+	print_colors("fg", style->fg, 5);
+	print_colors("bg", style->bg, 5);
+	print_colors("light", style->light, 5);
+	print_colors("dark", style->dark, 5);
+	print_colors("mid", style->mid, 5);
+	print_colors("text", style->text, 5);
+	print_colors("base", style->base, 5);
+}
 
 int main (int argc, char **argv) {
 
@@ -4088,7 +4123,7 @@ int main (int argc, char **argv) {
 	gtk_label_set_justify(GTK_LABEL(moves_list_title_label), GTK_JUSTIFY_CENTER);
 	desc = pango_font_description_from_string ("Sans Bold 12");
 	gtk_widget_modify_font(moves_list_title_label, desc);
-	
+
 	/* Frame for Title label */
 	label_frame_event_box = gtk_event_box_new();
 	label_frame = gtk_frame_new(NULL);
@@ -4096,7 +4131,6 @@ int main (int argc, char **argv) {
 	gtk_container_add (GTK_CONTAINER (align), moves_list_title_label);
 	gtk_container_add (GTK_CONTAINER (label_frame), align);
 	gtk_container_add (GTK_CONTAINER (label_frame_event_box), label_frame);
-
 
 	/* controls for displayed ply */
 	play_pause_button = gtk_button_new();
@@ -4144,7 +4178,7 @@ int main (int argc, char **argv) {
 	/* right gravity */
 	GtkTextIter start_bozo, end_iter;
 	gtk_text_buffer_get_bounds(moves_list_buffer, &start_bozo, &end_iter);
-	
+
 	/* create the end mark */
 	gtk_text_buffer_create_mark(moves_list_buffer, "end_bookmark", &end_iter, 0);
 
@@ -4161,11 +4195,13 @@ int main (int argc, char **argv) {
 	gtk_container_add (GTK_CONTAINER (opening_code_frame_event_box), opening_code_frame);
 
 	/* sets bg colour of title label and opening to match that of the text view */
-	GtkStyle *sty = gtk_widget_get_style(moves_list_view);
-	GdkColor *colour = gdk_color_copy(&(sty->base[GTK_STATE_NORMAL]));
-	gtk_widget_modify_bg(label_frame_event_box, GTK_STATE_NORMAL, colour);
-	gtk_widget_modify_bg(opening_code_frame_event_box, GTK_STATE_NORMAL, colour);
-	gdk_color_free(colour);
+	// Doesn't work anymore as we get a horrible white background for dark themes
+	//GtkStyle *sty = gtk_widget_get_style(moves_list_view);
+	//print_style(sty);
+	//GdkColor *colour = gdk_color_copy(&(sty->bg[GTK_STATE_NORMAL]));
+	//gtk_widget_modify_bg(label_frame_event_box, GTK_STATE_NORMAL, colour);
+	//gtk_widget_modify_bg(opening_code_frame_event_box, GTK_STATE_NORMAL, colour);
+	//gdk_color_free(colour);
 
 	/* vbox to pack title label, controls and view area*/
 	GtkWidget *moves_v_box = gtk_vbox_new(FALSE, 0);
@@ -4345,6 +4381,29 @@ int main (int argc, char **argv) {
 //	test_random_flip();
 //	startNewUciGame();
 	///////////////////////
+
+
+	FT_Error error = FT_Init_FreeType(&library);
+	FT_Face sevenSegmentFTFace;
+	if (error) {
+		perror("Failed to init font\n");
+		return 1;
+	}
+
+	char font_file[] = "DSEG7Classic-Bold.ttf";
+	error = FT_New_Face(library, font_file, 0, &sevenSegmentFTFace);
+	if (error == FT_Err_Unknown_File_Format) {
+		perror("Font format unsupported\n");
+	} else if (error) {
+		perror("font file could not be opened or read, or that it is brokenFont format unsupported\n");
+	} else {
+		FcBool ok = FcConfigAppFontAddFile(FcConfigGetCurrent(), (FcChar8 *)(font_file));
+		if (!ok) {
+			perror("Could not load font in FontConfig");
+		} else {
+			debug("Successfully loaded font in FontConfig! %s %s\n", sevenSegmentFTFace->family_name, sevenSegmentFTFace->style_name);
+		}
+	}
 
 	if (!ics_mode) {
 		g_timeout_add(0, delayed_start_uci_game, NULL);

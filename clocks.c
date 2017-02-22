@@ -184,14 +184,14 @@ void update_clocks(chess_clock *clock, int white_s, int black_s, bool shouldLock
 	}
 }
 
-/* locks the associated runner funtion and reset the mtime */
+/* locks the associated runner function and reset the mtime */
 void stop_one_clock(chess_clock *clock, int color, bool shouldLock) {
 
-	sem_wait( (color ? &clock->sem_black : &clock->sem_white) );
+	sem_wait(color ? &clock->sem_black : &clock->sem_white);
 
-	pthread_mutex_lock( &clock->update_mutex );
+	pthread_mutex_lock(&clock->update_mutex);
 	clock->last_modified_time[color].tv_sec = 0;
-	pthread_mutex_unlock( &clock->update_mutex );
+	pthread_mutex_unlock(&clock->update_mutex);
 
 	if (shouldLock) {
 		gdk_threads_enter();
@@ -204,12 +204,12 @@ void stop_one_clock(chess_clock *clock, int color, bool shouldLock) {
 
 /* unlocks the associated runner funtion */
 void start_one_clock(chess_clock *clock, int color) {
-	sem_post( (color ? &clock->sem_black : &clock->sem_white) );
+	sem_post(color ? &clock->sem_black : &clock->sem_white);
 }
 
 int is_active(chess_clock *clock, int color) {
 	int ret;
-	sem_getvalue((color? &clock->sem_black : &clock->sem_white), &ret);
+	sem_getvalue(color ? &clock->sem_black : &clock->sem_white, &ret);
 	return ret;
 }
 
@@ -300,46 +300,45 @@ void ms_to_string(long ms, char human[]) {
 	return;
 }
 
-void clock_to_string(chess_clock *clock, int color, char clock_string[]) {
+void clock_to_string(chess_clock *clock, int color, char clock_string[], char ghost_string[]) {
 
 	long ms = get_remaining_time(clock, color);
 
-	if (ms > (long)24*60*60*1000) { // > 1 day
+	if (ms > (long) 24 * 60 * 60 * 1000) { // > 1 day
 		fprintf(stderr, "ERROR: %ld milliseconds passed to %s exceeded allowed range of 1day", ms, __FUNCTION__);
 		return;
 	}
 
 	// prepare for use with strcat
 	memset(clock_string, 0, strlen(clock_string) + 1);
-	strcat(clock_string, color?"Black: ":"White: ");
+	memset(ghost_string, 0, strlen(ghost_string) + 1);
+//	strcat(clock_string, color ? "Black: " : "White: ");
+//	strcat(ghost_string, "88888: ");
 
 	if (ms < 0) {
 		strcat(clock_string, "-");
 		ms = -ms;
 	}
 
-	if (ms >= 60*60*1000) { // > 1 hour
+	if (ms >= 60 * 60 * 1000) { // > 1 hour
 		char hours[4];
-		sprintf(hours, "%ld:", (ms/3600000)%24);
+		sprintf(hours, "%ld:", (ms / 3600000) % 24);
 		strcat(clock_string, hours);
 	}
-	if (ms >= 60*1000) { // > 1 min
+	if (ms >= 10 * 1000) { // > 10 seconds
 		char minutes[4];
-		sprintf(minutes, "%02ld:", (ms/60000)%60);
+		sprintf(minutes, "%02ld:", (ms / 60000) % 60);
 		strcat(clock_string, minutes);
+		strcat(ghost_string, "88:");
 		char seconds[3];
-		sprintf(seconds, "%02ld", (ms/1000)%60);
+		sprintf(seconds, "%02ld", (ms / 1000) % 60);
 		strcat(clock_string, seconds);
-	}
-	else if (ms >= 1000) { // > 1 sec
-		char seconds[6];
-		sprintf(seconds, "%02ld.%ld", (ms/1000)%60, (ms/100)%10);
+		strcat(ghost_string, "88");
+	} else {
+		char seconds[9];
+		sprintf(seconds, "00:%02ld.%ld", (ms / 1000) % 60, (ms / 100) % 10);
 		strcat(clock_string, seconds);
-	}
-	else {
-		char milli_seconds[7];
-		sprintf(milli_seconds, "00.%ld", ms);
-		strcat(clock_string, milli_seconds);
+		strcat(ghost_string, "88:88.8");
 	}
 	return;
 }
@@ -353,7 +352,7 @@ int am_low_on_time(chess_clock *clock) {
 	long my_time =       get_remaining_time(clock, (clock->relation > 0 ? 0 : 1));
 	long opponent_time = get_remaining_time(clock, (clock->relation > 0 ? 1 : 0));
 	if (opponent_time > 0) {
-		return 1000*my_time/opponent_time < 667; // my time is less than 2/3 of my opponent's
+		return 1000 * my_time / opponent_time < 667; // my time is less than 2/3 of my opponent's
 	}
 	return 0;
 }

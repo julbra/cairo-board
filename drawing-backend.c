@@ -174,7 +174,6 @@ void draw_board_surface(int width, int height) {
 	}
 	cairo_stroke (cr);
 	cairo_destroy(cr);
-
 }
 
 
@@ -1577,7 +1576,7 @@ void handle_button_release(void) {
 
 		cairo_destroy(cdr);
 
-		restore_dragging_background(mouse_dragged_piece, move_result, wi, hi );
+		restore_dragging_background(mouse_dragged_piece, move_result, wi, hi);
 
 		mouse_dragged_piece = NULL;
 	}
@@ -1789,32 +1788,33 @@ void *process_moves(void *ptr) {
 			}
 			if (mouse_dragged_piece->dead) {
 				debug("handling case when dragged piece was killed\n");
-					g_atomic_int_set(&moveit_flag, 0);
+				g_atomic_int_set(&moveit_flag, 0);
 
-						// repaint square from last dragging step
-						cairo_t *cache_dc = cairo_create(cache_layer);
-						clean_last_drag_step(cache_dc, wi, hi);
-						cairo_destroy(cache_dc);
+				// repaint square from last dragging step
+				cairo_t *cache_dc = cairo_create(cache_layer);
+				clean_last_drag_step(cache_dc, wi, hi);
+				cairo_destroy(cache_dc);
 
-						cairo_t *cdr = gdk_cairo_create (board->window);
+				cairo_t *cdr = gdk_cairo_create(board->window);
 
-						double ww = wi/8.0f;
-						double hh = hi/8.0f;
-						// clip cr to repaint only needed square
-						cairo_rectangle(cdr, floor(dragging_prev_x-wi/16.0f), floor(dragging_prev_y-hi/16.0f), ceil(ww), ceil(hh));
+				double ww = wi / 8.0f;
+				double hh = hi / 8.0f;
+				// clip cr to repaint only needed square
+				cairo_rectangle(cdr, floor(dragging_prev_x - wi / 16.0f), floor(dragging_prev_y - hi / 16.0f), ceil(ww),
+								ceil(hh));
 
-						// Actual clip
-						cairo_clip(cdr);
+				// Actual clip
+				cairo_clip(cdr);
 
-						cairo_set_source_surface(cdr, cache_layer, 0.0f, 0.0f);
-						cairo_set_operator (cdr, CAIRO_OPERATOR_OVER);
-						cairo_paint(cdr);
+				cairo_set_source_surface(cdr, cache_layer, 0.0f, 0.0f);
+				cairo_set_operator(cdr, CAIRO_OPERATOR_OVER);
+				cairo_paint(cdr);
 
-						mouse_dragged_piece = NULL;
+				mouse_dragged_piece = NULL;
 
-						gdk_threads_leave();
+				gdk_threads_leave();
 
-						continue;
+				continue;
 			}
 
 			/* Get coordinates from last mouse move */

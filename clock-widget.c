@@ -4,54 +4,48 @@
 
 #include "clock-widget.h"
 
-static const char *FONT_FACE = "Sans Bold";
+static const char *FONT_FACE = "DSEG7 Classic Bold";
 extern GtkWidget *board;
 static pthread_mutex_t mutex_drawing = PTHREAD_MUTEX_INITIALIZER;
 
 G_DEFINE_TYPE (ClockFace, clock_face, GTK_TYPE_DRAWING_AREA) ;
 
-//static void clock_face_size_request (GtkWidget *clock_face, GtkRequisition *requisition) {
-//	printf("%s\n", __func__);
-//	int min_height = 50;
-//	requisition->height = min_height;
-//}
-//
-//
-//static void clock_face_size_allocate (GtkWidget *widget, GtkAllocation *allocation) {
-//
-//	ClockFace *clock_face;
-//
-//	printf("%s\n", __func__);
-//
-//	widget->allocation = *allocation;
-//	int bw = board->allocation.width;
-//	if (widget->allocation.width > bw) widget->allocation.width = bw;
-//
-//	//printf("this alloc %d - board alloc %d\n", allocation->width, bh);
-//
-//	//int font_size = bh/20;
-//	//widget->allocation.height = font_size;
-//	//if (clock_face->allocation.height < font_size + 5) {
-//	//	clock_face->allocation.height = font_size + 5;
-//	//}
-//	if (GTK_WIDGET_REALIZED (widget)) {
-//		clock_face = CLOCK_FACE (widget);
-//		gdk_window_move_resize (widget->window, allocation->x, allocation->y, bw, allocation->height);
-//		//dial->radius = MAX(allocation->width,allocation->height) * 0.45;
-//		//dial->pointer_width = dial->radius / 5;
-//	}
-//}
+// Colours
+static double active_bg_r = 80 / 255.0;
+static double active_bg_g = 90 / 255.0;
+static double active_bg_b = 96 / 255.0;
+static double inactive_bg_r = 38 / 255.0;
+static double inactive_bg_g = 38 / 255.0;
+static double inactive_bg_b = 38 / 255.0;
 
+static char active_fg_hex[] = "#FFFFFF";
+static double active_fg_r = 1.0;
+static double active_fg_g = 1.0;
+static double active_fg_b = 1.0;
 
-/*static gboolean clock_face_configure(GtkWidget *clock_face, GdkEventConfigure *event) {
-	printf("%s\n", __func__);
+static char inactive_fg_hex[] = "#929292";
+static double inactive_fg_r = 146 / 255.0;
+static double inactive_fg_g = 146 / 255.0;
+static double inactive_fg_b = 146 / 255.0;
 
-	//int width = event->width;
-	//printf("Configure passed to clock-widget: new width = %d\n", width);
+static double warn_bg_r = 160 / 255.0;
+static double warn_bg_g = 0 / 255.0;
+static double warn_bg_b = 0 / 255.0;
 
-	return FALSE;
-}
-*/
+static char warn_fg_ghost_hex[] = "#B41414";
+static double warn_fg_ghost_r = 180 / 255.0;
+static double warn_fg_ghost_g = 20 / 255.0;
+static double warn_fg_ghost_b = 20 / 255.0;
+
+static char active_fg_ghost_hex[] = "#5F696F";
+static double active_fg_ghost_r = 95 / 255.0;
+static double active_fg_ghost_g = 105 / 255.0;
+static double active_fg_ghost_b = 111 / 255.0;
+
+static char inactive_fg_ghost_hex[] = "#353535";
+static double inactive_fg_ghost_r = 53 / 255.0;
+static double inactive_fg_ghost_g = 53 / 255.0;
+static double inactive_fg_ghost_b = 53 / 255.0;
 
 void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 
@@ -72,16 +66,17 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	cairo_t *buff_crt = cairo_create(buffer_surf);
 
 	char white[32];
+	char white_ghost[32];
 	char black[32];
+	char black_ghost[32];
 
-	clock_to_string(cf->clock, 0, white);
-	clock_to_string(cf->clock, 1, black);
+	clock_to_string(cf->clock, 0, white, white_ghost);
+	clock_to_string(cf->clock, 1, black, black_ghost);
 
 	PangoFontDescription *desc;
 	PangoLayout *layout;
 
-	layout = pango_cairo_create_layout (buff_crt);
-	pango_layout_set_text(layout, white, -1);
+	layout = pango_cairo_create_layout(buff_crt);
 
 	char font_str[32];
 
@@ -98,35 +93,43 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	 * the initial guessed size is an average from experiments 
 	 * but is adjusted for the current display if too big
 	 * */
-	hi_font_size = hi/1.58;
-	wi_font_size = wi/17.45;
-	font_size = (hi_font_size < wi_font_size)? hi_font_size : wi_font_size;
+	double halfWidth = (double) wi / 2.0f;
+	hi_font_size = (float) (hi / 1.58);
+	wi_font_size = (float) (wi / 17.45);
+	font_size = (hi_font_size < wi_font_size) ? hi_font_size : wi_font_size;
 
 	sprintf(font_str, "%s %.1f", FONT_FACE, font_size);
-	desc = pango_font_description_from_string (font_str);
-	pango_layout_set_font_description (layout, desc);
-	pango_font_description_free (desc);
+	desc = pango_font_description_from_string(font_str);
+	pango_layout_set_font_description(layout, desc);
+	pango_font_description_free(desc);
 
+	// Check that both clocks fit
 	int pix_width, pix_height;
-	pango_layout_get_pixel_size (layout, &pix_width, &pix_height);
-
-	/* Check that pixel width is no larger than a half-clock width
-	 * and that pixel height is no larger than a clock height */
-	while ( (pix_height > hi || pix_width > wi) && font_size > 0) {
+	pango_layout_set_text(layout, black, -1);
+	pango_layout_get_pixel_size(layout, &pix_width, &pix_height);
+	while ((pix_height > hi - 10 || pix_width > halfWidth - 20) && font_size > 0) {
 		font_size -= .1;
 		sprintf(font_str, "%s %.2f", FONT_FACE, font_size);
-		desc = pango_font_description_from_string (font_str);
-		pango_layout_set_font_description (layout, desc);
-		pango_font_description_free (desc);
-		pango_layout_get_pixel_size (layout, &pix_width, &pix_height);
+		desc = pango_font_description_from_string(font_str);
+		pango_layout_set_font_description(layout, desc);
+		pango_font_description_free(desc);
+		pango_layout_get_pixel_size(layout, &pix_width, &pix_height);
+	}
+	pango_layout_set_text(layout, white, -1);
+	pango_layout_get_pixel_size(layout, &pix_width, &pix_height);
+	while ((pix_height > hi - 10 || pix_width > halfWidth - 20) && font_size > 0) {
+		font_size -= .1;
+		sprintf(font_str, "%s %.2f", FONT_FACE, font_size);
+		desc = pango_font_description_from_string(font_str);
+		pango_layout_set_font_description(layout, desc);
+		pango_font_description_free(desc);
+		pango_layout_get_pixel_size(layout, &pix_width, &pix_height);
 	}
 
 	int wa = is_active(cf->clock, 0);
 	int ba = is_active(cf->clock, 1);
 	int my_color = -1;
 	int warn_me = 0;
-	static int warn_toggle = 1;
-	double halfWidth = (double) wi / 2.0f;
 
 	if (cf->clock->relation > 0) {
 		my_color = 0;
@@ -138,83 +141,155 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	if (my_color > -1) {
 		if (my_color ? ba : wa) {
 			warn_me = am_low_on_time(cf->clock);
-			warn_toggle++; warn_toggle %= 4;
 		}
 	}
 
 	cairo_save(buff_crt);
 
+	struct timeval my_time = cf->clock->remaining_time[cf->clock->relation > 0 ? 0 : 1];
+	struct timeval active_time = cf->clock->remaining_time[wa ? 0 : 1];
+	bool warn_toggle;
+	bool colon_toggle;
+	if (my_time.tv_sec <= 0) {
+		warn_toggle = true;
+		colon_toggle = cf->clock->remaining_time[wa ? 0 : 1].tv_usec > 500000;
+	} else {
+		warn_toggle = my_time.tv_usec > 500000;
+		colon_toggle = active_time.tv_usec > 500000;
+	}
+
 	// paint white's clock background
 	if (wa) {
-		if (warn_me && warn_toggle < 2) {
-			cairo_set_source_rgb(buff_crt, .86, 0, 0); // bright red
+		if (warn_me && warn_toggle) {
+			cairo_set_source_rgb(buff_crt, warn_bg_r, warn_bg_g, warn_bg_b);
+		} else {
+			cairo_set_source_rgb(buff_crt, active_bg_r, active_bg_g, active_bg_b);
 		}
-		else {
-			cairo_set_source_rgb(buff_crt, 0, .4, .7);
-		}
-	}
-	else {
-		cairo_set_source_rgb(buff_crt, 1, 1, 1);
+	} else {
+		cairo_set_source_rgb(buff_crt, inactive_bg_r, inactive_bg_g, inactive_bg_b);
 	}
 	cairo_rectangle(buff_crt, 0, 0, halfWidth, hi);
 	cairo_fill(buff_crt);
 
-	// paint separator on boundary to avoid aliasing
-	cairo_set_source_rgb(buff_crt, 1, 1, 1);
-	cairo_move_to (buff_crt, halfWidth, 0);
-	cairo_line_to(buff_crt, halfWidth, hi);
-	cairo_set_line_width(buff_crt, 1.0f);
-	cairo_stroke(buff_crt);
-
 	// paint white's clock text
-	if (wa) {
-		cairo_set_source_rgb(buff_crt, 1, 1, 1);
-	}
-	else {
-		cairo_set_source_rgb(buff_crt, 0, .4, .7);
-	}
-
 	double tx = .5 * (wi / 2.0f - pix_width);
 	double ty = .5 * (hi - pix_height);
-
 	cairo_translate(buff_crt, tx, ty);
-	pango_cairo_show_layout (buff_crt, layout);
+
+	pango_layout_set_text(layout, white_ghost, -1);
+	char *colon_colour;
+	if (wa) {
+		colon_colour = colon_toggle ? active_fg_hex : active_fg_ghost_hex;
+		if (warn_me && warn_toggle) {
+			cairo_set_source_rgb(buff_crt, warn_fg_ghost_r, warn_fg_ghost_g, warn_fg_ghost_b);
+			colon_colour = colon_toggle ? active_fg_hex : warn_fg_ghost_hex;
+		} else {
+			cairo_set_source_rgb(buff_crt, active_fg_ghost_r, active_fg_ghost_g, active_fg_ghost_b);
+		}
+	} else {
+		colon_colour = inactive_fg_hex;
+		cairo_set_source_rgb(buff_crt, inactive_fg_ghost_r, inactive_fg_ghost_g, inactive_fg_ghost_b);
+	}
+	pango_cairo_show_layout(buff_crt, layout);
+
+	char markup[256];
+	char *colon = strchr(white, ':');
+	char before_colon[16];
+	char after_colon[16];
+	memset(before_colon, 0, 16);
+	memset(after_colon, 0, 16);
+	memcpy(before_colon, white, colon - white);
+	size_t prefixLen = strlen(before_colon);
+	size_t whiteLen = strlen(white);
+	memcpy(after_colon, colon + 1, whiteLen - prefixLen - 1);
+
+	sprintf(markup, "%s<span foreground=\"%s\">:</span>%s", before_colon, colon_colour, after_colon);
+	pango_layout_set_markup(layout, markup, -1);
+	if (wa) {
+		cairo_set_source_rgb(buff_crt, active_fg_r, active_fg_g, active_fg_b);
+	} else {
+		cairo_set_source_rgb(buff_crt, inactive_fg_r, inactive_fg_g, inactive_fg_b);
+	}
+	pango_cairo_show_layout(buff_crt, layout);
 
 
 	cairo_restore(buff_crt);
+//	cairo_save(buff_crt);
 
 	// paint black's clock background
 	cairo_translate(buff_crt, halfWidth, 0);
 
 	if (ba) {
-		if (warn_me && warn_toggle < 2) {
-			cairo_set_source_rgb(buff_crt, .86, 0, 0); // bright red
+		colon_colour = colon_toggle ? active_fg_hex : active_fg_ghost_hex;
+		if (warn_me && warn_toggle) {
+			cairo_set_source_rgb(buff_crt, warn_bg_r, warn_bg_g, warn_bg_b);
+		} else {
+			cairo_set_source_rgb(buff_crt, active_bg_r, active_bg_g, active_bg_b);
 		}
-		else {
-			cairo_set_source_rgb(buff_crt, 0, .4, .7);
-		}
-	}
-	else {
-		cairo_set_source_rgb(buff_crt, 1, 1, 1);
+	} else {
+		colon_colour = inactive_fg_hex;
+		cairo_set_source_rgb(buff_crt, inactive_bg_r, inactive_bg_g, inactive_bg_b);
 	}
 	cairo_rectangle(buff_crt, 0, 0, halfWidth, hi);
 	cairo_fill(buff_crt);
 
 	// paint black's clock text
-	if (ba) {
-		cairo_set_source_rgb(buff_crt, 1, 1, 1);
-	}
-	else {
-		cairo_set_source_rgb(buff_crt, 0, .4, .7);
-	}
+	colon = strchr(black, ':');
+	memset(before_colon, 0, 16);
+	memset(after_colon, 0, 16);
+	memcpy(before_colon, black, colon - black);
+	prefixLen = strlen(before_colon);
+	whiteLen = strlen(black);
+	memcpy(after_colon, colon + 1, whiteLen - prefixLen - 1);
 
-	pango_layout_set_text(layout, black, -1);
+	sprintf(markup, "%s<span foreground=\"%s\">:</span>%s", before_colon, colon_colour, after_colon);
+	pango_layout_set_markup(layout, markup, -1);
 	pango_layout_get_pixel_size(layout, &pix_width, &pix_height);
 	tx = .5 * (wi / 2.0f - pix_width);
 	cairo_translate(buff_crt, tx, ty);
+	if (ba) {
+		if (warn_me && warn_toggle) {
+			cairo_set_source_rgb(buff_crt, warn_fg_ghost_r, warn_fg_ghost_g, warn_fg_ghost_b);
+		} else {
+			cairo_set_source_rgb(buff_crt, active_fg_ghost_r, active_fg_ghost_g, active_fg_ghost_b);
+		}
+	} else {
+		cairo_set_source_rgb(buff_crt, inactive_fg_ghost_r, inactive_fg_ghost_g, inactive_fg_ghost_b);
+	}
 	pango_cairo_show_layout(buff_crt, layout);
 
-	g_object_unref (layout);
+	if (ba) {
+		cairo_set_source_rgb(buff_crt, active_fg_r, active_fg_g, active_fg_b);
+	}
+	else {
+		cairo_set_source_rgb(buff_crt, inactive_fg_r, inactive_fg_g, inactive_fg_b);
+	}
+	pango_layout_set_text(layout, black, -1);
+	pango_cairo_show_layout(buff_crt, layout);
+
+	// debug text boxes
+//	cairo_restore(buff_crt);
+//	pango_layout_set_text(layout, white, -1);
+//	pango_layout_get_pixel_size(layout, &pix_width, &pix_height);
+//	double rx = .5 * (wi / 2.0f - pix_width);
+//	double ry = .5 * (hi - pix_height);
+//	cairo_set_source_rgb(buff_crt, 1, 1, 1);
+//	cairo_rectangle(buff_crt, rx, ry, pix_width, pix_height);
+//	cairo_set_line_width(buff_crt, 1);
+//	cairo_stroke(buff_crt);
+
+	g_object_unref(layout);
+
+	// paint separator on boundary to avoid aliasing
+	if (wa || ba) {
+		cairo_set_source_rgb(buff_crt, (active_bg_r + inactive_bg_r) / 2.0, (active_bg_g + inactive_bg_g) / 2.0, (active_bg_b + inactive_bg_b) / 2.0);
+	} else {
+		cairo_set_source_rgb(buff_crt, inactive_bg_r, inactive_bg_g, inactive_bg_b);
+	}
+	cairo_move_to (buff_crt, halfWidth, 0);
+	cairo_line_to(buff_crt, halfWidth, hi);
+	cairo_set_line_width(buff_crt, 1.0f);
+	cairo_stroke(buff_crt);
 
 	cairo_destroy(buff_crt);
 
@@ -289,7 +364,7 @@ void refresh_one_clock(GtkWidget *clock, int black) {
 	if (!GTK_WIDGET(clock)) {
 		return;
 	}
-	int half_w = clock->allocation.width/2;
+	int half_w = clock->allocation.width / 2;
 	gtk_widget_queue_draw_area(clock, black? half_w : 0, 0, half_w, clock->allocation.height);
 }
 

@@ -120,7 +120,7 @@ void extractMatch(char *src, regmatch_t aMatch, char *dest) {
 	dest[len] = '\0';
 }
 
-void appendMove(char *newMove) {
+void appendMove(char *newMove, bool lock_threads) {
 	debug("appendMove: %s\n", newMove);
 	size_t newMoveLen = strlen(newMove);
 	size_t movesLength = strlen(allMoves);
@@ -132,7 +132,7 @@ void appendMove(char *newMove) {
 	if (plyNum == 1) {
 		start_one_clock(main_clock, toPlay);
 	} else if (plyNum > 1) {
-		start_one_stop_other_clock(main_clock, toPlay, false);
+		start_one_stop_other_clock(main_clock, toPlay, lock_threads);
 	}
 
 	plyNum++;
@@ -143,7 +143,7 @@ void user_move_to_uci(char *move) {
 
 	// Append move
 	debug("appendMove go %s\n", move);
-	appendMove(move);
+	appendMove(move, false);
 
 	char moves[8192];
 	sprintf(moves, "%s\n", allMoves);
@@ -209,7 +209,7 @@ void parseMove(char *moveText) {
 		debug("Handling promotion from Engine %c -> %d\n", bestMove[4], promo_type);
 	}
 	// Append move
-	appendMove(bestMove);
+	appendMove(bestMove, true);
 
 	set_last_move(bestMove);
 	g_signal_emit_by_name(board, "got-uci-move");
@@ -248,7 +248,7 @@ void parseMoveWithPonder(char *moveText) {
 	}
 
 	// Append move
-	appendMove(bestMove);
+	appendMove(bestMove, true);
 
 	set_last_move(bestMove);
 	g_signal_emit_by_name(board, "got-uci-move");
