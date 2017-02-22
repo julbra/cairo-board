@@ -214,26 +214,41 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 
 
 	cairo_restore(buff_crt);
-//	cairo_save(buff_crt);
+	cairo_save(buff_crt);
 
 	// paint black's clock background
 	cairo_translate(buff_crt, halfWidth, 0);
 
 	if (ba) {
-		colon_colour = colon_toggle ? active_fg_hex : active_fg_ghost_hex;
 		if (warn_me && warn_toggle) {
 			cairo_set_source_rgb(buff_crt, warn_bg_r, warn_bg_g, warn_bg_b);
 		} else {
 			cairo_set_source_rgb(buff_crt, active_bg_r, active_bg_g, active_bg_b);
 		}
 	} else {
-		colon_colour = inactive_fg_hex;
 		cairo_set_source_rgb(buff_crt, inactive_bg_r, inactive_bg_g, inactive_bg_b);
 	}
 	cairo_rectangle(buff_crt, 0, 0, halfWidth, hi);
 	cairo_fill(buff_crt);
 
 	// paint black's clock text
+    tx = .5 * (wi / 2.0f - pix_width);
+    cairo_translate(buff_crt, tx, ty);
+    pango_layout_set_text(layout, black_ghost, -1);
+    if (ba) {
+        colon_colour = colon_toggle ? active_fg_hex : active_fg_ghost_hex;
+        if (warn_me && warn_toggle) {
+            cairo_set_source_rgb(buff_crt, warn_fg_ghost_r, warn_fg_ghost_g, warn_fg_ghost_b);
+            colon_colour = colon_toggle ? active_fg_hex : warn_fg_ghost_hex;
+        } else {
+            cairo_set_source_rgb(buff_crt, active_fg_ghost_r, active_fg_ghost_g, active_fg_ghost_b);
+        }
+    } else {
+        colon_colour = inactive_fg_hex;
+        cairo_set_source_rgb(buff_crt, inactive_fg_ghost_r, inactive_fg_ghost_g, inactive_fg_ghost_b);
+    }
+    pango_cairo_show_layout(buff_crt, layout);
+
 	colon = strchr(black, ':');
 	memset(before_colon, 0, 16);
 	memset(after_colon, 0, 16);
@@ -245,8 +260,7 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	sprintf(markup, "%s<span foreground=\"%s\">:</span>%s", before_colon, colon_colour, after_colon);
 	pango_layout_set_markup(layout, markup, -1);
 	pango_layout_get_pixel_size(layout, &pix_width, &pix_height);
-	tx = .5 * (wi / 2.0f - pix_width);
-	cairo_translate(buff_crt, tx, ty);
+
 	if (ba) {
 		if (warn_me && warn_toggle) {
 			cairo_set_source_rgb(buff_crt, warn_fg_ghost_r, warn_fg_ghost_g, warn_fg_ghost_b);
@@ -268,7 +282,7 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	pango_cairo_show_layout(buff_crt, layout);
 
 	// debug text boxes
-//	cairo_restore(buff_crt);
+	cairo_restore(buff_crt);
 //	pango_layout_set_text(layout, white, -1);
 //	pango_layout_get_pixel_size(layout, &pix_width, &pix_height);
 //	double rx = .5 * (wi / 2.0f - pix_width);

@@ -92,7 +92,7 @@ int spawn_uci_engine(void) {
 	}
 	printf("UCI OK!\n");
 
-	write_to_uci("setoption name Threads value 8\n");
+	write_to_uci("setoption name Threads value 1\n");
 	write_to_uci("setoption name Hash value 512\n");
 	write_to_uci("setoption name Ponder value true\n");
 	wait_for_engine();
@@ -268,6 +268,8 @@ void parse_uci_buffer(void) {
 	int nread = (int) read(uci_out, &raw_buff, BUFSIZ);
 	if (nread < 1) {
 		fprintf(stderr, "ERROR: failed to read data from UCI Engine pipe\n");
+        usleep(1000000);
+        return;
 	}
 	uci_scanner__scan_bytes(raw_buff, nread);
 	int i = 0;
