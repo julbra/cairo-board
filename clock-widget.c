@@ -152,7 +152,7 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	bool colon_toggle;
 	if (my_time.tv_sec <= 0) {
 		warn_toggle = true;
-		colon_toggle = cf->clock->remaining_time[wa ? 0 : 1].tv_usec > 500000;
+		colon_toggle = true;
 	} else {
 		warn_toggle = my_time.tv_usec > 500000;
 		colon_toggle = active_time.tv_usec > 500000;
