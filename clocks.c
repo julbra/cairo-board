@@ -141,6 +141,8 @@ void clock_freeze(chess_clock *clock) {
 	if (is_active(clock, 1)) {
 		stop_one_clock(clock, 1, true);
 	}
+	// The separator needs to be redrawn
+	refresh_both_clocks(GTK_WIDGET(clock->parent));
 }
 
 void clock_reset(chess_clock *clock, int initial_time, int increment, int relation, bool should_lock) {
