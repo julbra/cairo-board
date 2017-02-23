@@ -4054,8 +4054,8 @@ int main (int argc, char **argv) {
 	int win_def_wi;
 	int win_def_hi;
 
-	win_def_wi = 1024;
-	win_def_hi = 768;
+	win_def_wi = 1175;
+	win_def_hi = 950;
 
 	create_signals();
 
@@ -4215,6 +4215,7 @@ int main (int argc, char **argv) {
 	board = gtk_drawing_area_new();
 
 	gtk_window_set_default_size(GTK_WINDOW(main_window), win_def_wi, win_def_hi);
+	gtk_window_set_icon_from_file(GTK_WINDOW(main_window), "icon.png", NULL);
 
 	/* The board container */
 	GtkWidget *board_frame;
