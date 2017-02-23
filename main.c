@@ -287,7 +287,7 @@ char *get_eco_long(const char *fen_key);
 char *get_eco_short(const char *fen_key);
 wint_t type_to_unicode_char(int type);
 int colorise_type(int tt, int colour);
-void draw_pieces_surface(int swi, int shi);
+
 int open_file(const char*);
 gboolean auto_play_one_move(gpointer data);
 gboolean auto_play_loop_ics_move(gpointer data);
@@ -430,6 +430,7 @@ static gboolean on_board_expose (GtkWidget *pWidget, GdkEventExpose *event) {
 
 void flip_board(int wi, int hi) {
 	flipped = !flipped;
+	draw_board_surface(wi, hi);
 	draw_pieces_surface(wi, hi);
 }
 
@@ -660,6 +661,8 @@ gboolean can_i_move_piece(chess_piece *piece) {
 
 void update_eco_tag(gboolean should_lock_threads) {
 	char *fen = calloc(128, sizeof(char));
+    char *eco = calloc(128, sizeof(char));
+
 	generate_fen_no_enpassant(fen, squares, castle_state, whose_turn);
 	//debug("%s\n", fen);
 	char *eco_code = get_eco_short(fen);
@@ -670,18 +673,21 @@ void update_eco_tag(gboolean should_lock_threads) {
 	if (eco_desc) {
 		strncpy(last_eco_description, eco_desc, 128);
 	}
-	memset(fen, 0, 128);
-	snprintf(fen, 128, "[%s] %s", last_eco_code, last_eco_description);
+
+
+	snprintf(eco, 128, "[%s] %s", last_eco_code, last_eco_description);
 	//debug("%s\n", fen);
 	if (should_lock_threads) {
 		gdk_threads_enter();
 	}
-	gtk_label_set_text(GTK_LABEL(opening_code_label), fen);
-	gtk_widget_set_tooltip_text(opening_code_label, fen);
+	gtk_label_set_text(GTK_LABEL(opening_code_label), eco);
+	gtk_widget_set_tooltip_text(opening_code_label, eco);
 	if (should_lock_threads) {
 		gdk_threads_leave();
 	}
-	free(fen);
+
+    free(fen);
+	free(eco);
 }
 
 int move_piece(chess_piece *piece, int col, int row, int check_legality, int move_source, char san_move[SAN_MOVE_SIZE], int blacks_ply, chess_piece w_set[16], chess_piece b_set[16], gboolean lock_threads) {

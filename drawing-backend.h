@@ -24,6 +24,8 @@ void handle_middle_button_press(GtkWidget *pWidget, int wi, int hi);
 void handle_flip_board(GtkWidget *pWidget);
 void init_dragging_background(int wi, int hi);
 void init_highlight_surface(int wi, int hi);
+void draw_board_surface(int wi, int hi);
+void draw_pieces_surface(int wi, int hi);
 
 //gboolean choose_promote(int value, gboolean only_surfaces);
 void choose_promote(int last_promote, gboolean only_surfaces, int ocol, int orow, int ncol, int nrow, gboolean lock_threads);

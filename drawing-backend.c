@@ -28,6 +28,8 @@ static void update_dragging_background(chess_piece *piece, int wi, int hi);
 static void restore_dragging_background(chess_piece *piece, int move_result, int wi, int hi);
 static void logical_promote(int last_promote);
 
+static const char *FONT_FACE = "Sans";
+
 enum layer_id {
 	LAYER_0 = 0,
 	LAYER_1,
@@ -98,39 +100,42 @@ void draw_board_surface(int width, int height) {
 	double tx = width/8.0;
 	double ty = height/8.0;
 
-//	cairo_pattern_t *dPattern = cairo_pattern_create_radial (tx/2.0, ty/2.0, .0, tx/2.0, ty/2.0, (tx+ty)/4.0f);
-//	cairo_pattern_t *lPattern = cairo_pattern_create_radial (tx/2.0, ty/2.0, .0, tx/2.0, ty/2.0, (tx+ty)/4.0f);
-//	cairo_pattern_add_color_stop_rgba (dPattern, 0.0f, 1, 1, 1, 0.1f);
-//	cairo_pattern_add_color_stop_rgba (dPattern, 1.0f, 1, 1, 1, 0.0f);
-//	cairo_pattern_add_color_stop_rgba (dPattern, 0.0f, 1, 1, 1, 0.4f);
-//	cairo_pattern_add_color_stop_rgba (dPattern, 1.0f, 1, 1, 1, 0.0f);
+	cairo_pattern_t *dark_square_pattern = cairo_pattern_create_rgb(dr, dg, db);
+	cairo_pattern_t *light_square_pattern = cairo_pattern_create_rgb(lr, lg, lb);
 
-	cairo_pattern_t *dPattern = cairo_pattern_create_radial(.0, .0, .0, .0, .0, (tx + ty) / 3.0f);
-	cairo_pattern_t *lPattern = cairo_pattern_create_radial(.0, .0, .0, .0, .0, (tx + ty) / 3.0f);
-	cairo_pattern_add_color_stop_rgba(lPattern, 0.0f, 0, 0, 0, 0.1f);
-	cairo_pattern_add_color_stop_rgba(lPattern, 1.0f, 0, 0, 0, 0.0f);
-	cairo_pattern_add_color_stop_rgba(dPattern, 0.0f, 1, 1, 1, 0.1f);
-	cairo_pattern_add_color_stop_rgba(dPattern, 1.0f, 1, 1, 1, 0.0f);
+//	cairo_pattern_t *dark_gradient_pattern = cairo_pattern_create_radial (tx/2.0, ty/2.0, .0, tx/2.0, ty/2.0, (tx+ty)/4.0f);
+//	cairo_pattern_t *light_gradient_pattern = cairo_pattern_create_radial (tx/2.0, ty/2.0, .0, tx/2.0, ty/2.0, (tx+ty)/4.0f);
+//	cairo_pattern_add_color_stop_rgba (dark_gradient_pattern, 0.0f, 1, 1, 1, 0.1f);
+//	cairo_pattern_add_color_stop_rgba (dark_gradient_pattern, 1.0f, 1, 1, 1, 0.0f);
+//	cairo_pattern_add_color_stop_rgba (dark_gradient_pattern, 0.0f, 1, 1, 1, 0.4f);
+//	cairo_pattern_add_color_stop_rgba (dark_gradient_pattern, 1.0f, 1, 1, 1, 0.0f);
 
-//	cairo_pattern_t *dPattern = cairo_pattern_create_radial (.0, .0, .0, .0, .0, (tx+ty)/2.0f);
-//	cairo_pattern_t *lPattern = cairo_pattern_create_radial (.0, .0, .0, .0, .0, (tx+ty)/2.0f);
-//	cairo_pattern_add_color_stop_rgba (lPattern, 0.0f, 0, 0, 0, 0.4f);
-//	cairo_pattern_add_color_stop_rgba (lPattern, 1.0f, 1, 0, 0, 0.0f);
-//	cairo_pattern_add_color_stop_rgba (dPattern, 0.0f, 1, 1, 1, 0.4f);
-//	cairo_pattern_add_color_stop_rgba (dPattern, 1.0f, 1, 1, 1, 0.0f);
+	cairo_pattern_t *dark_gradient_pattern = cairo_pattern_create_radial(.0, .0, .0, .0, .0, (tx + ty) / 3.0f);
+	cairo_pattern_t *light_gradient_pattern = cairo_pattern_create_radial(.0, .0, .0, .0, .0, (tx + ty) / 3.0f);
+	cairo_pattern_add_color_stop_rgba(light_gradient_pattern, 0.0f, 0, 0, 0, 0.1f);
+	cairo_pattern_add_color_stop_rgba(light_gradient_pattern, 1.0f, 0, 0, 0, 0.0f);
+	cairo_pattern_add_color_stop_rgba(dark_gradient_pattern, 0.0f, 1, 1, 1, 0.1f);
+	cairo_pattern_add_color_stop_rgba(dark_gradient_pattern, 1.0f, 1, 1, 1, 0.0f);
+
+//	cairo_pattern_t *dark_gradient_pattern = cairo_pattern_create_radial (.0, .0, .0, .0, .0, (tx+ty)/2.0f);
+//	cairo_pattern_t *light_gradient_pattern = cairo_pattern_create_radial (.0, .0, .0, .0, .0, (tx+ty)/2.0f);
+//	cairo_pattern_add_color_stop_rgba (light_gradient_pattern, 0.0f, 0, 0, 0, 0.4f);
+//	cairo_pattern_add_color_stop_rgba (light_gradient_pattern, 1.0f, 1, 0, 0, 0.0f);
+//	cairo_pattern_add_color_stop_rgba (dark_gradient_pattern, 0.0f, 1, 1, 1, 0.4f);
+//	cairo_pattern_add_color_stop_rgba (dark_gradient_pattern, 1.0f, 1, 1, 1, 0.0f);
 
 	// Draw Dark Squares
-	cairo_set_source_rgb(cr, dr, dg, db);
+	cairo_set_source(cr, dark_square_pattern);
 	for (j = 0; j < 8; j++) {
 		for (k = 0; k < 8; k++) {
 			if (get_square_colour(j, k)) {
 				cairo_rectangle(cr, j*tx, k*ty, tx, ty);
 				cairo_fill(cr);
 
-                // Inner shadow effect
+				// Inner shadow effect
 				cairo_save(cr);
 				cairo_translate(cr, j*tx, k*ty);
-				cairo_set_source (cr, dPattern);
+				cairo_set_source (cr, dark_gradient_pattern);
 				cairo_rectangle(cr, 0, 0, tx, ty);
 				cairo_fill(cr);
 				cairo_restore(cr);
@@ -140,7 +145,7 @@ void draw_board_surface(int width, int height) {
 	}
 
 	// Draw Light Squares
-	cairo_set_source_rgb (cr, lr, lg, lb);
+	cairo_set_source(cr, light_square_pattern);
 	for (j = 0; j < 8; j++) {
 		for (k = 0; k < 8; k++) {
 			if (!get_square_colour(j, k)) {
@@ -149,7 +154,7 @@ void draw_board_surface(int width, int height) {
 
 				cairo_save(cr);
 				cairo_translate(cr, j*tx, k*ty);
-				cairo_set_source (cr, lPattern);
+				cairo_set_source (cr, light_gradient_pattern);
 				cairo_rectangle(cr, 0, 0, tx, ty);
 				cairo_fill(cr);
 				cairo_restore(cr);
@@ -173,7 +178,60 @@ void draw_board_surface(int width, int height) {
 		cairo_line_to(cr, width, j * ty);
 	}
 	cairo_stroke (cr);
+
+	// Draw coordinates
+	PangoFontDescription *desc;
+	PangoLayout *layout;
+	layout = pango_cairo_create_layout(cr);
+	char font_str[32];
+	float font_size = (float) (10 * tx / 100.0f);
+	sprintf(font_str, "%s %.1f", FONT_FACE, font_size);
+	desc = pango_font_description_from_string(font_str);
+	pango_font_description_set_weight(desc, PANGO_WEIGHT_SEMIBOLD);
+	pango_layout_set_font_description(layout, desc);
+	pango_font_description_free(desc);
+
+	double padding = tx / 60.0;
+	char coord[1];
+	bool light;
+
+	// Column names
+	light = true;
+	for (j = 0; j <= 8; j++) {
+		cairo_save(cr);
+		cairo_set_source(cr, light ? light_square_pattern : dark_square_pattern);
+		coord[0] = (char) (flipped ? 'h' - j : 'a' + j);
+		pango_layout_set_text(layout, coord, 1);
+		int pix_width;
+		int pix_height;
+		pango_layout_get_pixel_size(layout, &pix_width, &pix_height);
+		cairo_translate(cr, (j * tx) + padding, height - pix_height - padding);
+		pango_cairo_show_layout(cr, layout);
+		cairo_restore(cr);
+		light = !light;
+	}
+
+	// Rank numbers
+	light = true;
+	for (j = 0; j <= 8; j++) {
+		cairo_save(cr);
+		cairo_set_source(cr, light ? light_square_pattern : dark_square_pattern);
+		coord[0] = (char) (flipped ? '8' - j : '1' + j);
+		pango_layout_set_text(layout, coord, 1);
+		int pix_width;
+		int pix_height;
+		pango_layout_get_pixel_size(layout, &pix_width, &pix_height);
+		cairo_translate(cr, width - pix_width - padding, (j * tx) + padding);
+		pango_cairo_show_layout(cr, layout);
+		cairo_restore(cr);
+		light = !light;
+	}
+
 	cairo_destroy(cr);
+	cairo_pattern_destroy(dark_square_pattern);
+	cairo_pattern_destroy(light_square_pattern);
+	cairo_pattern_destroy(dark_gradient_pattern);
+	cairo_pattern_destroy(light_gradient_pattern);
 }
 
 
@@ -1700,7 +1758,7 @@ void handle_left_button_press(GtkWidget *pWidget, int wi, int hi, int x, int y) 
 }
 
 void handle_right_button_press(GtkWidget *pWidget, int wi, int hi) {
-	// Logical flip and repaint pieces layer
+	// Logical flip and repaint pieces and board layers
 	flip_board(old_wi, old_hi);
 
 	// Reconstruct cache layer
@@ -2367,4 +2425,5 @@ gboolean test_animate_random_step(gpointer data) {
 
 	return TRUE;
 }
+
 
