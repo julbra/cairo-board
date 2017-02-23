@@ -1132,7 +1132,7 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 			}
 		}
 
-		points_to_plot *= 2.0f;
+//		points_to_plot *= 2.0f;
 		//points_to_plot /= 3.0f;
 
 		int **anim_steps;
