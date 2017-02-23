@@ -1181,8 +1181,8 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 
 		g_hash_table_insert(anims_map, animation->piece, animation);
 
-		g_timeout_add(1000/120, animate_one_step, animation);
-//		g_timeout_add(1000/60, animate_one_step, animation);
+//		g_timeout_add(1000/120, animate_one_step, animation);
+		g_timeout_add(1000/60, animate_one_step, animation);
 		return TRUE;
 	}
 
@@ -1867,12 +1867,9 @@ void *process_moves(void *ptr) {
 
 			gdk_threads_leave();
 
-
-			/* I'm sure this was here for a reason... but now it seems useless */
-			//g_main_context_wakeup(NULL);
 		}
-		usleep(1000000/120);
-//		usleep(1000000/560);
+//		usleep(1000000/120);
+		usleep(1000000/60);
 	}
 	return 0;
 }

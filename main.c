@@ -168,7 +168,7 @@ int got_premove = 0;
 
 /* GUI variables */
 double svg_w, svg_h;
-static gfloat clock_board_ratio = 20.0;
+static guint clock_board_ratio = 20;
 GtkWidget *main_window;
 GtkWidget *board;
 GtkWidget *label_frame;
@@ -1187,7 +1187,7 @@ static int first_configure = 1;
 static int last_alloc_wi = 0;
 static int last_alloc_hi = 0;
 
-static gboolean on_configure_event (GtkWidget *pWidget, GdkEventConfigure *event) {
+static gboolean on_configure_event(GtkWidget *pWidget, GdkEventConfigure *event) {
 
 	if (pWidget == board) {
 		// This is a board resize event
@@ -2916,7 +2916,7 @@ int parse_channel_chat(char *ics_scanner_text, char *user, char *message) {
 	memcpy(user, ics_scanner_text, first_left_brace-ics_scanner_text);
 	/* N.B. we know that our scanner returns null terminated Strings */
 	strcpy(message, first_right_brace+3);
-	return chan_num;
+	return (int) chan_num;
 }
 
 /*
@@ -2928,12 +2928,6 @@ void parse_private_tell(char *ics_scanner_text, char *user, char *message) {
 	memcpy(user, ics_scanner_text, first_character-ics_scanner_text-10);
 	strcpy(message, first_character+1);
 }
-
-enum {
-	FREE_PARSER = 0,
-	CAPTURING_CHAT,
-	GETTING_USER_CHANNELS,
-};
 
 void set_fics_variables(void) {
 	/* set ivariables */
@@ -2973,6 +2967,13 @@ int parse_my_channels_header(char *message) {
 static char last_user[32] = {[0 ... 31] = 0};
 static int last_channel_number;
 static char *last_message;
+
+enum {
+	FREE_PARSER = 0,
+	CAPTURING_CHAT,
+	GETTING_USER_CHANNELS,
+};
+
 static int parser_state = FREE_PARSER;
 
 void parse_ics_buffer(void) {
@@ -4230,7 +4231,7 @@ int main (int argc, char **argv) {
 	GtkWidget *clock_frame;
 	//clock_frame = gtk_aspect_frame_new( NULL, 0, 0, clock_board_ratio, FALSE );
 	clock_frame = gtk_frame_new( NULL );
-	gtk_widget_set_size_request (clock_frame, -1, 16);
+	gtk_widget_set_size_request(clock_frame, -1, 32);
 	gtk_frame_set_shadow_type(GTK_FRAME(clock_frame), GTK_SHADOW_NONE);
 
 	/* allocate the main clock */
@@ -4248,7 +4249,7 @@ int main (int argc, char **argv) {
 
 	/* The table layout container to pack the board and clocks */
 	GtkWidget *table;
-	
+
 	table = gtk_table_new(clock_board_ratio + 1, 1, FALSE);
 
 	gtk_table_attach (GTK_TABLE(table), board_frame,

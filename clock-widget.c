@@ -1,4 +1,5 @@
 #include <gtk/gtk.h>
+#include <math.h>
 #include <pango/pangocairo.h>
 #include <string.h>
 
@@ -38,19 +39,19 @@ enum {
 	WARN_BG_B = 0,
 
 	// Active clock font colour for 7 segment ghost effect
-	ACTIVE_FG_GHOST_R = 95,
-	ACTIVE_FG_GHOST_G = 105,
-	ACTIVE_FG_GHOST_B = 111,
+	ACTIVE_FG_GHOST_R = 93,
+	ACTIVE_FG_GHOST_G = 103,
+	ACTIVE_FG_GHOST_B = 109,
 
 	// Inactive clock font colour for 7 segment ghost effect
-	INACTIVE_FG_GHOST_R = 53,
-	INACTIVE_FG_GHOST_G = 53,
-	INACTIVE_FG_GHOST_B = 53,
+	INACTIVE_FG_GHOST_R = 51,
+	INACTIVE_FG_GHOST_G = 51,
+	INACTIVE_FG_GHOST_B = 51,
 
 	// Low-on-time warning font colour for 7 segment ghost effect
 	WARN_FG_GHOST_R = 180,
 	WARN_FG_GHOST_G = 20,
-	WARN_FG_GHOST_B = 20,
+	WARN_FG_GHOST_B = 20
 };
 
 // Active clock background
@@ -112,6 +113,12 @@ void init_clock_colours(void) {
 
 void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 
+	static int last_wi = -1;
+	static int last_hi = -1;
+	static size_t last_white_len = 0;
+	static size_t last_black_len = 0;
+	static float font_size = -1;
+
 	ClockFace *cf = CLOCK_FACE(clock_face);
 
 	if (!cf->clock) {
@@ -119,7 +126,7 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 		return;
 	}
 
-	pthread_mutex_lock( &mutex_drawing );
+	pthread_mutex_lock(&mutex_drawing);
 
 	cairo_surface_t *buffer_surf = cairo_image_surface_create(
 			CAIRO_FORMAT_ARGB32, 
@@ -145,9 +152,12 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 
 	float hi_font_size;
 	float wi_font_size;
-	float font_size;
+
 	int wi = clock_face->allocation.width;
 	int hi = clock_face->allocation.height;
+
+	size_t white_len = strlen(white);
+	size_t black_len = strlen(black);
 
 	// Create and Set font description
 
@@ -157,37 +167,73 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	 * but is adjusted for the current display if too big
 	 * */
 	double halfWidth = (double) wi / 2.0f;
-	hi_font_size = (float) (hi / 1.58);
-	wi_font_size = (float) (wi / 17.45);
-	font_size = (hi_font_size < wi_font_size) ? hi_font_size : wi_font_size;
+	int w_pix_width, w_pix_height, b_pix_width, b_pix_height;
 
-	sprintf(font_str, "%s %.1f", FONT_FACE, font_size);
-	desc = pango_font_description_from_string(font_str);
-	pango_layout_set_font_description(layout, desc);
-	pango_font_description_free(desc);
-
-	// Check that both clocks fit
-	int pix_width, pix_height;
-	pango_layout_set_text(layout, black, -1);
-	pango_layout_get_pixel_size(layout, &pix_width, &pix_height);
-	while ((pix_height > hi - 10 || pix_width > halfWidth - 20) && font_size > 0) {
-		font_size -= .1;
-		sprintf(font_str, "%s %.2f", FONT_FACE, font_size);
+	if (last_wi == wi && last_hi == hi && last_white_len == white_len && last_black_len == black_len) {
+		// Reuse font size as previously calculated
+		sprintf(font_str, "%s %.1f", FONT_FACE, font_size);
 		desc = pango_font_description_from_string(font_str);
 		pango_layout_set_font_description(layout, desc);
 		pango_font_description_free(desc);
-		pango_layout_get_pixel_size(layout, &pix_width, &pix_height);
-	}
-	pango_layout_set_text(layout, white, -1);
-	pango_layout_get_pixel_size(layout, &pix_width, &pix_height);
-	while ((pix_height > hi - 10 || pix_width > halfWidth - 20) && font_size > 0) {
-		font_size -= .1;
-		sprintf(font_str, "%s %.2f", FONT_FACE, font_size);
+
+		pango_layout_set_text(layout, black, -1);
+		pango_layout_get_pixel_size(layout, &b_pix_width, &b_pix_height);
+
+		pango_layout_set_text(layout, white, -1);
+		pango_layout_get_pixel_size(layout, &w_pix_width, &w_pix_height);
+	} else {
+		// Calculating new font size since things have changed
+		float last_font_size = font_size;
+
+		int v_padding = 10;
+		int h_padding = 20;
+
+		hi_font_size = (float) (hi / 1.5);
+		wi_font_size = (float) (wi / 9.0);
+		font_size = (hi_font_size < wi_font_size) ? hi_font_size : wi_font_size;
+
+		sprintf(font_str, "%s %.1f", FONT_FACE, font_size);
 		desc = pango_font_description_from_string(font_str);
 		pango_layout_set_font_description(layout, desc);
 		pango_font_description_free(desc);
-		pango_layout_get_pixel_size(layout, &pix_width, &pix_height);
+
+		// Ensure both clocks fit
+		pango_layout_set_text(layout, black, -1);
+		pango_layout_get_pixel_size(layout, &b_pix_width, &b_pix_height);
+		while ((b_pix_height > hi - v_padding || b_pix_width > halfWidth - h_padding) && font_size > 1) {
+			font_size -= .1;
+			sprintf(font_str, "%s %.2f", FONT_FACE, font_size);
+			desc = pango_font_description_from_string(font_str);
+			pango_layout_set_font_description(layout, desc);
+			pango_font_description_free(desc);
+			pango_layout_get_pixel_size(layout, &b_pix_width, &b_pix_height);
+		}
+		pango_layout_set_text(layout, white, -1);
+		pango_layout_get_pixel_size(layout, &w_pix_width, &w_pix_height);
+		while ((w_pix_height > hi - v_padding || w_pix_width > halfWidth - h_padding) && font_size > 1) {
+			font_size -= .1;
+			sprintf(font_str, "%s %.2f", FONT_FACE, font_size);
+			desc = pango_font_description_from_string(font_str);
+			pango_layout_set_font_description(layout, desc);
+			pango_font_description_free(desc);
+			pango_layout_get_pixel_size(layout, &w_pix_width, &w_pix_height);
+		}
+
+		if (last_font_size > -1 && font_size != last_font_size) {
+			// Redraw whole clock as font size of both should change
+			gtk_widget_queue_draw(clock_face);
+		}
 	}
+
+	last_wi = wi;
+	last_hi = hi;
+	last_white_len = white_len;
+	last_black_len = black_len;
+
+//	printf("Allocated height == %dpx\n", hi);
+//	printf("Final font size %f\n", font_size);
+//	printf("Final H ratio %f\n", hi / font_size);
+//	printf("Final W ratio %f\n", wi / font_size);
 
 	int wa = is_active(cf->clock, 0);
 	int ba = is_active(cf->clock, 1);
@@ -235,8 +281,8 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	cairo_fill(buff_crt);
 
 	// paint white's clock text
-	double tx = .5 * (wi / 2.0f - pix_width);
-	double ty = .5 * (hi - pix_height);
+	double tx = .5 * (wi / 2.0f - w_pix_width);
+	double ty = .5 * (hi - w_pix_height);
 	cairo_translate(buff_crt, tx, ty);
 
 	pango_layout_set_text(layout, white_ghost, -1);
@@ -263,8 +309,7 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	memset(after_colon, 0, 16);
 	memcpy(before_colon, white, colon - white);
 	size_t prefixLen = strlen(before_colon);
-	size_t whiteLen = strlen(white);
-	memcpy(after_colon, colon + 1, whiteLen - prefixLen - 1);
+	memcpy(after_colon, colon + 1, white_len - prefixLen - 1);
 
 	sprintf(markup, "%s<span foreground=\"%s\">:</span>%s", before_colon, colon_colour, after_colon);
 	pango_layout_set_markup(layout, markup, -1);
@@ -295,7 +340,7 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	cairo_fill(buff_crt);
 
 	// paint black's clock text
-	tx = .5 * (wi / 2.0f - pix_width);
+	tx = .5 * (wi / 2.0f - b_pix_width);
 	cairo_translate(buff_crt, tx, ty);
 	pango_layout_set_text(layout, black_ghost, -1);
 	if (ba) {
@@ -317,12 +362,11 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	memset(after_colon, 0, 16);
 	memcpy(before_colon, black, colon - black);
 	prefixLen = strlen(before_colon);
-	whiteLen = strlen(black);
-	memcpy(after_colon, colon + 1, whiteLen - prefixLen - 1);
+	memcpy(after_colon, colon + 1, black_len - prefixLen - 1);
 
 	sprintf(markup, "%s<span foreground=\"%s\">:</span>%s", before_colon, colon_colour, after_colon);
 	pango_layout_set_markup(layout, markup, -1);
-	pango_layout_get_pixel_size(layout, &pix_width, &pix_height);
+	pango_layout_get_pixel_size(layout, &b_pix_width, &b_pix_height);
 
 	if (ba) {
 		if (warn_me && warn_toggle) {
@@ -356,8 +400,6 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 //	cairo_set_line_width(buff_crt, 1);
 //	cairo_stroke(buff_crt);
 
-	g_object_unref(layout);
-
 	// paint separator on boundary to avoid aliasing
 	if (wa || ba) {
 		cairo_set_source_rgb(buff_crt, (active_bg_r + inactive_bg_r) / 2.0, (active_bg_g + inactive_bg_g) / 2.0, (active_bg_b + inactive_bg_b) / 2.0);
@@ -369,13 +411,13 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	cairo_set_line_width(buff_crt, 1.0f);
 	cairo_stroke(buff_crt);
 
-	cairo_destroy(buff_crt);
-
 	// Apply cache surface to crt
 	cairo_set_source_surface(crt, buffer_surf, 0.0f, 0.0f);
 	cairo_paint(crt);
 
 	// Cleanup
+	g_object_unref(layout);
+	cairo_destroy(buff_crt);
 	cairo_surface_destroy(buffer_surf);
 	pthread_mutex_unlock(&mutex_drawing);
 }
@@ -416,16 +458,6 @@ GtkWidget *clock_face_new(void) {
 	return g_object_new(TYPE_CLOCK_FACE, NULL);
 }
 
-gboolean periodic_refresh (gpointer data) {
-	if (!GTK_IS_WIDGET(data)) {
-		// Killed? tough
-		//printf("refresher: killed?\n");
-		return FALSE;
-	}
-	gtk_widget_queue_draw(GTK_WIDGET(data));
-	return TRUE;
-}
-
 void refresh_both_clocks (GtkWidget *clock) {
 	if (!GTK_IS_WIDGET(clock)) {
 		// Killed? tough
@@ -438,37 +470,8 @@ void refresh_one_clock(GtkWidget *clock, int black) {
 	if (!GTK_WIDGET(clock)) {
 		return;
 	}
-	int half_w = clock->allocation.width / 2;
-	gtk_widget_queue_draw_area(clock, black? half_w : 0, 0, half_w, clock->allocation.height);
+	double half_w = clock->allocation.width / 2.0;
+	int x_offset = (int) (black ? floor(half_w) : 0);
+	int redraw_w = (int) ceil(half_w);
+	gtk_widget_queue_draw_area(clock, x_offset, 0, redraw_w, clock->allocation.height);
 }
-
-
-/*int a_main(int argc, char **argv) {
-	GtkWidget *window;
-	GtkWidget *clock;
-
-	gtk_init (&argc, &argv);
-
-	window = gtk_window_new (GTK_WINDOW_TOPLEVEL);
-
-	clock = clock_face_new();
-	init_clock(&myclock, 65, 0, 0);
-	clock_face_set_clock( CLOCK_FACE(clock), &myclock);
-
-	gtk_container_add(GTK_CONTAINER (window), clock);
-
-	g_signal_connect(window, "destroy", G_CALLBACK (gtk_main_quit), NULL);
-	gtk_widget_add_events (window, GDK_POINTER_MOTION_MASK|GDK_BUTTON_PRESS_MASK|GDK_BUTTON_RELEASE_MASK);
-	g_signal_connect (G_OBJECT (window), "button-press-event", G_CALLBACK (on_press), NULL);
-
-	start_one_clock(&myclock, 0);
-	g_timeout_add(100, periodic_refresh, clock);
-
-	gtk_window_set_default_size(GTK_WINDOW(window), 500, 100);
-	gtk_widget_show_all (window);
-	gtk_main ();
-
-	return 0;
-}
-*/
-
