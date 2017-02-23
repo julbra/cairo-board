@@ -11,41 +11,104 @@ static pthread_mutex_t mutex_drawing = PTHREAD_MUTEX_INITIALIZER;
 G_DEFINE_TYPE (ClockFace, clock_face, GTK_TYPE_DRAWING_AREA) ;
 
 // Colours
-static double active_bg_r = 80 / 255.0;
-static double active_bg_g = 90 / 255.0;
-static double active_bg_b = 96 / 255.0;
-static double inactive_bg_r = 38 / 255.0;
-static double inactive_bg_g = 38 / 255.0;
-static double inactive_bg_b = 38 / 255.0;
+enum {
+	// Active clock background
+	ACTIVE_BG_R = 80,
+	ACTIVE_BG_G = 90,
+	ACTIVE_BG_B = 96,
 
-static char active_fg_hex[] = "#FFFFFF";
-static double active_fg_r = 1.0;
-static double active_fg_g = 1.0;
-static double active_fg_b = 1.0;
+	// Inactive clock background
+	INACTIVE_BG_R = 38,
+	INACTIVE_BG_G = 38,
+	INACTIVE_BG_B = 38,
 
-static char inactive_fg_hex[] = "#929292";
-static double inactive_fg_r = 146 / 255.0;
-static double inactive_fg_g = 146 / 255.0;
-static double inactive_fg_b = 146 / 255.0;
+	// Active clock font colour
+	ACTIVE_FG_R = 255,
+	ACTIVE_FG_G = 255,
+	ACTIVE_FG_B = 255,
 
-static double warn_bg_r = 160 / 255.0;
-static double warn_bg_g = 0 / 255.0;
-static double warn_bg_b = 0 / 255.0;
+	// Inactive clock font colour
+	INACTIVE_FG_R = 146,
+	INACTIVE_FG_G = 146,
+	INACTIVE_FG_B = 146,
 
-static char warn_fg_ghost_hex[] = "#B41414";
-static double warn_fg_ghost_r = 180 / 255.0;
-static double warn_fg_ghost_g = 20 / 255.0;
-static double warn_fg_ghost_b = 20 / 255.0;
+	// Low-on-time warning background
+	WARN_BG_R = 160,
+	WARN_BG_G = 0,
+	WARN_BG_B = 0,
 
-static char active_fg_ghost_hex[] = "#5F696F";
-static double active_fg_ghost_r = 95 / 255.0;
-static double active_fg_ghost_g = 105 / 255.0;
-static double active_fg_ghost_b = 111 / 255.0;
+	// Active clock font colour for 7 segment ghost effect
+	ACTIVE_FG_GHOST_R = 95,
+	ACTIVE_FG_GHOST_G = 105,
+	ACTIVE_FG_GHOST_B = 111,
 
-static char inactive_fg_ghost_hex[] = "#353535";
-static double inactive_fg_ghost_r = 53 / 255.0;
-static double inactive_fg_ghost_g = 53 / 255.0;
-static double inactive_fg_ghost_b = 53 / 255.0;
+	// Inactive clock font colour for 7 segment ghost effect
+	INACTIVE_FG_GHOST_R = 53,
+	INACTIVE_FG_GHOST_G = 53,
+	INACTIVE_FG_GHOST_B = 53,
+
+	// Low-on-time warning font colour for 7 segment ghost effect
+	WARN_FG_GHOST_R = 180,
+	WARN_FG_GHOST_G = 20,
+	WARN_FG_GHOST_B = 20,
+};
+
+// Active clock background
+static double active_bg_r = ACTIVE_BG_R / 255.0;
+static double active_bg_g = ACTIVE_BG_G / 255.0;
+static double active_bg_b = ACTIVE_BG_B / 255.0;
+
+// Inactive clock background
+static double inactive_bg_r = INACTIVE_BG_R / 255.0;
+static double inactive_bg_g = INACTIVE_BG_G / 255.0;
+static double inactive_bg_b = INACTIVE_BG_B / 255.0;
+
+// Active clock font colour
+static char active_fg_hex[8];
+static double active_fg_r = ACTIVE_FG_R / 255.0;
+static double active_fg_g = ACTIVE_FG_G / 255.0;
+static double active_fg_b = ACTIVE_FG_B / 255.0;
+
+// Inactive clock font colour
+static char inactive_fg_hex[8];
+static double inactive_fg_r = INACTIVE_FG_R / 255.0;
+static double inactive_fg_g = INACTIVE_FG_G / 255.0;
+static double inactive_fg_b = INACTIVE_FG_B / 255.0;
+
+// Low-on-time warning background
+static double warn_bg_r = WARN_BG_R / 255.0;
+static double warn_bg_g = WARN_BG_G / 255.0;
+static double warn_bg_b = WARN_BG_B / 255.0;
+
+// Active clock font colour for 7 segment ghost effect
+static char active_fg_ghost_hex[8];
+static double active_fg_ghost_r = ACTIVE_FG_GHOST_R / 255.0;
+static double active_fg_ghost_g = ACTIVE_FG_GHOST_G / 255.0;
+static double active_fg_ghost_b = ACTIVE_FG_GHOST_B / 255.0;
+
+// Inactive clock font colour for 7 segment ghost effect
+static char inactive_fg_ghost_hex[8];
+static double inactive_fg_ghost_r = INACTIVE_FG_GHOST_R / 255.0;
+static double inactive_fg_ghost_g = INACTIVE_FG_GHOST_G / 255.0;
+static double inactive_fg_ghost_b = INACTIVE_FG_GHOST_B / 255.0;
+
+// Low-on-time warning font colour for 7 segment ghost effect
+static char warn_fg_ghost_hex[8];
+static double warn_fg_ghost_r = WARN_FG_GHOST_R / 255.0;
+static double warn_fg_ghost_g = WARN_FG_GHOST_G / 255.0;
+static double warn_fg_ghost_b = WARN_FG_GHOST_B / 255.0;
+
+void rgb_to_css(char *hex, int r, int g, int b) {
+	sprintf(hex, "#%02X%02X%02X", r & 0xFF, g & 0xFF, b & 0xFF);
+}
+
+void init_clock_colours(void) {
+	rgb_to_css(active_fg_hex, ACTIVE_FG_R, ACTIVE_FG_G, ACTIVE_FG_B);
+	rgb_to_css(inactive_fg_hex, INACTIVE_FG_R, INACTIVE_FG_G, INACTIVE_FG_B);
+	rgb_to_css(active_fg_ghost_hex, ACTIVE_FG_GHOST_R, ACTIVE_FG_GHOST_G, ACTIVE_FG_GHOST_B);
+	rgb_to_css(inactive_fg_ghost_hex, INACTIVE_FG_GHOST_R, INACTIVE_FG_GHOST_G, INACTIVE_FG_GHOST_B);
+	rgb_to_css(warn_fg_ghost_hex, WARN_FG_GHOST_R, WARN_FG_GHOST_G, WARN_FG_GHOST_B);
+}
 
 void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 
@@ -193,7 +256,7 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	pango_cairo_show_layout(buff_crt, layout);
 
 	char markup[256];
-	char *colon = strchr(white, ':');
+	char *colon = strrchr(white, ':');
 	char before_colon[16];
 	char after_colon[16];
 	memset(before_colon, 0, 16);
@@ -232,24 +295,24 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	cairo_fill(buff_crt);
 
 	// paint black's clock text
-    tx = .5 * (wi / 2.0f - pix_width);
-    cairo_translate(buff_crt, tx, ty);
-    pango_layout_set_text(layout, black_ghost, -1);
-    if (ba) {
-        colon_colour = colon_toggle ? active_fg_hex : active_fg_ghost_hex;
-        if (warn_me && warn_toggle) {
-            cairo_set_source_rgb(buff_crt, warn_fg_ghost_r, warn_fg_ghost_g, warn_fg_ghost_b);
-            colon_colour = colon_toggle ? active_fg_hex : warn_fg_ghost_hex;
-        } else {
-            cairo_set_source_rgb(buff_crt, active_fg_ghost_r, active_fg_ghost_g, active_fg_ghost_b);
-        }
-    } else {
-        colon_colour = inactive_fg_hex;
-        cairo_set_source_rgb(buff_crt, inactive_fg_ghost_r, inactive_fg_ghost_g, inactive_fg_ghost_b);
-    }
-    pango_cairo_show_layout(buff_crt, layout);
+	tx = .5 * (wi / 2.0f - pix_width);
+	cairo_translate(buff_crt, tx, ty);
+	pango_layout_set_text(layout, black_ghost, -1);
+	if (ba) {
+		colon_colour = colon_toggle ? active_fg_hex : active_fg_ghost_hex;
+		if (warn_me && warn_toggle) {
+			cairo_set_source_rgb(buff_crt, warn_fg_ghost_r, warn_fg_ghost_g, warn_fg_ghost_b);
+			colon_colour = colon_toggle ? active_fg_hex : warn_fg_ghost_hex;
+		} else {
+			cairo_set_source_rgb(buff_crt, active_fg_ghost_r, active_fg_ghost_g, active_fg_ghost_b);
+		}
+	} else {
+		colon_colour = inactive_fg_hex;
+		cairo_set_source_rgb(buff_crt, inactive_fg_ghost_r, inactive_fg_ghost_g, inactive_fg_ghost_b);
+	}
+	pango_cairo_show_layout(buff_crt, layout);
 
-	colon = strchr(black, ':');
+	colon = strrchr(black, ':');
 	memset(before_colon, 0, 16);
 	memset(after_colon, 0, 16);
 	memcpy(before_colon, black, colon - black);
@@ -281,8 +344,9 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	pango_layout_set_text(layout, black, -1);
 	pango_cairo_show_layout(buff_crt, layout);
 
-	// debug text boxes
 	cairo_restore(buff_crt);
+
+	// debug clock text bounds
 //	pango_layout_set_text(layout, white, -1);
 //	pango_layout_get_pixel_size(layout, &pix_width, &pix_height);
 //	double rx = .5 * (wi / 2.0f - pix_width);
@@ -311,8 +375,8 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	cairo_set_source_surface(crt, buffer_surf, 0.0f, 0.0f);
 	cairo_paint(crt);
 
+	// Cleanup
 	cairo_surface_destroy(buffer_surf);
-
 	pthread_mutex_unlock(&mutex_drawing);
 }
 
@@ -336,11 +400,7 @@ static void clock_face_class_init (ClockFaceClass *class) {
 	GtkWidgetClass *widget_class;
 	widget_class = GTK_WIDGET_CLASS (class);
 	widget_class->expose_event = clock_face_expose;
-	//widget_class->configure_event = clock_face_configure;
-	//widget_class->size_request = clock_face_size_request;
-	//widget_class->size_allocate = clock_face_size_allocate;
 }
-
 
 static void clock_face_init(ClockFace *clock_face) {
 }

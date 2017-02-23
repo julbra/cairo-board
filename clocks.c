@@ -265,7 +265,7 @@ long tv_to_ms(struct timeval *tv) {
 
 void ms_to_string(long ms, char human[]) {
 
-	if (ms > (long)24*60*60*1000) { // > 1 day
+	if (ms > (long) 24 * 60 * 60 * 1000) { // > 1 day
 		fprintf(stderr, "ERROR: %ld milliseconds passed to %s exceeded allowed range of 1day", ms, __FUNCTION__);
 		return;
 	}
@@ -317,6 +317,7 @@ void clock_to_string(chess_clock *clock, int color, char clock_string[], char gh
 
 	if (ms < 0) {
 		strcat(clock_string, "-");
+		strcat(ghost_string, "-");
 		ms = -ms;
 	}
 
@@ -324,6 +325,10 @@ void clock_to_string(chess_clock *clock, int color, char clock_string[], char gh
 		char hours[4];
 		sprintf(hours, "%ld:", (ms / 3600000) % 24);
 		strcat(clock_string, hours);
+		size_t prev_len = strlen(ghost_string);
+		size_t hours_len = strlen(hours);
+		memset(ghost_string + prev_len, '8', hours_len - 1);
+		ghost_string[prev_len + hours_len - 1] = ':';
 	}
 	if (ms >= 10 * 1000) { // > 10 seconds
 		char minutes[4];

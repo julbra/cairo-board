@@ -29,13 +29,19 @@ struct _ClockFaceClass {
 
 G_END_DECLS
 
-GtkWidget *clock_face_new (void);
-void clock_face_set_clock (ClockFace *clock_face, chess_clock *clock);
-gboolean periodic_refresh (gpointer data);
-void refresh_both_clocks (GtkWidget *clock);
-void refresh_one_clock(GtkWidget *clock, int black);
-GType clock_face_get_type (void);
+void init_clock_colours(void);
 
+GtkWidget *clock_face_new(void);
+
+void clock_face_set_clock(ClockFace *clock_face, chess_clock *clock);
+
+gboolean periodic_refresh(gpointer data);
+
+void refresh_both_clocks(GtkWidget *clock);
+
+void refresh_one_clock(GtkWidget *clock, int black);
+
+GType clock_face_get_type(void);
 
 #endif
 

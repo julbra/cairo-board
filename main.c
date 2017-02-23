@@ -4067,6 +4067,8 @@ int main (int argc, char **argv) {
 	/* initialise random numbers for Zobrist hashing */
 	init_zobrist_keys();
 
+	init_clock_colours();
+
 	init_anims_map();
 
 	/* Initilialise threading stuff */
