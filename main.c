@@ -1102,7 +1102,7 @@ static gboolean on_motion(GtkWidget *pWidget, GdkEventMotion *event) {
 }
 
 gboolean de_scale(gpointer data) {
-	printf("De-scale\n");
+//	printf("De-scale\n");
 	needs_update = 1;
 	gtk_widget_queue_draw(GTK_WIDGET(data));
 	de_scale_timer = 0;
@@ -1191,7 +1191,7 @@ static gboolean on_configure_event(GtkWidget *pWidget, GdkEventConfigure *event)
 	if (pWidget == board) {
 		// This is a board resize event
 
-		debug("Got resize: %d\n", gtk_widget_get_allocated_width(board));
+//		debug("Got resize: %d\n", gtk_widget_get_allocated_width(board));
 		// Check whether the board dimensions actually changed
 		// NB: because we enforce a 1:1 ratio we only need to check the width but
 		// for debug purposes we allow non-square boards in certain situations

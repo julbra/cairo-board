@@ -614,8 +614,8 @@ static gboolean animate_one_step(gpointer data) {
 
 	struct anim_data *anim = (struct anim_data *)data;
 
-	double wi = (double)gtk_widget_get_allocated_width(board);
-	double hi = (double)gtk_widget_get_allocated_height(board);
+	double wi = (double) gtk_widget_get_allocated_width(board);
+	double hi = (double) gtk_widget_get_allocated_height(board);
 
 	xx = anim->plots[anim->step_index][0];
 	yy = anim->plots[anim->step_index][1];
@@ -789,7 +789,7 @@ static gboolean animate_one_step(gpointer data) {
 		gdk_threads_leave();
 		return FALSE;
 	}
-	cairo_t *cdr = gdk_cairo_create (gtk_widget_get_window(board));
+	cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
 	cairo_rectangle(cdr, floor(xx-wi/16.0f), floor(yy-hi/16.0f), ceil(ww), ceil(hh));
 	cairo_rectangle(cdr, floor(prev_x-wi/16.0f), floor(prev_y-hi/16.0f), ceil(ww), ceil(hh));
 	cairo_clip(cdr);
@@ -954,7 +954,7 @@ static gboolean animate_one_step(gpointer data) {
 			choose_promote(anim->promo_type, TRUE, anim->old_col, anim->old_row, anim->new_col, anim->new_row, FALSE);
 		}
 
-		cairo_t *cdr = gdk_cairo_create (gtk_widget_get_window(board));
+		cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
 
 		if (highlight_last_move) {
 			// de-highlight previous move
@@ -1085,7 +1085,7 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 		clean_last_drag_step(cache_dc, wi, hi);
 		cairo_destroy(cache_dc);
 
-		cairo_t *cdr = gdk_cairo_create (gtk_widget_get_window(board));
+		cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
 
 		double ww = wi/8.0f;
 		double hh = hi/8.0f;
@@ -1594,7 +1594,7 @@ void handle_button_release(void) {
 		// destroy buffer drawing context
 		cairo_destroy(cache_dc);
 
-		cairo_t *cdr = gdk_cairo_create (gtk_widget_get_window(board));
+		cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
 		// clip cr to repaint only needed squares
 		cairo_rectangle(cdr, dragging_prev_x-wi/16.0f, dragging_prev_y-hi/16.0f, ww, hh);
 		cairo_rectangle(cdr, floor(xy[0]-wi/16.0f), floor(xy[1]-hi/16.0f), ceil(ww), ceil(hh));
@@ -1696,7 +1696,7 @@ void handle_button_release(void) {
 void handle_left_button_press(GtkWidget *pWidget, int wi, int hi, int x, int y) {
 	/* clean out any previous highlight */
 	if (mouse_clicked[0] >=0) {
-		cairo_t *board_cr = gdk_cairo_create (gtk_widget_get_window(pWidget));
+		cairo_t *board_cr = gdk_cairo_create(gtk_widget_get_window(pWidget));
 		de_highlight_square(board_cr, mouse_clicked[0], mouse_clicked[1], wi, hi);
 		cairo_destroy(board_cr);
 
@@ -1759,7 +1759,7 @@ void handle_right_button_press(GtkWidget *pWidget, int wi, int hi) {
 	cairo_destroy(cache_cr);
 
 	// Update displayed board
-	cairo_t *cdr = gdk_cairo_create (gtk_widget_get_window(pWidget));
+	cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(pWidget));
 	cairo_set_source_surface(cdr, cache_layer, 0, 0);
 	cairo_set_operator(cdr, CAIRO_OPERATOR_SOURCE);
 	cairo_paint(cdr);
@@ -1803,7 +1803,7 @@ void handle_flip_board(GtkWidget *pWidget) {
 
 
 	// Update displayed board
-	cairo_t *cdr = gdk_cairo_create (gtk_widget_get_window(pWidget));
+	cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(pWidget));
 	cairo_set_source_surface(cdr, cache_layer, 0, 0);
 	cairo_set_operator(cdr, CAIRO_OPERATOR_SOURCE);
 	cairo_paint(cdr);
@@ -1889,7 +1889,7 @@ void *process_moves(void *ptr) {
 			/* destroy cache_dc*/
 			cairo_destroy(cache_dc);
 
-			cairo_t *cdr = gdk_cairo_create (gtk_widget_get_window(board));
+			cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
 			cairo_rectangle(cdr, floor(new_x-wi/16.0f), floor(new_y-hi/16.0f), ceil(ww), ceil(hh));
 			cairo_rectangle(cdr, floor(dragging_prev_x-wi/16.0f), floor(dragging_prev_y-hi/16.0f), ceil(ww), ceil(hh));
 			cairo_clip(cdr);
@@ -2386,7 +2386,7 @@ gboolean test_animate_random_step(gpointer data) {
 			gdk_threads_leave();
 			return FALSE;
 		}
-		cairo_t *cdr = gdk_cairo_create (gtk_widget_get_window(board));
+		cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
 		cairo_rectangle(cdr, floor(xx-wi/16.0f), floor(yy-hi/16.0f), ceil(ww), ceil(hh));
 		cairo_rectangle(cdr, (piece->colour?floor(prev_x1-wi/16.0f):floor(prev_x2-wi/16.0f)), (piece->colour?floor(prev_y1-hi/16.0f):floor(prev_y2-hi/16.0f)), ceil(ww), ceil(hh));
 		cairo_clip(cdr);
