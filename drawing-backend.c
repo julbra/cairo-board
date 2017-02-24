@@ -87,42 +87,27 @@ void apply_surface_at(cairo_t *cdc, cairo_surface_t *surf, double x, double y, d
 
 void draw_board_surface(int width, int height) {
 
+	int j,k;
+	double tx = width/8.0;
+	double ty = height/8.0;
+
 	// Create a "memory-buffer" surface to draw on
 	cairo_surface_destroy(layer_0);
 	layer_0 = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
 	cairo_t *cr = cairo_create(layer_0);
 
-//	cairo_set_source_rgb(cr, .0, .0, .0);
-//	cairo_paint(cr);
-
-	int j,k;
-
-	double tx = width/8.0;
-	double ty = height/8.0;
-
 	cairo_pattern_t *dark_square_pattern = cairo_pattern_create_rgb(dr, dg, db);
 	cairo_pattern_t *light_square_pattern = cairo_pattern_create_rgb(lr, lg, lb);
 
-//	cairo_pattern_t *dark_gradient_pattern = cairo_pattern_create_radial (tx/2.0, ty/2.0, .0, tx/2.0, ty/2.0, (tx+ty)/4.0f);
-//	cairo_pattern_t *light_gradient_pattern = cairo_pattern_create_radial (tx/2.0, ty/2.0, .0, tx/2.0, ty/2.0, (tx+ty)/4.0f);
-//	cairo_pattern_add_color_stop_rgba (dark_gradient_pattern, 0.0f, 1, 1, 1, 0.1f);
-//	cairo_pattern_add_color_stop_rgba (dark_gradient_pattern, 1.0f, 1, 1, 1, 0.0f);
-//	cairo_pattern_add_color_stop_rgba (dark_gradient_pattern, 0.0f, 1, 1, 1, 0.4f);
-//	cairo_pattern_add_color_stop_rgba (dark_gradient_pattern, 1.0f, 1, 1, 1, 0.0f);
-
-	cairo_pattern_t *dark_gradient_pattern = cairo_pattern_create_radial(.0, .0, .0, .0, .0, (tx + ty) / 3.0f);
+	// Shading on light squares
 	cairo_pattern_t *light_gradient_pattern = cairo_pattern_create_radial(.0, .0, .0, .0, .0, (tx + ty) / 3.0f);
-	cairo_pattern_add_color_stop_rgba(light_gradient_pattern, 0.0f, 0, 0, 0, 0.1f);
-	cairo_pattern_add_color_stop_rgba(light_gradient_pattern, 1.0f, 0, 0, 0, 0.0f);
-	cairo_pattern_add_color_stop_rgba(dark_gradient_pattern, 0.0f, 1, 1, 1, 0.1f);
-	cairo_pattern_add_color_stop_rgba(dark_gradient_pattern, 1.0f, 1, 1, 1, 0.0f);
+	cairo_pattern_add_color_stop_rgba(light_gradient_pattern, 0.0f, dr, dg, db, 0.25f);
+	cairo_pattern_add_color_stop_rgba(light_gradient_pattern, 1.0f, dr, dg, db, 0.0f);
 
-//	cairo_pattern_t *dark_gradient_pattern = cairo_pattern_create_radial (.0, .0, .0, .0, .0, (tx+ty)/2.0f);
-//	cairo_pattern_t *light_gradient_pattern = cairo_pattern_create_radial (.0, .0, .0, .0, .0, (tx+ty)/2.0f);
-//	cairo_pattern_add_color_stop_rgba (light_gradient_pattern, 0.0f, 0, 0, 0, 0.4f);
-//	cairo_pattern_add_color_stop_rgba (light_gradient_pattern, 1.0f, 1, 0, 0, 0.0f);
-//	cairo_pattern_add_color_stop_rgba (dark_gradient_pattern, 0.0f, 1, 1, 1, 0.4f);
-//	cairo_pattern_add_color_stop_rgba (dark_gradient_pattern, 1.0f, 1, 1, 1, 0.0f);
+	// Highlight on dark squares
+	cairo_pattern_t *dark_gradient_pattern = cairo_pattern_create_radial(tx, ty, .0, tx, ty, (tx + ty) / 3.0f);
+	cairo_pattern_add_color_stop_rgba(dark_gradient_pattern, 0.0f, lr, lg, lb, 0.25f);
+	cairo_pattern_add_color_stop_rgba(dark_gradient_pattern, 1.0f, 1, 1, 1, 0.0f);
 
 	// Draw Dark Squares
 	cairo_set_source(cr, dark_square_pattern);
