@@ -51,6 +51,8 @@ cairo_surface_t *piecesSurf[12];
 
 GHashTable *anims_map;
 
+static gboolean is_scaled = false;
+
 /* Show last move variables */
 int lm_source_col = -1, lm_source_row;
 int lm_dest_col, lm_dest_row;
@@ -353,18 +355,18 @@ void restore_piece_to_surface(int width, int height, chess_piece *piece) {
 }
 
 void paint_layers(cairo_t *cdc) {
-
+	// Board
 	cairo_set_operator (cdc, CAIRO_OPERATOR_SOURCE);
 	cairo_set_source_surface (cdc, layer_0, 0.0f, 0.0f);
 	cairo_paint(cdc);
 
+	// Pieces
 	cairo_set_operator (cdc, CAIRO_OPERATOR_OVER);
 	cairo_set_source_surface (cdc, layer_1, 0.0f, 0.0f);
 	cairo_paint(cdc);
 
 	cairo_set_source_surface (cdc, layer_2, 0.0f, 0.0f);
 	cairo_paint(cdc);
-
 }
 
 void init_highlight_surface(int wi, int hi) {
@@ -372,7 +374,7 @@ void init_highlight_surface(int wi, int hi) {
 	layer_2 = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, wi, hi);
 }
 
-void expose_update(cairo_t *cdr, double wi, double hi) {
+void draw_full_update(cairo_t *cdr, int wi, int hi) {
 
 	rebuild_surfaces(wi, hi);
 	draw_pieces_surface(wi, hi);
@@ -418,15 +420,18 @@ void expose_update(cairo_t *cdr, double wi, double hi) {
 	cairo_set_source_surface(cdr, cache_layer, 0, 0);
 	cairo_set_operator(cdr, CAIRO_OPERATOR_SOURCE);
 	cairo_paint(cdr);
+	is_scaled = false;
 }
 
-void expose_scale(cairo_t *cdr, double wi, double hi) {
+void draw_scaled(cairo_t *cdr, int wi, int hi) {
 	// This is the whole point of having the cache layer:
 	// For some reason it is *A LOT* quicker to rescale
 	// the cache layer than to rescale layer0 and layer1 and then stack them
-	w_ratio = ((double)wi) / ((double)old_wi);
-	h_ratio = ((double)hi) / ((double)old_hi);
+	w_ratio = wi / ((double) old_wi);
+	h_ratio = hi / ((double) old_hi);
+
 	cairo_scale(cdr, w_ratio, h_ratio);
+	is_scaled = true;
 
 	cairo_set_source_surface(cdr, cache_layer, 0, 0);
 	cairo_set_operator(cdr, CAIRO_OPERATOR_SOURCE);
@@ -435,13 +440,19 @@ void expose_scale(cairo_t *cdr, double wi, double hi) {
 	needs_scale = 0;
 }
 
-void expose_clip(cairo_t *cdr, GdkEventExpose* event, double wi, double hi) {
+void draw_cheap_repaint(cairo_t *cdr, int wi, int hi) {
 
-	// Clip if no need update
+	// Just redraw layers
 	cairo_t *cache_cr = cairo_create(cache_layer);
-	cairo_rectangle (cache_cr, event->area.x, event->area.y, event->area.width, event->area.height);
-	cairo_clip(cache_cr);
+
+	if (is_scaled) {
+		w_ratio = wi / ((double) old_wi);
+		h_ratio = hi / ((double) old_hi);
+		cairo_scale(cdr, w_ratio, h_ratio);
+	}
+
 	paint_layers(cache_cr);
+
 	if (mouse_dragged_piece != NULL && g_atomic_int_get(&moveit_flag)) {
 		debug("Dragged while resetting!\n");
 		int dragged_x = g_atomic_int_get(&dragging_prev_x);
@@ -450,14 +461,12 @@ void expose_clip(cairo_t *cdr, GdkEventExpose* event, double wi, double hi) {
 		cairo_set_operator(cache_cr, CAIRO_OPERATOR_OVER);
 		cairo_paint(cache_cr);
 	}
+
 	cairo_destroy(cache_cr);
 
-	cairo_rectangle (cdr, event->area.x, event->area.y, event->area.width, event->area.height);
-	cairo_clip(cdr);
 	cairo_set_source_surface(cdr, cache_layer, 0, 0);
 	cairo_set_operator(cdr, CAIRO_OPERATOR_SOURCE);
 	cairo_paint(cdr);
-
 }
 
 /* convenience method, internal only */
@@ -492,7 +501,7 @@ void highlightPotentialMoves(GtkWidget *pWidget, chess_piece *piece, int wi, int
 	cairo_t *bdc;
 	cairo_t *ddc;
 
-	cairo_t *cdr = gdk_cairo_create (pWidget->window);
+	cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(pWidget));
 
 	bdc = cairo_create(layer_2);
 	ddc = cairo_create(dragging_background);
@@ -605,8 +614,8 @@ static gboolean animate_one_step(gpointer data) {
 
 	struct anim_data *anim = (struct anim_data *)data;
 
-	double wi = (double)board->allocation.width;
-	double hi = (double)board->allocation.height;
+	double wi = (double)gtk_widget_get_allocated_width(board);
+	double hi = (double)gtk_widget_get_allocated_height(board);
 
 	xx = anim->plots[anim->step_index][0];
 	yy = anim->plots[anim->step_index][1];
@@ -654,9 +663,7 @@ static gboolean animate_one_step(gpointer data) {
 			cairo_clip(cache_dc);
 			cairo_paint(cache_dc);
 
-
-
-			cairo_t *cdr = gdk_cairo_create (board->window);
+			cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
 			cairo_rectangle(cdr, floor(prev_x-wi/16), floor(prev_y-hi/16), ceil(ww), ceil(hh));
 
 			// In case anim was killed by other animated piece taking it or
@@ -776,13 +783,13 @@ static gboolean animate_one_step(gpointer data) {
 
 	// If the board isn't drawable we're probably exiting
 	// free up allocated memory and stop animation
-	if (!GDK_IS_DRAWABLE(board->window)) {
+	if (gdk_window_is_destroyed(gtk_widget_get_window(board))) {
 		debug("Aborting animation.\n");
 		free_anim_data(anim);
 		gdk_threads_leave();
 		return FALSE;
 	}
-	cairo_t *cdr = gdk_cairo_create (board->window);
+	cairo_t *cdr = gdk_cairo_create (gtk_widget_get_window(board));
 	cairo_rectangle(cdr, floor(xx-wi/16.0f), floor(yy-hi/16.0f), ceil(ww), ceil(hh));
 	cairo_rectangle(cdr, floor(prev_x-wi/16.0f), floor(prev_y-hi/16.0f), ceil(ww), ceil(hh));
 	cairo_clip(cdr);
@@ -947,7 +954,7 @@ static gboolean animate_one_step(gpointer data) {
 			choose_promote(anim->promo_type, TRUE, anim->old_col, anim->old_row, anim->new_col, anim->new_row, FALSE);
 		}
 
-		cairo_t *cdr = gdk_cairo_create (board->window);
+		cairo_t *cdr = gdk_cairo_create (gtk_widget_get_window(board));
 
 		if (highlight_last_move) {
 			// de-highlight previous move
@@ -1078,7 +1085,7 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 		clean_last_drag_step(cache_dc, wi, hi);
 		cairo_destroy(cache_dc);
 
-		cairo_t *cdr = gdk_cairo_create (board->window);
+		cairo_t *cdr = gdk_cairo_create (gtk_widget_get_window(board));
 
 		double ww = wi/8.0f;
 		double hh = hi/8.0f;
@@ -1406,8 +1413,8 @@ void handle_button_release(void) {
 	int ij[2];
 	//double wi = pWidget->allocation.width;
 	//double hi = pWidget->allocation.height;
-	double wi = board->allocation.width;
-	double hi = board->allocation.height;
+	double wi = gtk_widget_get_allocated_width(board);
+	double hi = gtk_widget_get_allocated_height(board);
 
 	int move_result = -1;
 
@@ -1587,7 +1594,7 @@ void handle_button_release(void) {
 		// destroy buffer drawing context
 		cairo_destroy(cache_dc);
 
-		cairo_t *cdr = gdk_cairo_create (board->window);
+		cairo_t *cdr = gdk_cairo_create (gtk_widget_get_window(board));
 		// clip cr to repaint only needed squares
 		cairo_rectangle(cdr, dragging_prev_x-wi/16.0f, dragging_prev_y-hi/16.0f, ww, hh);
 		cairo_rectangle(cdr, floor(xy[0]-wi/16.0f), floor(xy[1]-hi/16.0f), ceil(ww), ceil(hh));
@@ -1648,7 +1655,7 @@ void handle_button_release(void) {
 			if (mouse_clicked[0] != ij[0] || mouse_clicked[1] != ij[1]) {
 
 				// paint to main
-				cairo_t *main_cr = gdk_cairo_create(board->window);
+				cairo_t *main_cr = gdk_cairo_create(gtk_widget_get_window(board));
 				highlight_square(main_cr, ij[0], ij[1], 1, 1, 0, 1, wi, hi);
 				cairo_destroy(main_cr);
 
@@ -1689,7 +1696,7 @@ void handle_button_release(void) {
 void handle_left_button_press(GtkWidget *pWidget, int wi, int hi, int x, int y) {
 	/* clean out any previous highlight */
 	if (mouse_clicked[0] >=0) {
-		cairo_t *board_cr = gdk_cairo_create (pWidget->window);
+		cairo_t *board_cr = gdk_cairo_create (gtk_widget_get_window(pWidget));
 		de_highlight_square(board_cr, mouse_clicked[0], mouse_clicked[1], wi, hi);
 		cairo_destroy(board_cr);
 
@@ -1752,7 +1759,7 @@ void handle_right_button_press(GtkWidget *pWidget, int wi, int hi) {
 	cairo_destroy(cache_cr);
 
 	// Update displayed board
-	cairo_t *cdr = gdk_cairo_create (pWidget->window);
+	cairo_t *cdr = gdk_cairo_create (gtk_widget_get_window(pWidget));
 	cairo_set_source_surface(cdr, cache_layer, 0, 0);
 	cairo_set_operator(cdr, CAIRO_OPERATOR_SOURCE);
 	cairo_paint(cdr);
@@ -1796,7 +1803,7 @@ void handle_flip_board(GtkWidget *pWidget) {
 
 
 	// Update displayed board
-	cairo_t *cdr = gdk_cairo_create (pWidget->window);
+	cairo_t *cdr = gdk_cairo_create (gtk_widget_get_window(pWidget));
 	cairo_set_source_surface(cdr, cache_layer, 0, 0);
 	cairo_set_operator(cdr, CAIRO_OPERATOR_SOURCE);
 	cairo_paint(cdr);
@@ -1819,8 +1826,8 @@ void *process_moves(void *ptr) {
 
 			gdk_threads_enter();
 
-			int wi = board->allocation.width;
-			int hi = board->allocation.height;
+			int wi = gtk_widget_get_allocated_width(board);
+			int hi = gtk_widget_get_allocated_height(board);
 			double ww = wi/8.0f;
 			double hh = hi/8.0f;
 
@@ -1838,7 +1845,7 @@ void *process_moves(void *ptr) {
 				clean_last_drag_step(cache_dc, wi, hi);
 				cairo_destroy(cache_dc);
 
-				cairo_t *cdr = gdk_cairo_create(board->window);
+				cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
 
 				double ww = wi / 8.0f;
 				double hh = hi / 8.0f;
@@ -1882,7 +1889,7 @@ void *process_moves(void *ptr) {
 			/* destroy cache_dc*/
 			cairo_destroy(cache_dc);
 
-			cairo_t *cdr = gdk_cairo_create (board->window);
+			cairo_t *cdr = gdk_cairo_create (gtk_widget_get_window(board));
 			cairo_rectangle(cdr, floor(new_x-wi/16.0f), floor(new_y-hi/16.0f), ceil(ww), ceil(hh));
 			cairo_rectangle(cdr, floor(dragging_prev_x-wi/16.0f), floor(dragging_prev_y-hi/16.0f), ceil(ww), ceil(hh));
 			cairo_clip(cdr);
@@ -2302,8 +2309,8 @@ gboolean test_animate_random_step(gpointer data) {
 	int xx, yy;
 
 
-	double wi = (double)board->allocation.width;
-	double hi = (double)board->allocation.height;
+	double wi = (double)gtk_widget_get_allocated_width(board);
+	double hi = (double)gtk_widget_get_allocated_height(board);
 
 	if (piece->colour) {
 		xx = prev_x1 + (rand()%7-3);
@@ -2374,12 +2381,12 @@ gboolean test_animate_random_step(gpointer data) {
 
 		// If the board isn't drawable we're probably exiting
 		// free up allocated memory and stop animation
-		if (!GDK_IS_DRAWABLE(board->window)) {
+		if (gdk_window_is_destroyed(gtk_widget_get_window(board))) {
 			debug("Aborting animation.\n");
 			gdk_threads_leave();
 			return FALSE;
 		}
-		cairo_t *cdr = gdk_cairo_create (board->window);
+		cairo_t *cdr = gdk_cairo_create (gtk_widget_get_window(board));
 		cairo_rectangle(cdr, floor(xx-wi/16.0f), floor(yy-hi/16.0f), ceil(ww), ceil(hh));
 		cairo_rectangle(cdr, (piece->colour?floor(prev_x1-wi/16.0f):floor(prev_x2-wi/16.0f)), (piece->colour?floor(prev_y1-hi/16.0f):floor(prev_y2-hi/16.0f)), ceil(ww), ceil(hh));
 		cairo_clip(cdr);

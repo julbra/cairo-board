@@ -1,5 +1,7 @@
 project(cairo_board C)
 
+set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR})
+
 cmake_minimum_required(VERSION 3.6)
 
 set(CMAKE_BUILD_TYPE Release)
@@ -7,16 +9,17 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 
 find_package(Freetype REQUIRED)
 include_directories(${FREETYPE_INCLUDE_DIRS})
+find_package(Fontconfig REQUIRED)
+include_directories(${FONTCONFIG_INCLUDE_DIRS})
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(GTK2 REQUIRED gtk+-2.0)
+pkg_check_modules(GTK REQUIRED gtk+-3.0)
 pkg_check_modules(RSVG REQUIRED librsvg-2.0)
 pkg_check_modules(GTHREAD REQUIRED gthread-2.0)
 
-
-include_directories(${GTK2_INCLUDE_DIRS})
-link_directories(${GTK2_LIBRARY_DIRS})
-add_definitions(${GTK2_CFLAGS_OTHER})
+include_directories(${GTK_INCLUDE_DIRS})
+link_directories(${GTK_LIBRARY_DIRS})
+add_definitions(${GTK_CFLAGS_OTHER})
 
 include_directories(${RSVG_INCLUDE_DIRS})
 link_directories(${RSVG_LIBRARY_DIRS})
@@ -72,5 +75,5 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_executable(cairo_board ${SOURCE_FILES})
 
-target_link_libraries(cairo_board ${FREETYPE_LIBRARIES} ${GTK2_LIBRARIES} ${RSVG_LIBRARIES} ${GTHREAD_LIBRARIES} pthread)
+target_link_libraries(cairo_board ${RSVG_LIBRARIES} ${GTK_LIBRARIES} ${FREETYPE_LIBRARIES} ${FONTCONFIG_LIBRARIES} ${GTHREAD_LIBRARIES} pthread)
 

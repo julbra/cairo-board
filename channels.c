@@ -162,7 +162,7 @@ static GtkWidget *switch_to_channel_menu(channel *chan) {
 			gtk_check_menu_item_set_active (GTK_CHECK_MENU_ITEM(item), TRUE);
 		}
 
-		g_signal_connect(GTK_OBJECT (item), "toggled", G_CALLBACK (radio_callback), GINT_TO_POINTER(next_chan));
+		g_signal_connect(item, "toggled", G_CALLBACK (radio_callback), GINT_TO_POINTER(next_chan));
 
 		chans = g_slist_next(chans);
 	}
@@ -173,7 +173,7 @@ static void popup_tab_menu(channel *channel, guint32 time) {
 	GtkWidget *channel_tab_popup = gtk_menu_new();
 
 	GtkWidget *join_item = create_append_image_menu_item(channel_tab_popup, GTK_STOCK_ADD, "Join new channel");
-	g_signal_connect (GTK_OBJECT (join_item), "activate", G_CALLBACK (join_channel_function), NULL);
+	g_signal_connect (join_item, "activate", G_CALLBACK (join_channel_function), NULL);
 
 	gtk_menu_shell_append(GTK_MENU_SHELL(channel_tab_popup), gtk_separator_menu_item_new());
 
@@ -186,11 +186,11 @@ static void popup_tab_menu(channel *channel, guint32 time) {
 	char item_str[32];
 	snprintf(item_str, 32, "Close channel %d", channel->num);
 	GtkWidget *close_item = create_append_image_menu_item(channel_tab_popup, GTK_STOCK_CLOSE, item_str);
-	g_signal_connect (GTK_OBJECT (close_item), "activate", G_CALLBACK (free_channel_function), channel);
+	g_signal_connect (close_item, "activate", G_CALLBACK (free_channel_function), channel);
 
 	snprintf(item_str, 32, "Leave channel %d", channel->num);
 	GtkWidget *leave_item = create_append_image_menu_item(channel_tab_popup, GTK_STOCK_QUIT, item_str);
-	g_signal_connect (GTK_OBJECT (leave_item), "activate", G_CALLBACK (leave_channel_function), channel);
+	g_signal_connect (leave_item, "activate", G_CALLBACK (leave_channel_function), channel);
 
 	gtk_widget_show_all(channel_tab_popup);
 	gtk_menu_popup(GTK_MENU(channel_tab_popup), NULL, NULL, NULL, NULL, 3, time);
@@ -426,7 +426,7 @@ channel* create_channel(int channel_num) {
 	/* Text entry */
 	new_channel->text_entry =  gtk_entry_new();
 	gtk_entry_set_max_length(GTK_ENTRY(new_channel->text_entry), 400);
-	g_signal_connect(GTK_OBJECT(new_channel->text_entry), "activate", G_CALLBACK(channel_entry_callback), new_channel);
+	g_signal_connect(new_channel->text_entry, "activate", G_CALLBACK(channel_entry_callback), new_channel);
 
 	/* Scroll lock button */
 	new_channel->scroll_lock = gtk_toggle_button_new();

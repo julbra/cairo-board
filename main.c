@@ -204,9 +204,9 @@ int dragging_prev_y = 0;
 
 static int playing = 0;
 
-static int de_scale_timer = 0;
-static int auto_play_timer = 0;
-static int clock_refresher = 0;
+static guint de_scale_timer = 0;
+static guint auto_play_timer = 0;
+static guint clock_refresher = 0;
 
 // FreeType
 FT_Library library;
@@ -405,25 +405,18 @@ void assign_surfaces(void) {
 	}
 }
 
-static gboolean on_board_expose (GtkWidget *pWidget, GdkEventExpose *event) {
+static gboolean on_board_draw(GtkWidget *pWidget, cairo_t *cdr) {
 
-	double wi = (double)(pWidget->allocation.width);
-	double hi = (double)(pWidget->allocation.height);
-
-	cairo_t *cdr = gdk_cairo_create (pWidget->window);
+	double wi = (double) (gtk_widget_get_allocated_width(pWidget));
+	double hi = (double) (gtk_widget_get_allocated_height(pWidget));
 
 	if (needs_update) {
-		expose_update(cdr, wi, hi);
-
+		draw_full_update(cdr, wi, hi);
+	} else if (needs_scale) {
+		draw_scaled(cdr, wi, hi);
+	} else {
+		draw_cheap_repaint(cdr, wi, hi);
 	}
-	else if (needs_scale) {
-		expose_scale(cdr, wi, hi);
-	}
-	else {
-		expose_clip(cdr, event, wi, hi);
-	}
-
-	cairo_destroy(cdr);
 
 	return TRUE;
 }
@@ -609,12 +602,12 @@ static void get_int_from_popup(void) {
 	sprintf(item_text, "%lc: _Knight", type_to_unicode_char(whose_turn?B_KNIGHT:W_KNIGHT));
 	knight_item = gtk_menu_item_new_with_mnemonic(item_text);
 
-	g_signal_connect (GTK_OBJECT (queen_item), "activate", G_CALLBACK (choose_promote_handler), GINT_TO_POINTER(W_QUEEN));
-	g_signal_connect (GTK_OBJECT (rook_item), "activate", G_CALLBACK (choose_promote_handler), GINT_TO_POINTER(W_ROOK));
-	g_signal_connect (GTK_OBJECT (bishop_item), "activate", G_CALLBACK (choose_promote_handler), GINT_TO_POINTER(W_BISHOP));
-	g_signal_connect (GTK_OBJECT (knight_item), "activate", G_CALLBACK (choose_promote_handler), GINT_TO_POINTER(W_KNIGHT));
+	g_signal_connect(queen_item, "activate", G_CALLBACK (choose_promote_handler), GINT_TO_POINTER(W_QUEEN));
+	g_signal_connect(rook_item, "activate", G_CALLBACK (choose_promote_handler), GINT_TO_POINTER(W_ROOK));
+	g_signal_connect(bishop_item, "activate", G_CALLBACK (choose_promote_handler), GINT_TO_POINTER(W_BISHOP));
+	g_signal_connect(knight_item, "activate", G_CALLBACK (choose_promote_handler), GINT_TO_POINTER(W_KNIGHT));
 
-	g_signal_connect (GTK_OBJECT (promote_popup), "deactivate", G_CALLBACK (choose_promote_deactivate_handler), GINT_TO_POINTER(-1));
+	g_signal_connect(promote_popup, "deactivate", G_CALLBACK (choose_promote_deactivate_handler), GINT_TO_POINTER(-1));
 
 //	gtk_widget_set_size_request (promote_popup, 100, 6+30*4);
 
@@ -1063,8 +1056,8 @@ static gboolean on_button_press(GtkWidget *pWidget, GdkEventButton *pButton, Gdk
 
 	if (pButton->type == GDK_BUTTON_PRESS) {
 
-		int wi = pWidget->allocation.width;
-		int hi = pWidget->allocation.height;
+		int wi = gtk_widget_get_allocated_width(pWidget);
+		int hi = gtk_widget_get_allocated_height(pWidget);
 
 		if (pButton->button == 1) {
 			handle_left_button_press(pWidget, wi, hi, pButton->x, pButton->y);
@@ -1098,9 +1091,9 @@ static gboolean on_button_release (GtkWidget *pWidget, GdkEventButton *pButton, 
 	return TRUE;
 }
 
-static gboolean on_motion (GtkWidget *pWidget, GdkEventMotion *event) {
-	// we now always grab the last event
-	if ( g_atomic_int_get(&moveit_flag) ) {
+static gboolean on_motion(GtkWidget *pWidget, GdkEventMotion *event) {
+	// Grab the last event
+	if (g_atomic_int_get(&moveit_flag)) {
 		g_atomic_int_set(&last_move_x, (gint) event->x);
 		g_atomic_int_set(&last_move_y, (gint) event->y);
 		g_atomic_int_set(&more_events_flag, 1);
@@ -1108,8 +1101,8 @@ static gboolean on_motion (GtkWidget *pWidget, GdkEventMotion *event) {
 	return TRUE;
 }
 
-gboolean de_scale (gpointer data) {
-	//printf("De-scale\n");
+gboolean de_scale(gpointer data) {
+	printf("De-scale\n");
 	needs_update = 1;
 	gtk_widget_queue_draw(GTK_WIDGET(data));
 	de_scale_timer = 0;
@@ -1171,8 +1164,8 @@ static gboolean handle_join_channel_response(GtkWidget *dialog, gint response_id
 
 	switch(response_id) {
 	case GTK_RESPONSE_ACCEPT: {
-		GtkComboBox *combo_entry = GTK_COMBO_BOX(pWidget);
-		int num = strtol(gtk_combo_box_get_active_text(combo_entry), NULL, 10);
+		GtkComboBoxText *combo_entry = GTK_COMBO_BOX_TEXT(pWidget);
+		int num = (int) strtol(gtk_combo_box_text_get_active_text(combo_entry), NULL, 10);
 		debug("Requesting join channel: +chan %d\n", num);
 		char *command = calloc(128, sizeof(char));
 		snprintf(command, 128, "+chan %d\n", num);
@@ -1198,26 +1191,25 @@ static gboolean on_configure_event(GtkWidget *pWidget, GdkEventConfigure *event)
 	if (pWidget == board) {
 		// This is a board resize event
 
-		//debug("Got resize: %d\n", board->allocation.width);
+		debug("Got resize: %d\n", gtk_widget_get_allocated_width(board));
 		// Check whether the board dimensions actually changed
 		// NB: because we enforce a 1:1 ratio we only need to check the width but
 		// for debug purposes we allow non-square boards in certain situations
 
-		if (last_alloc_wi == board->allocation.width && last_alloc_hi == board->allocation.height) {
+		if (last_alloc_wi == gtk_widget_get_allocated_width(board) && last_alloc_hi == gtk_widget_get_allocated_height(board)) {
 			// NO CHANGE: return
 			debug("No Change: last alloc wi %d hi %d\n", last_alloc_wi, last_alloc_hi);
 			return FALSE;
 		}
 
 		// remember last alloc width
-		last_alloc_wi = board->allocation.width;
-		last_alloc_hi = board->allocation.height;
+		last_alloc_wi = gtk_widget_get_allocated_width(board);
+		last_alloc_hi = gtk_widget_get_allocated_height(board);
 
 		if (first_configure) {
 			needs_update = 1;
 			first_configure = 0;
-		}
-		else {
+		} else {
 			// invalidate old descale timer
 			if (de_scale_timer) {
 				g_source_remove(de_scale_timer);
@@ -2720,7 +2712,7 @@ void popup_join_channel_dialog(gboolean lock_threads) {
 	GtkWidget *content_area = gtk_dialog_get_content_area(GTK_DIALOG (join_channel_dialog));
 
 	/* Create a radio button with a GtkEntry widget */
-	GtkWidget *combo_entry = gtk_combo_box_entry_new_text();
+	GtkWidget *combo_entry = gtk_combo_box_text_new_with_entry();
 	gtk_widget_set_size_request(combo_entry, 300, -1);
 	int i;
 	for (i=0; i<101; i++) {
@@ -2728,7 +2720,7 @@ void popup_join_channel_dialog(gboolean lock_threads) {
 			char str[256];
 			if (strcmp("", channel_descriptions[i])) {
 				sprintf(str, "%d: %s", i, channel_descriptions[i]);
-				gtk_combo_box_append_text(GTK_COMBO_BOX(combo_entry), str);
+				gtk_combo_box_text_append(GTK_COMBO_BOX_TEXT(combo_entry), NULL, str);
 			}
 
 		}
@@ -2752,12 +2744,12 @@ GtkWidget *save_login;
 GtkWidget *auto_login;
 GtkWidget *info_label;
 
-void save_login_toggle_button_callback (GtkWidget *widget, gpointer data) {
-    if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON (widget))) {
-    	gtk_widget_set_sensitive(auto_login, TRUE);
-    } else {
-    	gtk_widget_set_sensitive(auto_login, FALSE);
-    }
+void save_login_toggle_button_callback(GtkWidget *widget, gpointer data) {
+	if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON (widget))) {
+		gtk_widget_set_sensitive(auto_login, TRUE);
+	} else {
+		gtk_widget_set_sensitive(auto_login, FALSE);
+	}
 }
 
 void toggle_login_box(gboolean enable) {
@@ -4228,15 +4220,13 @@ int main (int argc, char **argv) {
 
 	/* The board container */
 	GtkWidget *board_frame;
-	board_frame = gtk_aspect_frame_new( NULL, 0, 0, 1.0f, FALSE );
-	//board_frame = gtk_frame_new(NULL);
-	gtk_widget_set_size_request (board_frame, 256, 256);
+	board_frame = gtk_aspect_frame_new(NULL, 0, 0, 1.0f, FALSE);
+	gtk_widget_set_size_request(board_frame, 256, 256);
 	gtk_frame_set_shadow_type(GTK_FRAME(board_frame), GTK_SHADOW_NONE);
 
 	/* The clock container */
 	GtkWidget *clock_frame;
-	//clock_frame = gtk_aspect_frame_new( NULL, 0, 0, clock_board_ratio, FALSE );
-	clock_frame = gtk_frame_new( NULL );
+	clock_frame = gtk_frame_new(NULL);
 	gtk_widget_set_size_request(clock_frame, -1, 32);
 	gtk_frame_set_shadow_type(GTK_FRAME(clock_frame), GTK_SHADOW_NONE);
 
@@ -4311,10 +4301,10 @@ int main (int argc, char **argv) {
 	gtk_widget_add_events (board, GDK_POINTER_MOTION_MASK|GDK_BUTTON_PRESS_MASK|GDK_BUTTON_RELEASE_MASK);
 
  	g_signal_connect (main_window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
-	gtk_quit_add_destroy(1, GTK_OBJECT(main_window));
-	gtk_quit_add (1, cleanup, NULL);
+//	gtk_quit_add_destroy(1, GTK_OBJECT(main_window));
+//	gtk_quit_add (1, cleanup, NULL);
 
-	g_signal_connect (board, "expose-event", G_CALLBACK(on_board_expose), NULL);
+	g_signal_connect (board, "draw", G_CALLBACK(on_board_draw), NULL);
 
 	g_signal_connect (G_OBJECT(board), "button-press-event", G_CALLBACK(on_button_press), NULL);
 	g_signal_connect (G_OBJECT(board), "button-release-event", G_CALLBACK(on_button_release), NULL);

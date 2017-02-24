@@ -1,6 +1,5 @@
 #include <gtk/gtk.h>
 #include <math.h>
-#include <pango/pangocairo.h>
 #include <string.h>
 
 #include "clock-widget.h"
@@ -111,7 +110,7 @@ void init_clock_colours(void) {
 	rgb_to_css(warn_fg_ghost_hex, WARN_FG_GHOST_R, WARN_FG_GHOST_G, WARN_FG_GHOST_B);
 }
 
-void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
+gboolean draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 
 	static int last_wi = -1;
 	static int last_hi = -1;
@@ -123,15 +122,15 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 
 	if (!cf->clock) {
 		fprintf(stderr, "Can't draw a NULL clock\n");
-		return;
+		return FALSE;
 	}
 
 	pthread_mutex_lock(&mutex_drawing);
 
 	cairo_surface_t *buffer_surf = cairo_image_surface_create(
 			CAIRO_FORMAT_ARGB32, 
-			clock_face->allocation.width, 
-			clock_face->allocation.height);
+			gtk_widget_get_allocated_width(clock_face),
+			gtk_widget_get_allocated_height(clock_face));
 
 	cairo_t *buff_crt = cairo_create(buffer_surf);
 
@@ -153,8 +152,8 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	float hi_font_size;
 	float wi_font_size;
 
-	int wi = clock_face->allocation.width;
-	int hi = clock_face->allocation.height;
+	int wi = gtk_widget_get_allocated_width(clock_face);
+	int hi = gtk_widget_get_allocated_height(clock_face);
 
 	size_t white_len = strlen(white);
 	size_t black_len = strlen(black);
@@ -435,30 +434,13 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	pthread_mutex_unlock(&mutex_drawing);
 }
 
-static gboolean clock_face_expose(GtkWidget *clock_face, GdkEventExpose *event) {
-
-	cairo_t *cr;
-
-	/* get a cairo_t */
-	cr = gdk_cairo_create (clock_face->window);
-
-	/* set a clip region for the expose event */
-	cairo_rectangle (cr, event->area.x, event->area.y, event->area.width, event->area.height);
-	cairo_clip (cr);
-	draw_clock_face(clock_face, cr);
-	cairo_destroy (cr);
-
-	return FALSE;
-}
-
-static void clock_face_class_init (ClockFaceClass *class) {
+static void clock_face_class_init(ClockFaceClass *class) {
 	GtkWidgetClass *widget_class;
 	widget_class = GTK_WIDGET_CLASS (class);
-	widget_class->expose_event = clock_face_expose;
+	widget_class->draw = draw_clock_face;
 }
 
-static void clock_face_init(ClockFace *clock_face) {
-}
+static void clock_face_init(ClockFace *clock_face) {}
 
 void clock_face_set_clock(ClockFace *clock_face, chess_clock *clock) {
 	clock_face->clock = clock;
@@ -483,8 +465,8 @@ void refresh_one_clock(GtkWidget *clock, int black) {
 	if (!GTK_WIDGET(clock)) {
 		return;
 	}
-	double half_w = clock->allocation.width / 2.0;
+	double half_w = gtk_widget_get_allocated_width(clock) / 2.0;
 	int x_offset = (int) (black ? floor(half_w) : 0);
 	int redraw_w = (int) ceil(half_w);
-	gtk_widget_queue_draw_area(clock, x_offset, 0, redraw_w, clock->allocation.height);
+	gtk_widget_queue_draw_area(clock, x_offset, 0, redraw_w, gtk_widget_get_allocated_height(clock));
 }

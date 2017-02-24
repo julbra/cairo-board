@@ -14,9 +14,9 @@
 
 void *process_moves(void *ptr);
 void reset_board(void);
-void expose_update(cairo_t *cdr, double wi, double hi);
-void expose_scale(cairo_t *cdr, double wi, double hi);
-void expose_clip(cairo_t *cdr, GdkEventExpose* event, double wi, double hi);
+void draw_full_update(cairo_t *cdr, int wi, int hi);
+void draw_scaled(cairo_t *cdr, int wi, int hi);
+void draw_cheap_repaint(cairo_t *cdr, int wi, int hi);
 void handle_button_release(void);
 void handle_left_button_press(GtkWidget *pWidget, int wi, int hi, int x, int y);
 void handle_right_button_press(GtkWidget *pWidget, int wi, int hi);
