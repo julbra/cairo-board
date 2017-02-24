@@ -4244,28 +4244,24 @@ int main (int argc, char **argv) {
 	gtk_container_add (GTK_CONTAINER (clock_frame), clock_widget);
 
 	/* The table layout container to pack the board and clocks */
-	GtkWidget *table;
+	GtkWidget *left_grid;
 
-	table = gtk_table_new(clock_board_ratio + 1, 1, FALSE);
+	left_grid = gtk_grid_new();
 
-	gtk_table_attach(GTK_TABLE(table), board_frame,
-	                 0, // guint left_attach
-	                 1, // guint right_attach
-	                 1, // guint top_attach
-	                 clock_board_ratio + 1, // guint bottom_attach
-	                 GTK_FILL | GTK_EXPAND,//| GTK_SHRINK, // GtkAttachOptions xoptions
-	                 GTK_FILL | GTK_EXPAND,//| GTK_SHRINK, // GtkAttachOptions xoptions
-	                 0, // guint xpadding
-	                 0); // guint ypadding
-	gtk_table_attach(GTK_TABLE(table), clock_frame,
-	                 0, // guint left_attach
-	                 1, // guint right_attach
-	                 0, // guint top_attach
-	                 1, // guint bottom_attach
-	                 GTK_FILL | GTK_EXPAND,//| GTK_SHRINK, // GtkAttachOptions xoptions
-	                 GTK_FILL | GTK_EXPAND,//| GTK_SHRINK, // GtkAttachOptions xoptions
-	                 0, // guint xpadding
-	                 0); // guint ypadding
+	gtk_widget_set_hexpand(board_frame, TRUE);
+	gtk_widget_set_vexpand(board_frame, TRUE);
+	gtk_grid_attach(GTK_TABLE(left_grid), board_frame,
+	                0, // guint left_attach
+	                1, // guint top attach
+	                1, // guint width
+	                clock_board_ratio + 1); // guint height
+	gtk_widget_set_hexpand(clock_frame, TRUE);
+	gtk_widget_set_vexpand(clock_frame, TRUE);
+	gtk_grid_attach(GTK_TABLE(left_grid), clock_frame,
+	                0, // guint left attach
+	                0, // guint top attach
+	                1, // guint width
+	                1); // guint height
 
 	/* Channels Hashmap: we use this to quickly map a channel number to its index */
 	channel_map = g_hash_table_new(g_int_hash, g_int_equal);
@@ -4281,7 +4277,7 @@ int main (int argc, char **argv) {
 
 	gtk_paned_pack1(GTK_PANED(right_split_pane), moves_v_box, TRUE, FALSE);
 	gtk_paned_pack2(GTK_PANED(right_split_pane), channels_notebook, FALSE, FALSE);
-	gtk_paned_pack1(GTK_PANED(split_pane), table, TRUE, FALSE);
+	gtk_paned_pack1(GTK_PANED(split_pane), left_grid, TRUE, FALSE);
 	gtk_paned_pack2(GTK_PANED(split_pane), right_split_pane, FALSE, FALSE);
 
 	gtk_widget_set_size_request(moves_v_box, 256, -1);
