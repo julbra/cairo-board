@@ -4258,24 +4258,24 @@ int main (int argc, char **argv) {
 
 	table = gtk_table_new(clock_board_ratio + 1, 1, FALSE);
 
-	gtk_table_attach (GTK_TABLE(table), board_frame,
-                                        0, // guint left_attach
-										1, // guint right_attach
-										1, // guint top_attach
-										clock_board_ratio + 1, // guint bottom_attach
-										GTK_FILL | GTK_EXPAND,//| GTK_SHRINK, // GtkAttachOptions xoptions
-										GTK_FILL | GTK_EXPAND,//| GTK_SHRINK, // GtkAttachOptions xoptions
-										0, // guint xpadding
-										0); // guint ypadding
-	gtk_table_attach (GTK_TABLE(table), clock_frame,
-                                        0, // guint left_attach
-										1, // guint right_attach
-										0, // guint top_attach
-										1, // guint bottom_attach
-										GTK_FILL | GTK_EXPAND,//| GTK_SHRINK, // GtkAttachOptions xoptions
-										GTK_FILL | GTK_EXPAND,//| GTK_SHRINK, // GtkAttachOptions xoptions
-										0, // guint xpadding
-										0); // guint ypadding
+	gtk_table_attach(GTK_TABLE(table), board_frame,
+	                 0, // guint left_attach
+	                 1, // guint right_attach
+	                 1, // guint top_attach
+	                 clock_board_ratio + 1, // guint bottom_attach
+	                 GTK_FILL | GTK_EXPAND,//| GTK_SHRINK, // GtkAttachOptions xoptions
+	                 GTK_FILL | GTK_EXPAND,//| GTK_SHRINK, // GtkAttachOptions xoptions
+	                 0, // guint xpadding
+	                 0); // guint ypadding
+	gtk_table_attach(GTK_TABLE(table), clock_frame,
+	                 0, // guint left_attach
+	                 1, // guint right_attach
+	                 0, // guint top_attach
+	                 1, // guint bottom_attach
+	                 GTK_FILL | GTK_EXPAND,//| GTK_SHRINK, // GtkAttachOptions xoptions
+	                 GTK_FILL | GTK_EXPAND,//| GTK_SHRINK, // GtkAttachOptions xoptions
+	                 0, // guint xpadding
+	                 0); // guint ypadding
 
 	/* Channels Hashmap: we use this to quickly map a channel number to its index */
 	channel_map = g_hash_table_new(g_int_hash, g_int_equal);
@@ -4287,21 +4287,22 @@ int main (int argc, char **argv) {
 	//gtk_notebook_popup_enable(GTK_NOTEBOOK(channels_notebook));
 
 	/* the right split pane */
-	right_split_pane = gtk_vpaned_new();
+	GtkWidget *right_split_pane = gtk_vpaned_new();
 
-	gtk_paned_pack1( GTK_PANED(right_split_pane), moves_v_box, TRUE, FALSE);
-	gtk_paned_pack2( GTK_PANED(right_split_pane), channels_notebook, FALSE, FALSE);
-	gtk_paned_pack1( GTK_PANED(split_pane), table, TRUE, FALSE);
-	gtk_paned_pack2( GTK_PANED(split_pane), right_split_pane, FALSE, FALSE);
+	gtk_paned_pack1(GTK_PANED(right_split_pane), moves_v_box, TRUE, FALSE);
+	gtk_paned_pack2(GTK_PANED(right_split_pane), channels_notebook, FALSE, FALSE);
+	gtk_paned_pack1(GTK_PANED(split_pane), table, TRUE, FALSE);
+	gtk_paned_pack2(GTK_PANED(split_pane), right_split_pane, FALSE, FALSE);
 
-	gtk_widget_set_size_request (moves_v_box, 256, -1);
-	gtk_paned_set_position(GTK_PANED(split_pane), (gint) (-2 + ((double) clock_board_ratio) / ((double) clock_board_ratio + 1.0f) * win_def_hi));
+	gtk_widget_set_size_request(moves_v_box, 256, -1);
+	gtk_paned_set_position(GTK_PANED(split_pane), (gint) (-2 + ((double) clock_board_ratio) /
+	                                                           ((double) clock_board_ratio + 1.0f) * win_def_hi));
 
-	gtk_container_add (GTK_CONTAINER (main_window), split_pane);
+	gtk_container_add(GTK_CONTAINER (main_window), split_pane);
 
-	gtk_window_set_title (GTK_WINDOW (main_window), "Cairo-Board");
-	gtk_widget_set_name (GTK_WIDGET (main_window), "Mother of all windows");
-	gtk_widget_set_name (GTK_WIDGET (board), "Board Area");
+	gtk_window_set_title(GTK_WINDOW (main_window), "Cairo-Board");
+	gtk_widget_set_name(GTK_WIDGET (main_window), "Mother of all windows");
+	gtk_widget_set_name(GTK_WIDGET (board), "Board Area");
 
 	needs_update = 0;
 	needs_scale = 0;

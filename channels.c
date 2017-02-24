@@ -407,9 +407,9 @@ channel* create_channel(int channel_num) {
 	if (!gtk_widget_get_visible(channels_notebook)) {
 		gtk_widget_show(channels_notebook);
 	}
-	
-	GtkStyle *style = gtk_widget_get_style(channels_notebook);
-	print_style(style);
+
+//	GtkStyle *style = gtk_widget_get_style(channels_notebook);
+//	print_style(style);
 
 	channel *new_channel = malloc(sizeof(channel));
 	new_channel->num = channel_num;

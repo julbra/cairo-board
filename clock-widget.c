@@ -268,15 +268,23 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	}
 
 	// paint white's clock background
+	double w_bg_r, w_bg_g, w_bg_b;
 	if (wa) {
 		if (warn_me && warn_toggle) {
-			cairo_set_source_rgb(buff_crt, warn_bg_r, warn_bg_g, warn_bg_b);
+			w_bg_r = warn_bg_r;
+			w_bg_g = warn_bg_g;
+			w_bg_b = warn_bg_b;
 		} else {
-			cairo_set_source_rgb(buff_crt, active_bg_r, active_bg_g, active_bg_b);
+			w_bg_r = active_bg_r;
+			w_bg_g = active_bg_g;
+			w_bg_b = active_bg_b;
 		}
 	} else {
-		cairo_set_source_rgb(buff_crt, inactive_bg_r, inactive_bg_g, inactive_bg_b);
+		w_bg_r = inactive_bg_r;
+		w_bg_g = inactive_bg_g;
+		w_bg_b = inactive_bg_b;
 	}
+	cairo_set_source_rgb(buff_crt, w_bg_r, w_bg_g, w_bg_b);
 	cairo_rectangle(buff_crt, 0, 0, halfWidth, hi);
 	cairo_fill(buff_crt);
 
@@ -327,15 +335,23 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	// paint black's clock background
 	cairo_translate(buff_crt, halfWidth, 0);
 
+	double b_bg_r, b_bg_g, b_bg_b;
 	if (ba) {
 		if (warn_me && warn_toggle) {
-			cairo_set_source_rgb(buff_crt, warn_bg_r, warn_bg_g, warn_bg_b);
+			b_bg_r = warn_bg_r;
+			b_bg_g = warn_bg_g;
+			b_bg_b = warn_bg_b;
 		} else {
-			cairo_set_source_rgb(buff_crt, active_bg_r, active_bg_g, active_bg_b);
+			b_bg_r = active_bg_r;
+			b_bg_g = active_bg_g;
+			b_bg_b = active_bg_b;
 		}
 	} else {
-		cairo_set_source_rgb(buff_crt, inactive_bg_r, inactive_bg_g, inactive_bg_b);
+		b_bg_r = inactive_bg_r;
+		b_bg_g = inactive_bg_g;
+		b_bg_b = inactive_bg_b;
 	}
+	cairo_set_source_rgb(buff_crt, b_bg_r, b_bg_g, b_bg_b);
 	cairo_rectangle(buff_crt, 0, 0, halfWidth, hi);
 	cairo_fill(buff_crt);
 
@@ -401,11 +417,8 @@ void draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 //	cairo_stroke(buff_crt);
 
 	// paint separator on boundary to avoid aliasing
-	if (wa || ba) {
-		cairo_set_source_rgb(buff_crt, (active_bg_r + inactive_bg_r) / 2.0, (active_bg_g + inactive_bg_g) / 2.0, (active_bg_b + inactive_bg_b) / 2.0);
-	} else {
-		cairo_set_source_rgb(buff_crt, inactive_bg_r, inactive_bg_g, inactive_bg_b);
-	}
+	cairo_set_source_rgb(buff_crt, (w_bg_r + b_bg_r) / 2.0, (w_bg_g + b_bg_g) / 2.0, (w_bg_b + b_bg_b) / 2.0);
+
 	cairo_move_to (buff_crt, halfWidth, 0);
 	cairo_line_to(buff_crt, halfWidth, hi);
 	cairo_set_line_width(buff_crt, 1.0f);

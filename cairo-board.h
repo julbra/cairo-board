@@ -240,7 +240,6 @@ extern int running_flag;
 extern int more_events_flag;
 
 extern GtkWidget *board;
-extern GtkWidget *right_split_pane;
 
 extern int dragging_prev_x;
 extern int dragging_prev_y;
