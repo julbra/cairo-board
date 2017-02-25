@@ -4080,43 +4080,47 @@ int main (int argc, char **argv) {
 
 	main_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 
-	/* Update style for notebook close tab buttons */
-	gtk_rc_parse_string (
-			"style \"tab-close-button-style\"\n"
-			"{\n"
-			"  GtkWidget::focus-padding = 0\n"
-			"  GtkWidget::focus-line-width = 0\n"
-			"  xthickness = 0\n"
-			"  ythickness = 0\n"
-			"}\n"
-			"widget \"*.tab-close-button\" style \"tab-close-button-style\"");
+	// CSS
+	GtkCssProvider *provider = gtk_css_provider_new();
+	GdkDisplay *display = gdk_display_get_default();
+	GdkScreen *screen = gdk_display_get_default_screen(display);
+	gtk_style_context_add_provider_for_screen(screen, GTK_STYLE_PROVIDER(provider), GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+	const char *css_file = "cairo-board.css";
+	GError *css_error = NULL;
+	gtk_css_provider_load_from_file(provider, g_file_new_for_path(css_file), &css_error);
+	if (css_error != NULL) {
+		debug("Loading CSS Error! %s\n", css_error->message);
+	} else {
+		debug("Loaded CSS\n");
+	}
+	g_object_unref(provider);
 
 	/* the central split pane */
 	GtkWidget *split_pane;
-	split_pane = gtk_hpaned_new();
-	
+	split_pane = gtk_paned_new(GTK_ORIENTATION_HORIZONTAL);
+
 	/* moves list text view widget */
 	moves_list_view = gtk_text_view_new();
-	gtk_text_view_set_editable( GTK_TEXT_VIEW(moves_list_view), FALSE);
-	gtk_text_view_set_cursor_visible( GTK_TEXT_VIEW(moves_list_view), FALSE);
+	gtk_text_view_set_editable(GTK_TEXT_VIEW(moves_list_view), FALSE);
+	gtk_text_view_set_cursor_visible(GTK_TEXT_VIEW(moves_list_view), FALSE);
 
-	moves_list_buffer = gtk_text_view_get_buffer (GTK_TEXT_VIEW (moves_list_view));
+	moves_list_buffer = gtk_text_view_get_buffer(GTK_TEXT_VIEW (moves_list_view));
 
 	PangoFontDescription *desc;
-	desc = pango_font_description_from_string ("Sans 12");
+	desc = pango_font_description_from_string("Sans 12");
 	gtk_widget_modify_font(moves_list_view, desc);
 
 	/* get the average width of a SAN char in pango units */
-	char san_chars[] = "NBQKabcdefgh12345678x=+#-*";
+	char san_chars[] = "NBQKabcdefgh12345678x=+#-*O";
 	int san_char_width;
 	PangoLayout *playout = gtk_widget_create_pango_layout(moves_list_view, san_chars);
 	pango_layout_get_size(playout, &san_char_width, NULL);
-	g_object_unref(playout); 
+	g_object_unref(playout);
 	san_char_width /= strlen(san_chars);
 
 	/* set tab stop */
-	PangoTabArray* tabarray = pango_tab_array_new_with_positions(2, 0, PANGO_TAB_LEFT, 6*san_char_width, PANGO_TAB_LEFT, 15*san_char_width);
-	gtk_text_view_set_tabs( GTK_TEXT_VIEW( moves_list_view ), tabarray ); 
+	PangoTabArray* tabarray = pango_tab_array_new_with_positions(2, 0, PANGO_TAB_LEFT, 6 * san_char_width, PANGO_TAB_LEFT, 15 * san_char_width);
+	gtk_text_view_set_tabs(GTK_TEXT_VIEW(moves_list_view), tabarray);
 	pango_tab_array_free(tabarray);
 
 	/* Title label for moves list viewer */
@@ -4138,31 +4142,31 @@ int main (int argc, char **argv) {
 	g_object_set(play_pause_button, "can-focus", FALSE, NULL);
 	gtk_widget_set_tooltip_text(play_pause_button, "Play/Pause");
 	gtk_button_set_image(GTK_BUTTON(play_pause_button),
-			(gtk_image_new_from_stock(GTK_STOCK_MEDIA_PLAY, GTK_ICON_SIZE_SMALL_TOOLBAR)));
+	                     (gtk_image_new_from_stock(GTK_STOCK_MEDIA_PLAY, GTK_ICON_SIZE_SMALL_TOOLBAR)));
 
 	goto_first_button = gtk_button_new();
 	g_object_set(goto_first_button, "can-focus", FALSE, NULL);
 	gtk_widget_set_tooltip_text(goto_first_button, "Show first move");
 	gtk_button_set_image(GTK_BUTTON(goto_first_button),
-			(gtk_image_new_from_stock(GTK_STOCK_MEDIA_PREVIOUS, GTK_ICON_SIZE_SMALL_TOOLBAR)));
+	                     (gtk_image_new_from_stock(GTK_STOCK_MEDIA_PREVIOUS, GTK_ICON_SIZE_SMALL_TOOLBAR)));
 
 	goto_last_button = gtk_button_new();
 	g_object_set(goto_last_button, "can-focus", FALSE, NULL);
 	gtk_widget_set_tooltip_text(goto_last_button, "Show last move");
 	gtk_button_set_image(GTK_BUTTON(goto_last_button),
-			(gtk_image_new_from_stock(GTK_STOCK_MEDIA_NEXT, GTK_ICON_SIZE_SMALL_TOOLBAR)));
+	                     (gtk_image_new_from_stock(GTK_STOCK_MEDIA_NEXT, GTK_ICON_SIZE_SMALL_TOOLBAR)));
 
 	go_back_button = gtk_button_new();
 	g_object_set(go_back_button, "can-focus", FALSE, NULL);
 	gtk_widget_set_tooltip_text(go_back_button, "Show previous move");
 	gtk_button_set_image(GTK_BUTTON(go_back_button),
-			(gtk_image_new_from_stock(GTK_STOCK_MEDIA_REWIND, GTK_ICON_SIZE_SMALL_TOOLBAR)));
+	                     (gtk_image_new_from_stock(GTK_STOCK_MEDIA_REWIND, GTK_ICON_SIZE_SMALL_TOOLBAR)));
 
 	go_forward_button = gtk_button_new();
 	g_object_set(go_forward_button, "can-focus", FALSE, NULL);
 	gtk_widget_set_tooltip_text(go_forward_button, "Show next move");
 	gtk_button_set_image(GTK_BUTTON(go_forward_button),
-			(gtk_image_new_from_stock(GTK_STOCK_MEDIA_FORWARD, GTK_ICON_SIZE_SMALL_TOOLBAR)));
+	                     (gtk_image_new_from_stock(GTK_STOCK_MEDIA_FORWARD, GTK_ICON_SIZE_SMALL_TOOLBAR)));
 
 	GtkWidget *controls_h_box = gtk_hbox_new(TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(controls_h_box), goto_first_button, TRUE, TRUE, 0);
@@ -4174,7 +4178,7 @@ int main (int argc, char **argv) {
 	/* scrolled window for moves list */
 	scrolled_window = gtk_scrolled_window_new(NULL, NULL);
 	gtk_scrolled_window_set_policy(GTK_SCROLLED_WINDOW(scrolled_window), GTK_POLICY_AUTOMATIC, GTK_POLICY_ALWAYS);
-	gtk_container_add( GTK_CONTAINER(scrolled_window), moves_list_view);
+	gtk_container_add(GTK_CONTAINER(scrolled_window), moves_list_view);
 
 	/* right gravity */
 	GtkTextIter start_bozo, end_iter;
@@ -4210,7 +4214,6 @@ int main (int argc, char **argv) {
 	gtk_box_pack_start(GTK_BOX(moves_v_box), controls_h_box, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(moves_v_box), scrolled_window, TRUE, TRUE, 0);
 	gtk_box_pack_end(GTK_BOX(moves_v_box), opening_code_frame_event_box, FALSE, FALSE, 0);
-
 
 	/* create the board area */
 	board = gtk_drawing_area_new();
@@ -4250,14 +4253,14 @@ int main (int argc, char **argv) {
 
 	gtk_widget_set_hexpand(board_frame, TRUE);
 	gtk_widget_set_vexpand(board_frame, TRUE);
-	gtk_grid_attach(GTK_TABLE(left_grid), board_frame,
+	gtk_grid_attach(GTK_GRID(left_grid), board_frame,
 	                0, // guint left_attach
 	                1, // guint top attach
 	                1, // guint width
 	                clock_board_ratio + 1); // guint height
 	gtk_widget_set_hexpand(clock_frame, TRUE);
 	gtk_widget_set_vexpand(clock_frame, TRUE);
-	gtk_grid_attach(GTK_TABLE(left_grid), clock_frame,
+	gtk_grid_attach(GTK_GRID(left_grid), clock_frame,
 	                0, // guint left attach
 	                0, // guint top attach
 	                1, // guint width
@@ -4273,7 +4276,7 @@ int main (int argc, char **argv) {
 	//gtk_notebook_popup_enable(GTK_NOTEBOOK(channels_notebook));
 
 	/* the right split pane */
-	GtkWidget *right_split_pane = gtk_vpaned_new();
+	GtkWidget *right_split_pane = gtk_paned_new(GTK_ORIENTATION_VERTICAL);
 
 	gtk_paned_pack1(GTK_PANED(right_split_pane), moves_v_box, TRUE, FALSE);
 	gtk_paned_pack2(GTK_PANED(right_split_pane), channels_notebook, FALSE, FALSE);
@@ -4297,8 +4300,6 @@ int main (int argc, char **argv) {
 	gtk_widget_add_events (board, GDK_POINTER_MOTION_MASK|GDK_BUTTON_PRESS_MASK|GDK_BUTTON_RELEASE_MASK);
 
  	g_signal_connect (main_window, "destroy", G_CALLBACK(gtk_main_quit), NULL);
-//	gtk_quit_add_destroy(1, GTK_OBJECT(main_window));
-//	gtk_quit_add (1, cleanup, NULL);
 
 	g_signal_connect (board, "draw", G_CALLBACK(on_board_draw), NULL);
 
@@ -4326,7 +4327,6 @@ int main (int argc, char **argv) {
 
 	reset_game();
 
-	gtk_widget_set_double_buffered(clock_widget, FALSE);
 	gtk_widget_show_all(main_window);
 
 	/* only show this when we have tabs to show */

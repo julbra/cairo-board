@@ -1,0 +1,15 @@
+button.tab_close_button {
+    background-image: none;
+    opacity: 0.5;
+    padding: 2px;
+    border-color: rgba(0, 0, 0, 0);
+    box-shadow: none;
+}
+
+button.tab_close_button:hover {
+    opacity: 1;
+}
+
+notebook {
+    padding: 5px;
+}

@@ -96,6 +96,8 @@ GtkWidget *right_split_pane;
 GtkTextTagTable *tags_table;
 GtkTextTag *blue_fg_tag;
 
+static GtkStyleContext *context;
+
 typedef struct {
 	int num;
 	GtkWidget *top_vbox;
@@ -430,7 +432,7 @@ channel* create_channel(int channel_num) {
 
 	/* Scroll lock button */
 	new_channel->scroll_lock = gtk_toggle_button_new();
-	GtkWidget *button_image = gtk_image_new_from_stock(GTK_STOCK_DIALOG_AUTHENTICATION, GTK_ICON_SIZE_MENU);
+	GtkWidget *button_image = gtk_image_new_from_icon_name("go-bottom", GTK_ICON_SIZE_MENU);
 	gtk_button_set_image(GTK_BUTTON(new_channel->scroll_lock), button_image);
 	gtk_button_set_relief(GTK_BUTTON(new_channel->scroll_lock), GTK_RELIEF_NONE);
 	gtk_button_set_focus_on_click(GTK_BUTTON(new_channel->scroll_lock), FALSE);
@@ -439,6 +441,9 @@ channel* create_channel(int channel_num) {
 
 	/* Text entry hbox */
 	GtkWidget *entry_hbox = gtk_hbox_new(FALSE, 5);
+	context = gtk_widget_get_style_context(entry_hbox);
+	gtk_style_context_add_class(context,"text-input-wrapper");
+
 	gtk_box_set_spacing(GTK_BOX(entry_hbox), 5);
 	gtk_box_pack_start(GTK_BOX(entry_hbox), entry_label, FALSE, FALSE, 5);
 	gtk_box_pack_start(GTK_BOX(entry_hbox), new_channel->text_entry, TRUE, TRUE, 0);
@@ -461,15 +466,20 @@ channel* create_channel(int channel_num) {
 
 	char lab_text[16];
 	snprintf(lab_text, 16, "Ch[%d]", channel_num);
+
+	char close_text[32];
+	snprintf(close_text, 16, "Close channel %d", channel_num);
+
 	GtkWidget *tab_label_box = gtk_hbox_new(FALSE, 10);
+
 	GtkWidget *tab_label = gtk_label_new(lab_text);
 	GtkWidget *tab_close_button = gtk_button_new();
-	GtkWidget *tab_close_button_icon = gtk_image_new_from_stock(GTK_STOCK_CLOSE, GTK_ICON_SIZE_MENU);
-	gtk_button_set_relief(GTK_BUTTON(tab_close_button), GTK_RELIEF_NONE);
+	GtkWidget *tab_close_button_icon = gtk_image_new_from_icon_name("window-close", GTK_ICON_SIZE_MENU);
 	gtk_button_set_focus_on_click(GTK_BUTTON(tab_close_button), FALSE);
 	gtk_button_set_image(GTK_BUTTON(tab_close_button), tab_close_button_icon);
-
-	gtk_widget_set_name( tab_close_button, "tab-close-button" );
+	gtk_widget_set_tooltip_text(tab_close_button_icon, close_text);
+	context = gtk_widget_get_style_context(tab_close_button);
+	gtk_style_context_add_class(context,"tab_close_button");
 	g_signal_connect (G_OBJECT (tab_close_button), "clicked", G_CALLBACK(free_channel_function), new_channel);
 
 	GtkWidget *tab_event_box = gtk_event_box_new();
@@ -483,7 +493,7 @@ channel* create_channel(int channel_num) {
 
 	gtk_container_add(GTK_CONTAINER(tab_event_box), tab_label_box);
 
-	g_signal_connect_swapped(G_OBJECT (tab_event_box), "button-press-event", G_CALLBACK (on_button_press), new_channel);
+	g_signal_connect_swapped(G_OBJECT(tab_event_box), "button-press-event", G_CALLBACK(on_button_press), new_channel);
 
 	gtk_widget_show_all(tab_event_box);
 
