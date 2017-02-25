@@ -13,3 +13,8 @@ button.tab_close_button:hover {
 notebook {
     padding: 5px;
 }
+
+.analysis-panel-contents {
+    padding: 10px;
+    font-size: 18px;
+}

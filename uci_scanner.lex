@@ -40,9 +40,9 @@
     return UCI_OPTION;
 }
 
-^"info depth ".* {
-	debug("UCI: info depth: %s\n", yytext);
-	return UCI_INFO_DEPTH;
+^"info ".* {
+	debug("UCI: info: %s\n", yytext);
+	return UCI_INFO;
 }
 
 ^"bestmove ".*" ponder ".* {

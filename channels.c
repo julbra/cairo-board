@@ -331,7 +331,7 @@ void parse_my_channels_line(char *message) {
 	char *next;
 	int chan_num;
 	while (true) {
-		chan_num = strtol(message, &next, 10);
+		chan_num = (int) strtol(message, &next, 10);
 		if (next == message) {
 			break;
 		}
@@ -341,7 +341,6 @@ void parse_my_channels_line(char *message) {
 }
 
 void handle_channel_removed(int removed_channel) {
-
 	GSList *chans = my_channels;
 	while(chans) {
 		int next_chan = GPOINTER_TO_INT(chans->data);
@@ -410,9 +409,6 @@ channel* create_channel(int channel_num) {
 		gtk_widget_show(channels_notebook);
 	}
 
-//	GtkStyle *style = gtk_widget_get_style(channels_notebook);
-//	print_style(style);
-
 	channel *new_channel = malloc(sizeof(channel));
 	new_channel->num = channel_num;
 	/* create channel window */
@@ -465,10 +461,10 @@ channel* create_channel(int channel_num) {
 	gtk_text_buffer_create_tag(new_channel->text_view_buffer, "blue_fg", "foreground", "blue", NULL);
 
 	char lab_text[16];
-	snprintf(lab_text, 16, "Ch[%d]", channel_num);
+	snprintf(lab_text, 16, "Chan %d", channel_num);
 
 	char close_text[32];
-	snprintf(close_text, 16, "Close channel %d", channel_num);
+	snprintf(close_text, 16, "Close chan %d", channel_num);
 
 	GtkWidget *tab_label_box = gtk_hbox_new(FALSE, 10);
 
@@ -568,9 +564,6 @@ void insert_text_channel_view(int channel_num, char *username, char *message, gb
 		// Killed? tough!
 		return;
 	}
-	
-	GtkStyle *style = gtk_widget_get_style(channel->text_view);
-	print_style(style);
 
 	/* append the text at the end of the buffer */
 	GtkTextMark *end_mark = gtk_text_buffer_get_mark(channel->text_view_buffer, "end_bookmark");
@@ -591,11 +584,11 @@ void insert_text_channel_view(int channel_num, char *username, char *message, gb
 	gtk_text_buffer_insert(channel->text_view_buffer, &mark_it, final_message, -1);
 
 	/* Count lines to check we're not full */
-	int linecount = gtk_text_buffer_get_line_count(channel->text_view_buffer);
-	if (linecount > CHANNEL_BUFFER_MAX_LINES) {
+	int line_count = gtk_text_buffer_get_line_count(channel->text_view_buffer);
+	if (line_count > CHANNEL_BUFFER_MAX_LINES) {
 		GtkTextIter start, end;
 		gtk_text_buffer_get_bounds(channel->text_view_buffer, &start, &end);
-		gtk_text_buffer_get_iter_at_line(channel->text_view_buffer, &end, linecount - CHANNEL_BUFFER_MAX_LINES -1);
+		gtk_text_buffer_get_iter_at_line(channel->text_view_buffer, &end, line_count - CHANNEL_BUFFER_MAX_LINES -1);
 		gtk_text_buffer_delete(channel->text_view_buffer, &start, &end);
 	}
 

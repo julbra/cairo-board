@@ -28,6 +28,7 @@
 #include "crafty-adapter.h"
 #include "uci-adapter.h"
 #include "channels.h"
+#include "analysis_panel.h"
 
 #include <locale.h>
 
@@ -1822,7 +1823,7 @@ gboolean auto_play_one_uci_move(gpointer data) {
 }
 
 gboolean delayed_start_uci_game(gpointer data) {
-	startNewUciGame(20);
+	start_new_uci_game(20);
 	return FALSE;
 }
 
@@ -2247,7 +2248,7 @@ long parse_observe_start_message(char *message) {
 		fprintf(stderr, "Bug in ICS parser, token length for Observe Start message should be more than 26\n");
 		exit(1);
 	}
-	return strtol(message+27, NULL, 10);
+	return strtol(message + 27, NULL, 10);
 }
 
 /*
@@ -3688,7 +3689,7 @@ void insert_text_moves_list_view(const gchar *text, gboolean should_lock_threads
 	}
 	GtkTextIter mark_it;
 	gtk_text_buffer_get_iter_at_mark(moves_list_buffer, &mark_it, end_mark);
-	gtk_text_buffer_insert(moves_list_buffer, &mark_it,	text, -1);
+	gtk_text_buffer_insert(moves_list_buffer, &mark_it, text, -1);
 
 	/* scroll to bottom */
 	gtk_text_view_scroll_to_mark(GTK_TEXT_VIEW(moves_list_view), end_mark, .0, FALSE, .0, .0);
@@ -3747,7 +3748,6 @@ void refresh_moves_list_view(plys_list *list) {
 		ply_colour = (p->ply_number + 1) % 2; // remember plys start at 1
 
 		char pchar = p->san_string[0];
-		/* char_to_type() will return opposite colour because we swapped whose_turn already */
 		int tt = char_to_type(pchar);
 		if (use_fig && tt != -1) {
 			tt = colorise_type(tt, ply_colour);
@@ -3787,12 +3787,12 @@ void insert_san_move(const char* san_move, gboolean should_lock_threads) {
 	memset(buf_str, 0, sizeof(buf_str));
 
 	char pchar = san_move[0];
-	/* char_to_type() will return opposite colour because we swapped whose_turn already */
 	int tt = char_to_type(pchar);
 	if (use_fig && tt != -1) {
-			tt = colorise_type(tt, !whose_turn);
-			sprintf(buf_str, "%lc", type_to_unicode_char(tt));
-			strcat(buf_str, san_move+1);
+		// char_to_type() will return opposite colour because we swapped whose_turn already
+		tt = colorise_type(tt, !whose_turn);
+		sprintf(buf_str, "%lc", type_to_unicode_char(tt));
+		strcat(buf_str, san_move + 1);
 	}
 	else {
 		strcpy(buf_str, san_move);
@@ -3884,35 +3884,6 @@ char *get_eco_long(const char* fen_key) {
 
 char *get_eco_short(const char* fen_key) {
 	return g_hash_table_lookup(eco_short, fen_key);
-}
-
-char *states[] = {
-		"normal", "active", "prelight", "selected", "insensitive"
-};
-
-void print_color(GdkColor *c) {
-	printf("\"#%02x%02x%02x\"", c->red / 256, c->green / 256, c->blue / 256);
-}
-
-void print_colors(char *name, GdkColor *x, int n) {
-	int i;
-	printf("(%s", name);
-	for (i = 0; i < n; i++) {
-		printf(" (%s . ", states[i]);
-		print_color(x + i);
-		printf(")");
-	}
-	printf(")\n");
-}
-
-void print_style(GtkStyle *style) {
-	print_colors("fg", style->fg, 5);
-	print_colors("bg", style->bg, 5);
-	print_colors("light", style->light, 5);
-	print_colors("dark", style->dark, 5);
-	print_colors("mid", style->mid, 5);
-	print_colors("text", style->text, 5);
-	print_colors("base", style->base, 5);
 }
 
 int main (int argc, char **argv) {
@@ -4053,7 +4024,7 @@ int main (int argc, char **argv) {
 	int win_def_wi;
 	int win_def_hi;
 
-	win_def_wi = 1175;
+	win_def_wi = 1238;
 	win_def_hi = 950;
 
 	create_signals();
@@ -4199,21 +4170,13 @@ int main (int argc, char **argv) {
 	GtkWidget *opening_code_frame_event_box = gtk_event_box_new();
 	gtk_container_add (GTK_CONTAINER (opening_code_frame_event_box), opening_code_frame);
 
-	/* sets bg colour of title label and opening to match that of the text view */
-	// Doesn't work anymore as we get a horrible white background for dark themes
-	//GtkStyle *sty = gtk_widget_get_style(moves_list_view);
-	//print_style(sty);
-	//GdkColor *colour = gdk_color_copy(&(sty->bg[GTK_STATE_NORMAL]));
-	//gtk_widget_modify_bg(label_frame_event_box, GTK_STATE_NORMAL, colour);
-	//gtk_widget_modify_bg(opening_code_frame_event_box, GTK_STATE_NORMAL, colour);
-	//gdk_color_free(colour);
-
 	/* vbox to pack title label, controls and view area*/
 	GtkWidget *moves_v_box = gtk_vbox_new(FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(moves_v_box), label_frame_event_box, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(moves_v_box), controls_h_box, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(moves_v_box), scrolled_window, TRUE, TRUE, 0);
 	gtk_box_pack_end(GTK_BOX(moves_v_box), opening_code_frame_event_box, FALSE, FALSE, 0);
+	gtk_widget_set_size_request(moves_v_box, 350, -1);
 
 	/* create the board area */
 	board = gtk_drawing_area_new();
@@ -4272,18 +4235,30 @@ int main (int argc, char **argv) {
 
 	/* Create empty notebook */
 	channels_notebook = gtk_notebook_new();
+	gtk_widget_set_size_request(channels_notebook, -1, 200);
 	gtk_notebook_set_scrollable(GTK_NOTEBOOK(channels_notebook), TRUE);
 	//gtk_notebook_popup_enable(GTK_NOTEBOOK(channels_notebook));
 
-	/* the right split pane */
-	GtkWidget *right_split_pane = gtk_paned_new(GTK_ORIENTATION_VERTICAL);
+	GtkWidget *analysis_panel = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
+	gtk_box_pack_start(GTK_BOX(analysis_panel), create_analysis_panel(), FALSE, FALSE, 0);
+	GtkWidget *collapsible_analysis = gtk_expander_new("Stockfish Analysis");
+	gtk_container_add(GTK_CONTAINER(collapsible_analysis), analysis_panel);
+	gtk_expander_set_expanded(GTK_EXPANDER(collapsible_analysis), true);
 
-	gtk_paned_pack1(GTK_PANED(right_split_pane), moves_v_box, TRUE, FALSE);
+	// Pack analysis pane and moves list into a wrapper
+	GtkWidget *analysis_wrapper = gtk_paned_new(GTK_ORIENTATION_VERTICAL);
+	gtk_paned_pack1(GTK_PANED(analysis_wrapper), moves_v_box, TRUE, FALSE);
+	gtk_paned_pack2(GTK_PANED(analysis_wrapper), collapsible_analysis, FALSE, FALSE);
+
+	// The right split pane
+	GtkWidget *right_split_pane = gtk_paned_new(GTK_ORIENTATION_VERTICAL);
+	gtk_paned_pack1(GTK_PANED(right_split_pane), analysis_wrapper, TRUE, FALSE);
 	gtk_paned_pack2(GTK_PANED(right_split_pane), channels_notebook, FALSE, FALSE);
+
+	// The master horizontal split pane
 	gtk_paned_pack1(GTK_PANED(split_pane), left_grid, TRUE, FALSE);
 	gtk_paned_pack2(GTK_PANED(split_pane), right_split_pane, FALSE, FALSE);
 
-	gtk_widget_set_size_request(moves_v_box, 256, -1);
 	gtk_paned_set_position(GTK_PANED(split_pane), (gint) (-2 + ((double) clock_board_ratio) /
 	                                                           ((double) clock_board_ratio + 1.0f) * win_def_hi));
 
@@ -4376,7 +4351,7 @@ int main (int argc, char **argv) {
 //	test_random_channel_insert();
 //	test_random_title();
 //	test_random_flip();
-//	startNewUciGame();
+//	start_new_uci_game();
 	///////////////////////
 
 

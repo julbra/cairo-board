@@ -203,7 +203,7 @@ void draw_board_surface(int width, int height) {
 	for (j = 0; j <= 8; j++) {
 		cairo_save(cr);
 		cairo_set_source(cr, light ? light_square_pattern : dark_square_pattern);
-		coord[0] = (char) (flipped ? '8' - j : '1' + j);
+		coord[0] = (char) (flipped ? '1' + j : '8' - j);
 		pango_layout_set_text(layout, coord, 1);
 		int pix_width;
 		int pix_height;

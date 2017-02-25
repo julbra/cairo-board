@@ -37,6 +37,8 @@ FLEX_TARGET(SanScanner san_scanner.lex  ${CMAKE_CURRENT_BINARY_DIR}/san_scanner.
 FLEX_TARGET(UciScanner uci_scanner.lex  ${CMAKE_CURRENT_BINARY_DIR}/uci_scanner.c COMPILE_FLAGS "-Puci_scanner_")
 
 set(SOURCE_FILES
+        analysis_panel.h
+        analysis_panel.c
         cairo-board.h
         channels.c
         channels.h
@@ -57,15 +59,16 @@ set(SOURCE_FILES
         ics_scanner.c
         ics_scanner.h
         main.c
-        netstuff.c
         netstuff.h
-        san_scanner.c
+        netstuff.c
         san_scanner.h
-        test.c
+        san_scanner.c
         test.h
+        test.c
+        uci-adapter.h
         uci-adapter.c
-        uci_scanner.c
-        uci_scanner.h)
+        uci_scanner.h
+        uci_scanner.c)
 
 include_directories(
         ${CMAKE_CURRENT_SOURCE_DIR}
