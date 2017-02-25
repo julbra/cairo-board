@@ -108,7 +108,6 @@ Challenge: GuestJRBS (----) [black] GuestSBNL (----) unrated blitz 5 0.
 /*
   4.  exd5    (0:00)     exd5    (0:05)  
 */  
-	debug("Matched complete move from Movelist\n");
 	return MOVE_LIST_FULL_MOVE;
 }
 

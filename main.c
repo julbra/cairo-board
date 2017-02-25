@@ -304,8 +304,8 @@ static void parse_ics_buffer(void);
 void send_to_ics(char*);
 
 // parser funcs
-int san_scanner__scan_string();
-int ics_scanner__scan_bytes();
+int san_scanner__scan_string(const char *yy_str);
+int ics_scanner__scan_bytes(const char *bytes, int len);
 
 void set_header_label(const char *w_name, const char *b_name, const char *w_rating, const char *b_rating);
 void insert_text_moves_list_view(const gchar *text, gboolean should_lock_threads);
@@ -327,19 +327,6 @@ pthread_mutex_t mutex_dragged_piece = PTHREAD_MUTEX_INITIALIZER;
 char last_move[MOVE_BUFF_SIZE];
 
 int ics_open_flag;
-
-sem_t sem_got_move;
-sem_t sem_buff_read;
-
-void init_semaphores(void) {
-	sem_init( &sem_got_move, 0, 0);
-	sem_init( &sem_buff_read, 0, 0);
-}
-
-void remove_semaphores(void) {
-	sem_destroy( &sem_got_move );
-	sem_destroy( &sem_buff_read );
-}
 
 void set_last_move(char *move) {
 	pthread_mutex_lock( &mutex_last_move );
@@ -687,7 +674,7 @@ void update_eco_tag(gboolean should_lock_threads) {
 int move_piece(chess_piece *piece, int col, int row, int check_legality, int move_source, char san_move[SAN_MOVE_SIZE], int blacks_ply, chess_piece w_set[16], chess_piece b_set[16], gboolean lock_threads) {
 
 	// Determine whether proposed move is legal
-	if ( ! check_legality || is_move_legal(piece, col, row, whose_turn, squares) ) {
+	if (!check_legality || is_move_legal(piece, col, row, whose_turn, squares)) {
 
 		int reset_fifty_counter = 0;
 		int was_castle = is_move_castle(piece, col, row);
@@ -730,23 +717,17 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 
 				/* do we need a disambiguator? */
 				int disambiguator_need = 0; // 1 column, 2 row, 3 both 
-				if ( ! ptype) {
+				if (!ptype) {
 					if (piece_taken) { // special pawn-taking case
 						disambiguator_need = 1;
 					}
-				}
-				else { // non-pawn case
+				} else { // non-pawn case
 					/* remember this turn's whose_turn swap hasn't happened yet */
 					chess_piece *set = blacks_ply ? b_set : w_set;
 
 					int i, j;
-
-					/* the number of pieces with same colour and type
-					 * which could reach the same square */
-					int competing_pieces = 0;
-
-					for(i = 0; i < 16; i++) {
-						if ( ! set[i].dead && set[i].type == piece->type && &set[i] != piece) {
+					for (i = 0; i < 16; i++) {
+						if (!set[i].dead && set[i].type == piece->type && &set[i] != piece) {
 							/* found a piece from same set with same type 
 							 * we now check whether it can go to the same dest */
 							//debug("found potential competitor\n");
@@ -756,12 +737,10 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 								//debug("considering move: %c%c (%d/%d)\n", 'a'+possible_moves[j][0], '1'+possible_moves[j][1],j+1, count);
 								if (possible_moves[j][0] == col && possible_moves[j][1] == row) {
 									//debug("found actual competitor\n");
-									competing_pieces++;
 									if (set[i].pos.column != piece->pos.column) {
 										//debug("will disambiguate by col\n");
 										disambiguator_need |= 1;
-									}
-									else {
+									} else {
 										//debug("will disambiguate by row\n");
 										disambiguator_need |= 2;
 									}
@@ -775,14 +754,14 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 
 				switch(disambiguator_need) {
 					case 1:
-						san_move[offset++] = 'a'+piece->pos.column;
+						san_move[offset++] = (char) ('a' + piece->pos.column);
 						break;
 					case 2:
-						san_move[offset++] = '1'+piece->pos.row;
+						san_move[offset++] = (char) ('1' + piece->pos.row);
 						break;
 					case 3:
-						san_move[offset++] = 'a'+piece->pos.column;
-						san_move[offset++] = '1'+piece->pos.row;
+						san_move[offset++] = (char) ('a' + piece->pos.column);
+						san_move[offset++] = (char) ('1' + piece->pos.row);
 						break;
 					default:
 						break;
@@ -794,14 +773,14 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 				}
 
 				/* dest location */
-				san_move[offset++] = col+'a';
-				san_move[offset++] = row+'1';
+				san_move[offset++] = (char) (col + 'a');
+				san_move[offset] = (char) (row + '1');
 
 				/* was it a promotion? */
 				// promotions handled later in SAN string
 			}
 		}
-		
+
 		int ocol, orow;
 		ocol = piece->pos.column;
 		orow = piece->pos.row;
@@ -821,7 +800,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 		// NOTE: no need to reset 50 counter as done already
 		if (was_en_passant) {
 			// get square where pawn to kill is
-			chess_square *to_kill = &(squares[col][row + (whose_turn ? 1 : -1) ]);
+			chess_square *to_kill = &(squares[col][row + (whose_turn ? 1 : -1)]);
 
 			// remove piece from hash
 			toggle_piece(to_kill->piece);
@@ -839,16 +818,14 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 				if (!always_promote_to_queen) {
 					get_int_from_popup();
 					delay_from_promotion = TRUE;
-				}
-				else {
+				} else {
 					delay_from_promotion = FALSE;
 					if (use_fig) {
 						char promo_string[8];
 						memset(promo_string, 0, 8);
-						sprintf(promo_string, "=%lc", type_to_unicode_char(whose_turn?B_QUEEN:W_QUEEN));
+						sprintf(promo_string, "=%lc", type_to_unicode_char(whose_turn ? B_QUEEN : W_QUEEN));
 						strcat(san_move, promo_string);
-					}
-					else {
+					} else {
 						strcat(san_move, "=Q");
 					}
 					choose_promote(1, FALSE, ocol, orow, col, row, lock_threads);
@@ -867,9 +844,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 
 				if (move_source == AUTO_SOURCE_NO_ANIM) {
 					choose_promote(promo_type, FALSE, ocol, orow, col, row, lock_threads);
-				}
-				else {
-					// Else promo handled at end of anim because it's prettier
+					// If animating, handle promotion at end of the animation (because it's prettier!)
 				}
 			}
 		} else {
@@ -877,7 +852,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 		}
 
 		if (was_castle) {
-			int old_col = -1, old_row = -1, new_col = -1;
+			int old_col, old_row, new_col;
 			switch (was_castle & MOVE_DETAIL_MASK) {
 				case W_CASTLE_LEFT:
 					old_col = 0;
@@ -900,8 +875,8 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 					new_col = 5;
 					break;
 				default:
-					// Bug if it happens, will intentionally segfault later so print error
-					fprintf(stderr, "ERROR: error in castling code!\n");
+					// Bug if it happens
+					fprintf(stderr, "ERROR: bug in castling code!\n");
 					exit(1);
 					break;
 			}
@@ -912,11 +887,11 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 
 		// disable castling state switches if needed and some are still set
 		int i,j;
-		int needs_check = 0;
+		bool needs_check = false;
 		for (i = 0; i < 2; i++) {
 			for (j = 0; j < 2; j++) {
 				if (castle_state[i][j]) {
-					needs_check = 1;
+					needs_check = true;
 					break;
 				}
 			}
@@ -930,8 +905,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 							castle_state[0][0] = 0;
 							current_hash ^= zobrist_keys_castle[0][0];
 						}
-					}
-					else if (castle_state[0][1] && piece->pos.column == 7 && !piece->pos.row) {
+					} else if (castle_state[0][1] && piece->pos.column == 7 && !piece->pos.row) {
 						if (castle_state[0][1]) {
 							castle_state[0][1] = 0;
 							current_hash ^= zobrist_keys_castle[0][1];
@@ -944,8 +918,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 							castle_state[1][0] = 0;
 							current_hash ^= zobrist_keys_castle[1][0];
 						}
-					}
-					else if (castle_state[1][1] && piece->pos.column == 7 && piece->pos.row == 7) {
+					} else if (castle_state[1][1] && piece->pos.column == 7 && piece->pos.row == 7) {
 						if (castle_state[1][1]) {
 							castle_state[1][1] = 0;
 							current_hash ^= zobrist_keys_castle[1][1];
@@ -973,8 +946,8 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 					}
 					break;
 				default:
-				// do nothing
-				break;
+					// do nothing
+					break;
 			}
 		}
 
@@ -1000,7 +973,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 		}
 
 		// Swap turns
-		whose_turn = ! whose_turn;
+		whose_turn = !whose_turn;
 
 		// Decrement fifty move counter
 		fifty_move_counter--;
@@ -1020,24 +993,19 @@ void check_ending_clause(void) {
 	if (is_king_checked(whose_turn, squares)) {
 		if (is_check_mate(whose_turn, squares)) {
 			last_san_move[strlen(last_san_move)] = '#';
-			printf("Checkmate! %s wins\n", (whose_turn ? "White" : "Black") );
-		}
-		else {
+			printf("Checkmate! %s wins\n", (whose_turn ? "White" : "Black"));
+		} else {
 			last_san_move[strlen(last_san_move)] = '+';
 		}
-	}
-	else if (is_stale_mate(whose_turn, squares)) {
+	} else if (is_stale_mate(whose_turn, squares)) {
 		printf("Stalemate! Game drawn\n");
-	}
-	else if (check_hash_triplet()) {
+	} else if (check_hash_triplet()) {
 		printf("Game drawn by repetition\n");
 		send_to_ics("draw\n");
-	}
-	else if (is_material_draw(white_set, black_set)) {
+	} else if (is_material_draw(white_set, black_set)) {
 		printf("Insufficient material! Game drawn\n");
 		send_to_ics("draw\n");
-	}
-	else if (is_fifty_move_counter_expired()) {
+	} else if (is_fifty_move_counter_expired()) {
 		printf("Game drawn by 50 move rule\n");
 		send_to_ics("draw\n");
 	}
@@ -1046,12 +1014,9 @@ void check_ending_clause(void) {
 
 int elapsed_ms;
 
-
-
 int min(int a, int b) {
 	return (a < b ? a : b);
 }
-
 
 static gboolean on_button_press(GtkWidget *pWidget, GdkEventButton *pButton, GdkWindowEdge edge) {
 
@@ -1077,18 +1042,13 @@ static gboolean on_button_press(GtkWidget *pWidget, GdkEventButton *pButton, Gdk
 }
 
 static gboolean on_button_release (GtkWidget *pWidget, GdkEventButton *pButton, GdkWindowEdge edge) {
-
 	if (pButton->type == GDK_BUTTON_RELEASE) {
 		if (pButton->button == 1) {
-
 			g_atomic_int_set(&last_release_x, (gint) pButton->x);
 			g_atomic_int_set(&last_release_y, (gint) pButton->y);
-
 			handle_button_release();
 		}
-
 	}
-
 	return TRUE;
 }
 
@@ -1392,7 +1352,7 @@ void CloseTCP() {
 pthread_t move_event_processor_thread;
 
 static void spawn_mover(void) {
-	pthread_create( &move_event_processor_thread, NULL, process_moves, NULL);
+	pthread_create(&move_event_processor_thread, NULL, process_moves, NULL);
 }
 
 void send_to_ics(char *s) {
@@ -1409,7 +1369,7 @@ void send_to_uci(char *s) {
 	if (ics_mode) {
 		return;
 	}
-	debug("Would send to ICS %s", s);
+	debug("Send user move to UCI %s", s);
 	size_t len = strlen(s);
 	s[len - 1] = '\0';
 	user_move_to_uci(s);
@@ -1823,7 +1783,7 @@ gboolean auto_play_one_uci_move(gpointer data) {
 }
 
 gboolean delayed_start_uci_game(gpointer data) {
-	start_new_uci_game(20);
+	start_new_uci_game(300);
 	return FALSE;
 }
 
@@ -2464,23 +2424,27 @@ int parse_end_message(char *message, char end_token[32]) {
 	return ret;
 }
 
-int scan_append_ply(char* ply) {
+int scan_append_ply(char *ply) {
 	san_scanner__scan_string(ply);
-	int i = san_scanner_lex();
-	if ( i != -1) {
+	if (san_scanner_lex() != -1) {
 		playing = 1;
 		int resolved = resolve_move(type, currentMoveString, resolved_move, whose_turn, white_set, black_set, squares);
 		if (resolved) {
 			char san_move[SAN_MOVE_SIZE];
-			move_piece(squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE_NO_ANIM, san_move, whose_turn, white_set, black_set, TRUE);
-			update_eco_tag(TRUE);
+			move_piece(squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE_NO_ANIM, san_move, whose_turn, white_set, black_set, true);
+			update_eco_tag(true);
+			if (is_king_checked(whose_turn, squares)) {
+				if (is_check_mate(whose_turn, squares)) {
+					san_move[strlen(san_move)] = '#';
+				} else {
+					san_move[strlen(san_move)] = '+';
+				}
+			}
 			plys_list_append_ply(main_list, ply_new(resolved_move[0], resolved_move[1], resolved_move[2], resolved_move[3], NULL, san_move));
-		}
-		else {
+		} else {
 			fprintf(stderr, "Could not resolve move %c%s\n", type_to_char(type), currentMoveString);
 		}
-	}
-	else {
+	} else {
 		fprintf(stderr, "san_scanner_lex returned -1\n");
 	}
 	return FALSE;
@@ -3570,11 +3534,6 @@ gint cleanup(gpointer ignored) {
 	//pthread_join(button_release_event_processor_thread, NULL);
 	debug("All threads terminated\n");
 
-	/* Remove shared memory crap */
-	debug("Removing semaphores...\n");
-	remove_semaphores();
-	debug("Semaphores removed\n");
-
 	debug("Finished cleanup\n");
 
 	if (echo_is_off) {
@@ -4293,9 +4252,6 @@ int main (int argc, char **argv) {
 	svg_w = 1.0f / (8.0f * (double) g_DimensionData.width);
 	svg_h = 1.0f / (8.0f * (double) g_DimensionData.height);
 
-	/* Init shared memory crap */
-	init_semaphores();
-
 	g_atomic_int_set(&moveit_flag, 0);
 	g_atomic_int_set(&running_flag, 1);
 	g_atomic_int_set(&more_events_flag, 0);
@@ -4338,10 +4294,10 @@ int main (int argc, char **argv) {
 		}
 	}
 
-	if (!ics_mode) {
+//	if (!ics_mode) {
 		spawn_uci_engine();
 		debug("Spawned UCI engine\n");
-	}
+//	}
 
 	spawn_mover();
 

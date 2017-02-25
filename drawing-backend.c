@@ -1067,7 +1067,7 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 	old_col = piece->pos.column;
 	old_row = piece->pos.row;
 
-	gboolean lock_threads = !(move_source == MANUAL_SOURCE);
+	gboolean lock_threads = move_source != MANUAL_SOURCE;
 
 	/* handle special case when auto moved piece is being dragged by user */
 	if (piece == mouse_dragged_piece) {
@@ -1434,64 +1434,60 @@ void handle_button_release(void) {
 		p_old_row = mouse_dragged_piece->pos.row;
 
 		gboolean piece_moved = false;
-		// if piece NOT moved, don't bother trying the move
-		if ( p_old_row != ij[1] || p_old_col != ij[0] ) {
+		// if piece NOT moved or not allowed to move, don't bother trying the move
+		if (p_old_row != ij[1] || p_old_col != ij[0] && can_i_move_piece(mouse_dragged_piece)) {
 
-			// if I'm not allowed to move it, don't bother
-			if (can_i_move_piece(mouse_dragged_piece)) {
+			// try the move
+			move_result = move_piece(mouse_dragged_piece, ij[0], ij[1], 1, MANUAL_SOURCE, last_san_move, whose_turn,
+			                         white_set, black_set, FALSE);
 
-				// try the move
-				move_result = move_piece(mouse_dragged_piece, ij[0], ij[1], 1, MANUAL_SOURCE, last_san_move, whose_turn, white_set, black_set, FALSE);
+			if (move_result >= 0) {
 
-				if (move_result >= 0) {
-
-					// send move ASAP
-					if (!delay_from_promotion) {
-						char ics_mv[MOVE_BUFF_SIZE];
-						if (move_result & PROMOTE) {
-							char uci_mv[MOVE_BUFF_SIZE];
-							sprintf(ics_mv, "%c%c%c%c=%c\n",
-									'a' + p_old_col, '1' + p_old_row, 'a' + ij[0], '1' + ij[1],
-									type_to_char(mouse_dragged_piece->type));
-							sprintf(uci_mv, "%c%c%c%c%c\n",
-									'a' + p_old_col, '1' + p_old_row, 'a' + ij[0], '1' + ij[1],
-									(char) (type_to_char(mouse_dragged_piece->type) + 32));
-							send_to_ics(ics_mv);
-							send_to_uci(uci_mv);
-						}
-						else {
-							sprintf(ics_mv, "%c%c%c%c\n",
-									'a' + p_old_col, '1' + p_old_row, 'a' + ij[0], '1' + ij[1]);
-							send_to_ics(ics_mv);
-							send_to_uci(ics_mv);
-						}
-
-						if (crafty_mode) {
-							write_to_crafty(ics_mv);
-						}
+				// send move ASAP
+				if (!delay_from_promotion) {
+					char ics_mv[MOVE_BUFF_SIZE];
+					if (move_result & PROMOTE) {
+						char uci_mv[MOVE_BUFF_SIZE];
+						sprintf(ics_mv, "%c%c%c%c=%c\n",
+						        'a' + p_old_col, '1' + p_old_row, 'a' + ij[0], '1' + ij[1],
+						        type_to_char(mouse_dragged_piece->type));
+						sprintf(uci_mv, "%c%c%c%c%c\n",
+						        'a' + p_old_col, '1' + p_old_row, 'a' + ij[0], '1' + ij[1],
+						        (char) (type_to_char(mouse_dragged_piece->type) + 32));
+						send_to_ics(ics_mv);
+						send_to_uci(uci_mv);
+					} else {
+						sprintf(ics_mv, "%c%c%c%c\n",
+						        'a' + p_old_col, '1' + p_old_row, 'a' + ij[0], '1' + ij[1]);
+						send_to_ics(ics_mv);
+						send_to_uci(ics_mv);
 					}
 
-					piece_moved = true;
-
-					// check if killed piece was animated
-					if (move_result & PIECE_TAKEN) {
-							struct anim_data *killed_anim = get_anim_for_piece(last_piece_taken);
-							if (killed_anim) {
-								killed_anim->killed_by = KILLED_BY_INSTANT_MOVE_TAKING;
-							}
+					if (crafty_mode) {
+						write_to_crafty(ics_mv);
 					}
-					//debug("SAN: %s\n", san_move);
-					if (!delay_from_promotion) {
-						check_ending_clause();
-						plys_list_append_ply(main_list, ply_new(p_old_col, p_old_row, ij[0], ij[1], NULL, last_san_move));
-						insert_san_move(last_san_move, FALSE);
-						/* update eco - we're already inside threads lock */
-						update_eco_tag(FALSE);
-					}
-
-					// only redraw pieces we need to redraw!
-					update_pieces_surface(wi, hi, p_old_col, p_old_row, mouse_dragged_piece);
 				}
+
+				piece_moved = true;
+
+				// check if killed piece was animated
+				if (move_result & PIECE_TAKEN) {
+					struct anim_data *killed_anim = get_anim_for_piece(last_piece_taken);
+					if (killed_anim) {
+						killed_anim->killed_by = KILLED_BY_INSTANT_MOVE_TAKING;
+					}
+				}
+				//debug("SAN: %s\n", san_move);
+				if (!delay_from_promotion) {
+					check_ending_clause();
+					plys_list_append_ply(main_list, ply_new(p_old_col, p_old_row, ij[0], ij[1], NULL, last_san_move));
+					insert_san_move(last_san_move, FALSE);
+					/* update eco - we're already inside threads lock */
+					update_eco_tag(FALSE);
+				}
+
+				// only redraw pieces we need to redraw!
+				update_pieces_surface(wi, hi, p_old_col, p_old_row, mouse_dragged_piece);
 			}
 		}
 		if (!piece_moved) {

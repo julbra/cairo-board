@@ -9,7 +9,7 @@ static GtkWidget* nps_label;
 GtkWidget *create_analysis_panel(void) {
 	score_label = gtk_label_new("0");
 	line_label = gtk_label_new("");
-	nps_label = gtk_label_new("-");
+	nps_label = gtk_label_new("0 kNps");
 
 	gtk_label_set_xalign(GTK_LABEL(score_label), 0);
 	gtk_label_set_xalign(GTK_LABEL(line_label), 0);
@@ -34,7 +34,6 @@ void set_analysis_score(const char *score_value) {
 	gtk_label_set_text(GTK_LABEL(score_label), score_value);
 	gdk_threads_leave();
 }
-
 
 void set_analysis_best_line(const char *best_line) {
 	gdk_threads_enter();
