@@ -28,14 +28,19 @@ static regex_t info_best_line_matcher;
 static char engine_name[256] = "";
 static bool uci_ok = false;
 static bool uci_ready = false;
-static unsigned int plyNum;
-static int toPlay;
 static bool pondering;
+static bool analysing;
+static unsigned int ply_num;
+static int to_play;
 
-int uci_scanner__scan_bytes(const char *, int length);
-void *parse_uci_function();
-void wait_for_engine(void);
-void user_move_to_uci(char *move);
+static char all_moves[4 * 8192];
+static UCI_MODE uci_mode;
+
+static int uci_scanner__scan_bytes(const char *, int length);
+static void *parse_uci_function();
+static void wait_for_engine(void);
+
+void best_line_to_san(char line[8192], char san[8192]);
 
 void write_to_uci(char *message) {
 	if (write(uci_in, message, strlen(message)) == -1) {
@@ -45,10 +50,20 @@ void write_to_uci(char *message) {
 }
 
 void wait_for_engine(void) {
+	struct timeval start, now, diff;
+
 	uci_ready = false;
 	write_to_uci("isready\n");
+
+	gettimeofday(&start, NULL);
 	while(!uci_ready) {
-		usleep(500);
+		usleep(1000);
+		gettimeofday(&now, NULL);
+		timersub(&now, &start, &diff);
+		if (diff.tv_sec > 3) {
+			fprintf(stderr, "Ooops, UCI Engine crashed?!\n");
+			break;
+		}
 	}
 }
 
@@ -110,19 +125,47 @@ int spawn_uci_engine(void) {
 	return 0;
 }
 
-static char allMoves[8192];
+void start_new_uci_game(int time, UCI_MODE mode) {
+	debug("Start UCI - game mode: %d\n", mode);
 
-void start_new_uci_game(int time) {
-	debug("Start UCI game\n");
+	uci_mode = mode;
+
+	if (pondering || analysing) {
+		write_to_uci("stop\n");
+	}
+	wait_for_engine();
+
+	memset(all_moves, 4 * 8192, sizeof(char));
+	memcpy(all_moves, "position startpos moves", 24);
+	ply_num = 1;
+	to_play = 0;
+	pondering = false;
+
 	write_to_uci("ucinewgame\n");
 	wait_for_engine();
-	debug("Before start_game\n");
-	start_game("You", engine_name, time, 0, 1, false);
-	debug("After start_game\n");
-	memcpy(allMoves, "position startpos moves", 24);
-	plyNum = 1;
-	toPlay = 0;
-	pondering = false;
+
+	char go[256];
+	int relation;
+	switch (uci_mode) {
+		case ENGINE_WHITE:
+			relation = -1;
+			start_game("You", engine_name, time, 0, relation, false);
+			// If engine is white, kick it now
+			sprintf(go, "position startpos\ngo wtime %ld btime %ld\n", get_remaining_time(main_clock, 0), get_remaining_time(main_clock, 1));
+			write_to_uci(go);
+			break;
+		case ENGINE_BLACK:
+			relation = 1;
+			start_game("You", engine_name, time, 0, relation, false);
+			break;
+		case ENGINE_ANALYSIS:
+			sprintf(go, "position startpos\ngo infinite\n");
+			write_to_uci(go);
+			analysing = true;
+			break;
+		default:
+			break;
+	}
 }
 
 void extract_match(char *src, regmatch_t aMatch, char *dest) {
@@ -131,43 +174,49 @@ void extract_match(char *src, regmatch_t aMatch, char *dest) {
 	dest[len] = '\0';
 }
 
-void append_move(char *newMove, bool lock_threads) {
-	debug("append_move: %s\n", newMove);
-	size_t newMoveLen = strlen(newMove);
-	size_t movesLength = strlen(allMoves);
-	allMoves[movesLength] = ' ';
-	memcpy(allMoves + movesLength + 1, newMove, newMoveLen + 1); // includes terminating null
-	toPlay = toPlay ? 0 : 1;
+void append_move(char *new_move, bool lock_threads) {
+	debug("append_move: %s\n", new_move);
 
-	debug("append_move: allMoves '%s'\n", allMoves);
-	if (plyNum == 1) {
-		start_one_clock(main_clock, toPlay);
-	} else if (plyNum > 1) {
-		start_one_stop_other_clock(main_clock, toPlay, lock_threads);
+	size_t newMoveLen = strlen(new_move);
+	size_t movesLength = strlen(all_moves);
+	all_moves[movesLength] = ' ';
+	memcpy(all_moves + movesLength + 1, new_move, newMoveLen + 1); // includes terminating null
+	to_play = to_play ? 0 : 1;
+
+	debug("append_move: all_moves '%s'\n", all_moves);
+	if (!ics_mode) {
+		if (ply_num == 1) {
+			start_one_clock(main_clock, to_play);
+		} else if (ply_num > 1) {
+			start_one_stop_other_clock(main_clock, to_play, lock_threads);
+		}
 	}
 
-	plyNum++;
+	ply_num++;
 }
 
 void user_move_to_uci(char *move) {
 	debug("User move to UCI! '%s'\n", move);
 
 	// Append move
-	debug("append_move go %s\n", move);
 	append_move(move, false);
 
 	char moves[8192];
-	sprintf(moves, "%s\n", allMoves);
-	debug("moves %s\n", moves);
+	sprintf(moves, "%s\n", all_moves);
 
-	if (pondering) {
+	if (pondering || uci_mode == ENGINE_ANALYSIS) {
 		write_to_uci("stop\n");
 	}
 	wait_for_engine();
 
 	write_to_uci(moves);
 	char go[256];
-	sprintf(go, "go wtime %ld btime %ld\n", get_remaining_time(main_clock, 0), get_remaining_time(main_clock, 1));
+	if (uci_mode == ENGINE_ANALYSIS) {
+		sprintf(go, "go infinite\n");
+		analysing = true;
+	} else {
+		sprintf(go, "go wtime %ld btime %ld\n", get_remaining_time(main_clock, 0), get_remaining_time(main_clock, 1));
+	}
 	debug("sending go %s\n", go);
 	write_to_uci(go);
 }
@@ -195,6 +244,12 @@ void parse_move(char *moveText) {
 
 	if (pondering) {
 		debug("Skip pondering best move: %s\n", moveText);
+		pondering = false;
+		return;
+	}
+
+	if (uci_mode == ENGINE_ANALYSIS) {
+		debug("Skip analysis best move: %s\n", moveText);
 		pondering = false;
 		return;
 	}
@@ -236,6 +291,12 @@ void parse_move_with_ponder(char *moveText) {
 		return;
 	}
 
+	if (uci_mode == ENGINE_ANALYSIS) {
+		debug("Skip analysis best move: %s\n", moveText);
+		pondering = false;
+		return;
+	}
+
 	regmatch_t pmatch[3];
 	int status = regexec(&best_move_ponder_matcher, moveText, 3, pmatch, 0);
 	char bestMove[6];
@@ -263,53 +324,103 @@ void parse_move_with_ponder(char *moveText) {
 	g_signal_emit_by_name(board, "got-uci-move");
 
 	char moves[8192];
-	sprintf(moves, "%s %s\n", allMoves, ponderMove);
+	sprintf(moves, "%s %s\n", all_moves, ponderMove);
 	write_to_uci(moves);
 	write_to_uci("go ponder\n");
 	pondering = true;
 }
 
-void parse_info(char *infoDepth) {
+void parse_info(char *info_depth) {
 	regmatch_t pmatch[2];
 	int status;
 
 	char scoreValue[16];
 	char scoreString[16];
-	status = regexec(&info_score_cp_matcher, infoDepth, 2, pmatch, 0);
+	status = regexec(&info_score_cp_matcher, info_depth, 2, pmatch, 0);
 	if (!status) {
-		extract_match(infoDepth, pmatch[1], scoreValue);
+		extract_match(info_depth, pmatch[1], scoreValue);
 		int scoreInt = (int) strtol(scoreValue, NULL, 10);
+		switch (uci_mode) {
+			case ENGINE_ANALYSIS:
+				if (to_play) {
+					scoreInt =-scoreInt;
+				}
+				break;
+			case ENGINE_BLACK:
+				scoreInt =-scoreInt;
+				break;
+			case ENGINE_WHITE:
+				break;
+		}
 		snprintf(scoreString, 16, "%.2f", scoreInt / 100.0);
-		debug("Got UCI info score: cp -> %s\n", scoreString);
 		set_analysis_score(scoreString);
 	} else {
-		status = regexec(&info_score_mate_matcher, infoDepth, 2, pmatch, 0);
+		status = regexec(&info_score_mate_matcher, info_depth, 2, pmatch, 0);
 		if (!status) {
-			extract_match(infoDepth, pmatch[1], scoreValue);
-			snprintf(scoreString, 16, "#%s", scoreValue);
-			debug("Got UCI info score: mate -> %s\n", scoreString);
+			debug("PARSE INFO '%s'\n", info_depth);
+			extract_match(info_depth, pmatch[1], scoreValue);
+			int scoreInt = (int) strtol(scoreValue, NULL, 10);
+			switch (uci_mode) {
+				case ENGINE_ANALYSIS:
+					if (to_play) {
+						scoreInt =-scoreInt;
+					}
+					break;
+				case ENGINE_BLACK:
+					scoreInt =-scoreInt;
+					break;
+				case ENGINE_WHITE:
+					break;
+			}
+			debug("mate score '%d'\n", scoreInt);
+			snprintf(scoreString, 16, "#%d", scoreInt);
 			set_analysis_score(scoreString);
 		}
 	}
 
 	char bestLine[BUFSIZ];
+	char best_line_san[BUFSIZ];
 	memset(bestLine, 0, BUFSIZ);
-	status = regexec(&info_best_line_matcher, infoDepth, 2, pmatch, 0);
+	status = regexec(&info_best_line_matcher, info_depth, 2, pmatch, 0);
 	if (!status) {
-		extract_match(infoDepth, pmatch[1], bestLine);
-		debug("Got UCI info best line: pv -> %s\n", bestLine);
+		extract_match(info_depth, pmatch[1], bestLine);
+		best_line_to_san(bestLine, best_line_san);
 		set_analysis_best_line(bestLine);
 	}
 
 	char nps[16];
 	char npsString[32];
-	status = regexec(&info_nps_matcher, infoDepth, 2, pmatch, 0);
+	status = regexec(&info_nps_matcher, info_depth, 2, pmatch, 0);
 	if (!status) {
-		extract_match(infoDepth, pmatch[1], nps);
+		extract_match(info_depth, pmatch[1], nps);
 		int npsInt = (int) strtol(nps, NULL, 10);
 		snprintf(npsString, 32, "%d kNps", npsInt / 1000);
 		set_analysis_nodes_per_second(npsString);
 	}
+}
+
+void best_line_to_san(char *line, char *san) {
+	chess_piece trans_set[32];
+	chess_square trans_squares[8][8];
+	copy_situation(squares, trans_squares, trans_set);
+
+//	int resolved = resolve_move(type, currentMoveString, resolved_move, whose_turn, white_set, black_set, squares);
+//	if (resolved) {
+//		char san_move[SAN_MOVE_SIZE];
+//		move_piece(squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE_NO_ANIM, san_move, whose_turn, white_set, black_set, true);
+//		update_eco_tag(true);
+//		if (is_king_checked(whose_turn, squares)) {
+//			if (is_check_mate(whose_turn, squares)) {
+//				san_move[strlen(san_move)] = '#';
+//			} else {
+//				san_move[strlen(san_move)] = '+';
+//			}
+//		}
+//		plys_list_append_ply(main_list, ply_new(resolved_move[0], resolved_move[1], resolved_move[2], resolved_move[3], NULL, san_move));
+//	} else {
+//		fprintf(stderr, "Could not resolve move %c%s\n", type_to_char(type), currentMoveString);
+//	}
+
 }
 
 void parse_uci_buffer(void) {
@@ -349,6 +460,8 @@ void parse_uci_buffer(void) {
 				parse_option(uci_scanner_text);
 				break;
 			}
+			case UCI_BEST_MOVE_NONE:
+				break;
 			case UCI_BEST_MOVE_WITH_PONDER: {
 				parse_move_with_ponder(uci_scanner_text);
 				break;

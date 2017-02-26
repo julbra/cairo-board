@@ -212,6 +212,7 @@ enum {
 extern gboolean debug_flag;
 extern gboolean use_fig;
 extern gboolean crafty_mode;
+extern bool ics_mode;
 
 extern double svg_w, svg_h;
 extern double dr,dg, db;
@@ -247,7 +248,7 @@ extern int dragging_prev_y;
 extern char last_san_move[SAN_MOVE_SIZE];
 extern chess_piece *last_piece_taken;
 
-extern int delay_from_promotion;
+extern bool delay_from_promotion;
 extern int p_old_col, p_old_row;
 
 extern plys_list *main_list;
@@ -284,11 +285,12 @@ void xy_to_loc(int x, int y, int *pos, int wi, int hi);
 chess_square *xy_to_square(int x, int y, int wi, int hi);
 void flip_board(int wi, int hi);
 wint_t type_to_unicode_char(int type);
-gboolean can_i_move_piece(chess_piece* piece);
+bool can_i_move_piece(chess_piece* piece);
 void set_last_move(char *move);
 void start_game(char *w_name, char *b_name, int seconds, int increment, int relation, bool should_lock);
 void update_eco_tag(gboolean should_lock_threads);
 void popup_join_channel_dialog(gboolean lock_threads);
+int resolve_move(int t, char *move, int resolved_move[4], int blacks_ply, chess_piece w_set[16], chess_piece b_set[16], chess_square sq[8][8]);
 
 /********** FROM DRAWING BACKEND *************/
 extern RsvgHandle *piecesSvg[12];

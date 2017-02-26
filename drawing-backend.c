@@ -643,7 +643,7 @@ static gboolean animate_one_step(gpointer data) {
 			if (anim->move_result > 0 && anim->move_result & PROMOTE && anim->move_source == AUTO_SOURCE) {
 				debug("Promote from killed anim\n");
 				to_promote = anim->piece;
-				delay_from_promotion = FALSE;
+				delay_from_promotion = false;
 				choose_promote(anim->promo_type, TRUE, anim->old_col, anim->old_row, anim->new_col, anim->new_row, FALSE);
 			}
 
@@ -950,8 +950,8 @@ static gboolean animate_one_step(gpointer data) {
 		if (anim->move_result > 0 && anim->move_result & PROMOTE && anim->move_source == AUTO_SOURCE) {
 			debug("Promote from anim last step\n");
 			to_promote = anim->piece;
-			delay_from_promotion = FALSE;
-			choose_promote(anim->promo_type, TRUE, anim->old_col, anim->old_row, anim->new_col, anim->new_row, FALSE);
+			delay_from_promotion = false;
+			choose_promote(anim->promo_type, true, anim->old_col, anim->old_row, anim->new_col, anim->new_row, false);
 		}
 
 		cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
@@ -1057,7 +1057,7 @@ static gboolean animate_one_step(gpointer data) {
 
 gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legality, int move_source) {
 	if (piece == NULL) {
-		debug("NULL PIECE auto_move a\n");
+		debug("NULL PIECE auto_move\n");
 	}
 	int wi = old_wi;
 	int hi = old_hi;
@@ -1119,30 +1119,40 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 	if (move_result >= 0) {
 
 		// send move ASAP
-		if (move_source == MANUAL_SOURCE && !delay_from_promotion) {
-			char ics_mv[MOVE_BUFF_SIZE];
-			if (move_result & PROMOTE) {
-				sprintf(ics_mv, "%c%c%c%c=%c\n",
-						'a'+old_col, '1'+old_row, 'a'+new_col, '1'+new_row,
-						type_to_char(piece->type));
-			}
-			else {
-				sprintf(ics_mv, "%c%c%c%c\n",
-						'a'+old_col, '1'+old_row, 'a'+new_col, '1'+new_row);
-			}
-			send_to_ics(ics_mv);
-			send_to_uci(ics_mv);
-		}
-
 		if (!delay_from_promotion) {
+			if (move_source == MANUAL_SOURCE) {
+				char ics_mv[MOVE_BUFF_SIZE];
+				if (move_result & PROMOTE) {
+					sprintf(ics_mv, "%c%c%c%c=%c\n",
+					        'a' + old_col, '1' + old_row, 'a' + new_col, '1' + new_row,
+					        type_to_char(piece->type));
+					send_to_ics(ics_mv);
+				} else {
+					sprintf(ics_mv, "%c%c%c%c\n",
+					        'a' + old_col, '1' + old_row, 'a' + new_col, '1' + new_row);
+					send_to_ics(ics_mv);
+				}
+			}
+			char uci_mv[MOVE_BUFF_SIZE];
+			if (move_result & PROMOTE) {
+				sprintf(uci_mv, "%c%c%c%c%c\n",
+				        'a' + p_old_col, '1' + p_old_row, 'a' + new_col, '1' + new_row,
+				        (char) (type_to_char(mouse_dragged_piece->type) + 32));
+				send_to_uci(uci_mv);
+			} else {
+				sprintf(uci_mv, "%c%c%c%c\n",
+				        'a' + old_col, '1' + old_row, 'a' + new_col, '1' + new_row);
+				send_to_uci(uci_mv);
+			}
+
+			// Append to moves-list
 			check_ending_clause();
 			plys_list_append_ply(main_list, ply_new(p_old_col, p_old_row, new_col, new_row, NULL, last_san_move));
 			insert_san_move(last_san_move, lock_threads);
 
-			/* update eco */
+			// update eco
 			update_eco_tag(lock_threads);
 		}
-
 
 		int n_xy[2];
 		int o_xy[2];
@@ -1406,7 +1416,7 @@ static void clean_last_drag_step(cairo_t *cdc, double wi, double hi) {
 }
 
 void handle_button_release(void) {
-
+	debug("handle_button_release()\n");
 	int new_x = g_atomic_int_get(&last_release_x);
 	int new_y = g_atomic_int_get(&last_release_y);
 
@@ -1435,8 +1445,9 @@ void handle_button_release(void) {
 
 		gboolean piece_moved = false;
 		// if piece NOT moved or not allowed to move, don't bother trying the move
-		if (p_old_row != ij[1] || p_old_col != ij[0] && can_i_move_piece(mouse_dragged_piece)) {
+		if ((p_old_row != ij[1] || p_old_col != ij[0]) && can_i_move_piece(mouse_dragged_piece)) {
 
+			debug("Trying move\n");
 			// try the move
 			move_result = move_piece(mouse_dragged_piece, ij[0], ij[1], 1, MANUAL_SOURCE, last_san_move, whose_turn,
 			                         white_set, black_set, FALSE);
@@ -1488,7 +1499,12 @@ void handle_button_release(void) {
 
 				// only redraw pieces we need to redraw!
 				update_pieces_surface(wi, hi, p_old_col, p_old_row, mouse_dragged_piece);
+			} else {
+				debug("Ooops move failed!\n");
 			}
+		} else {
+			debug("Ooops cannot move? p_old_row: %d, ij[1]: %d, p_old_col: %d, ij[0]: %d, can_i_move_piece(mouse_dragged_piece): %d\n", p_old_row, ij[1], p_old_col, ij[0], can_i_move_piece(mouse_dragged_piece));
+			p_old_row != ij[1] || p_old_col != ij[0] && can_i_move_piece(mouse_dragged_piece);
 		}
 		if (!piece_moved) {
 			restore_piece_to_surface(wi, hi, mouse_dragged_piece);
@@ -2175,7 +2191,7 @@ static void logical_promote(int last_promote) {
 		toggle_piece(to_promote);
 }
 
-void choose_promote(int last_promote, gboolean only_surfaces, int ocol, int orow, int ncol, int nrow, gboolean lock_threads) {
+void choose_promote(int last_promote, bool only_surfaces, int ocol, int orow, int ncol, int nrow, bool lock_threads) {
 
 	debug("Promote to %d\n", last_promote);
 

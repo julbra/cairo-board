@@ -102,7 +102,7 @@ void sig_handler(int sig) {
 
 /* <Options variables> */
 gboolean debug_flag = FALSE;
-gboolean ics_mode = FALSE;
+bool ics_mode = false;
 
 gboolean crafty_mode = FALSE;
 gboolean crafty_first_guest = FALSE;
@@ -142,14 +142,15 @@ static int got_header = 0;
 static int finished_parsing_moves = 0;
 static int requested_times = 0;
 
-gboolean ics_host_specified = FALSE;
-gboolean ics_port_specified = FALSE;
-gboolean load_file_specified = FALSE;
-gboolean ics_handle1_specified = FALSE;
-gboolean ics_handle2_specified = FALSE;
+bool ics_logged_in = false;
+bool ics_host_specified = false;
+bool ics_port_specified = false;
+bool load_file_specified = false;
+bool ics_handle1_specified = false;
+bool ics_handle2_specified = false;
 /* </Options variables> */
 
-gboolean delay_from_promotion = FALSE;
+bool delay_from_promotion = false;
 int p_old_col, p_old_row;
 char last_san_move[SAN_MOVE_SIZE];
 
@@ -345,7 +346,7 @@ void get_last_move(char *data) {
 
 /******** <Signals Stuff> ***********/
 void create_signals(void) {
-	g_signal_new("got_move", GTK_TYPE_WIDGET, G_SIGNAL_RUN_FIRST, 0, NULL, NULL, /*marshaller*/g_cclosure_marshal_VOID__VOID, /*return type*/G_TYPE_NONE, 0);
+	g_signal_new("got-move", GTK_TYPE_WIDGET, G_SIGNAL_RUN_FIRST, 0, NULL, NULL, /*marshaller*/g_cclosure_marshal_VOID__VOID, /*return type*/G_TYPE_NONE, 0);
 	g_signal_new("got-crafty-move", GTK_TYPE_WIDGET, G_SIGNAL_RUN_FIRST, 0, NULL, NULL, /*marshaller*/g_cclosure_marshal_VOID__VOID, /*return type*/G_TYPE_NONE, 0);
 	g_signal_new("got-uci-move", GTK_TYPE_WIDGET, G_SIGNAL_RUN_FIRST, 0, NULL, NULL, /*marshaller*/g_cclosure_marshal_VOID__VOID, /*return type*/G_TYPE_NONE, 0);
 	g_signal_new("flip-board", GTK_TYPE_WIDGET, G_SIGNAL_RUN_FIRST, 0, NULL, NULL, /*marshaller*/g_cclosure_marshal_VOID__VOID, /*return type*/G_TYPE_NONE, 0);
@@ -627,17 +628,22 @@ void init_castle_state(void) {
 }
 
 /* basic sanity check to prevent moving while observing or moving oponent's pieces */
-gboolean can_i_move_piece(chess_piece *piece) {
-	if (game_mode != I_OBSERVE) {
-		if ((game_mode == I_PLAY_BLACK &&  piece->colour) ||
-			(game_mode == I_PLAY_WHITE && !piece->colour) ) {
-			return TRUE;
-		}
-		else if (game_mode == MANUAL_PLAY) {
-			return TRUE;
-		}
+bool can_i_move_piece(chess_piece *piece) {
+	debug("Can I move piece %d %d %d - game_mode: %d\n", piece->colour, piece->pos.column, piece->pos.row, game_mode);
+	if (game_mode == I_PLAY_WHITE) {
+		return !piece->colour;
 	}
-	return FALSE;
+	if (game_mode == I_PLAY_BLACK) {
+		debug("I play black! piece color == %d\n", piece->colour);
+		return piece->colour;
+	}
+	if (game_mode == I_OBSERVE) {
+		return false;
+	}
+	if (game_mode == MANUAL_PLAY) {
+		return true;
+	}
+	return false;
 }
 
 void update_eco_tag(gboolean should_lock_threads) {
@@ -817,9 +823,9 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 			if (move_source == MANUAL_SOURCE) {
 				if (!always_promote_to_queen) {
 					get_int_from_popup();
-					delay_from_promotion = TRUE;
+					delay_from_promotion = true;
 				} else {
-					delay_from_promotion = FALSE;
+					delay_from_promotion = false;
 					if (use_fig) {
 						char promo_string[8];
 						memset(promo_string, 0, 8);
@@ -828,10 +834,10 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 					} else {
 						strcat(san_move, "=Q");
 					}
-					choose_promote(1, FALSE, ocol, orow, col, row, lock_threads);
+					choose_promote(1, false, ocol, orow, col, row, lock_threads);
 				}
 			} else {
-				delay_from_promotion = FALSE; // this means we can print the move when we return from this
+				delay_from_promotion = false; // this means we can print the move when we return from this
 				char promo_string[8];
 				memset(promo_string, 0, 8);
 				if (use_fig) {
@@ -848,7 +854,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 				}
 			}
 		} else {
-			delay_from_promotion = FALSE;
+			delay_from_promotion = false;
 		}
 
 		if (was_castle) {
@@ -1042,6 +1048,7 @@ static gboolean on_button_press(GtkWidget *pWidget, GdkEventButton *pButton, Gdk
 }
 
 static gboolean on_button_release (GtkWidget *pWidget, GdkEventButton *pButton, GdkWindowEdge edge) {
+	debug("BR\n");
 	if (pButton->type == GDK_BUTTON_RELEASE) {
 		if (pButton->button == 1) {
 			g_atomic_int_set(&last_release_x, (gint) pButton->x);
@@ -1337,11 +1344,9 @@ void *parse_ics_function(void *ptr) {
     return 0;
 }
 
-
-pthread_t ics_writer_thread;
-pthread_t ics_reader_thread;
-pthread_t ics_buff_parser_thread;
-
+static pthread_t ics_reader_thread;
+static pthread_t ics_buff_parser_thread;
+static pthread_t move_event_processor_thread;
 
 void CloseTCP() {
 	//set_ics_open_flag(0);
@@ -1349,15 +1354,13 @@ void CloseTCP() {
 	close(ics_socket);
 }
 
-pthread_t move_event_processor_thread;
-
 static void spawn_mover(void) {
 	pthread_create(&move_event_processor_thread, NULL, process_moves, NULL);
 }
 
 void send_to_ics(char *s) {
 	if (ics_mode) {
-		int len = strlen(s);
+		size_t len = strlen(s);
 		send_to_fics(ics_fd, s, &len);
 	}
 	else {
@@ -1366,9 +1369,6 @@ void send_to_ics(char *s) {
 }
 
 void send_to_uci(char *s) {
-	if (ics_mode) {
-		return;
-	}
 	debug("Send user move to UCI %s", s);
 	size_t len = strlen(s);
 	s[len - 1] = '\0';
@@ -1676,40 +1676,35 @@ gboolean print_main_clock(gpointer data) {
 
 gboolean auto_play_one_ics_move(gpointer data) {
 	debug("Autoplay one ics move\n");
-	int i;
 	int resolved_move[4];
 	char lm[MOVE_BUFF_SIZE];
 
 	get_last_move(lm);
 	san_scanner__scan_string(lm);
-	i = san_scanner_lex();
 
-	if ( i != -1) {
+	if (san_scanner_lex() != -1) {
 		playing = 1;
-		char ctype = type_to_char(type);
-		if (!ctype) {
+		char type_char = type_to_char(type);
+		if (!type_char) {
 			debug("Raw Move %s\n", currentMoveString);
-		}
-		else {
-			debug("Raw Move %c%s\n", ctype, currentMoveString);
+		} else {
+			debug("Raw Move %c%s\n", type_char, currentMoveString);
 		}
 		int resolved = resolve_move(type, currentMoveString, resolved_move, whose_turn, white_set, black_set, squares);
 		if (resolved) {
-			debug("Move resolved to %c%d-%c%d\n", resolved_move[0]+'a', resolved_move[1]+1, resolved_move[2]+'a', resolved_move[3]+1);
+			debug("Move resolved to %c%d-%c%d\n", resolved_move[0] + 'a', resolved_move[1] + 1, resolved_move[2] + 'a', resolved_move[3] + 1);
 			auto_move(squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE);
-			return TRUE;
-		}
-		else {
+			return true;
+		} else {
 			fprintf(stderr, "Could not resolve move %c%s\n", type_to_char(type), currentMoveString);
 		}
-	}
-	else {
-		fprintf(stderr, "san_scanner_lex returned -1\n");
+	} else {
+		fprintf(stderr, "san_scanner_lex returned -1 while scanning last move '%s'\n", lm);
 	}
 
 	// Reached EOF
 	playing = 0;
-	return FALSE;
+	return false;
 }
 
 gboolean auto_play_one_crafty_move(gpointer data) {
@@ -1783,7 +1778,8 @@ gboolean auto_play_one_uci_move(gpointer data) {
 }
 
 gboolean delayed_start_uci_game(gpointer data) {
-	start_new_uci_game(300);
+//	start_new_uci_game(60, ENGINE_WHITE);
+	start_new_uci_game(60, ENGINE_ANALYSIS);
 	return FALSE;
 }
 
@@ -2004,50 +2000,66 @@ int parse_board12(char *string_chunk) {
 		}
 
 
-		if (relation > 0 && strncmp("none", san_move, 4)) {
-				debug("Emitting signal\n");
-				g_signal_emit_by_name(board, "got_move");
-			if (crafty_mode) {
-				char *command = calloc(256, sizeof(char));
-				int crafty_time = (to_play == 'W' ? white_time : black_time);
-				int otime = (to_play == 'W' ? black_time : white_time);
-				debug("Crafty Time %d - Opponent time: %d\n", crafty_time, otime);
-				snprintf(command, 256, "time %d\n", 100 * crafty_time);
-				write_to_crafty(command);
-				memset(command, 0, 256);
-				snprintf(command, 256, "otime %d\n", 100 * otime);
-				write_to_crafty(command);
-				memset(command, 0, 256);
-				snprintf(command, 256, "%s\n", san_move);
-				write_to_crafty(command);
-				free(command);
-			}
-		}
-		if (!relation || relation == -2) {
-			if (clock_started) {
-				start_one_stop_other_clock(main_clock, (to_play == 'W') ? 0 : 1, true);
-				debug("swap clocks\n");
-			}
-			if (gamenum == my_game && finished_parsing_moves) {
-				if (!game_started) {
-					game_started = 1;
+		/*
+		 * my relation to this game:
+		 *     -3 isolated position, such as for "ref 3" or the "sposition" command
+		 *     -2 I am observing game being examined
+		 *      2 I am the examiner of this game
+		 *     -1 I am playing, it is my opponent's move
+		 *      1 I am playing and it is my move
+		 *      0 I am observing a game being played
+		 * */
+		switch (relation) {
+			case 1:
+				if (!strncmp("none", san_move, 4)) {
+					break;
 				}
-				if (!clock_started && moveNum >= 2) {
-					clock_started = 1;
-					update_clocks(main_clock, white_time, black_time, true);
-					start_one_clock(main_clock, (to_play == 'W')?0:1);
-					debug("start clocks\n");
+				debug("Emitting got-move signal while playing\n");
+				g_signal_emit_by_name(board, "got-move");
+				if (crafty_mode) {
+					char *command = calloc(256, sizeof(char));
+					int crafty_time = (to_play == 'W' ? white_time : black_time);
+					int otime = (to_play == 'W' ? black_time : white_time);
+					debug("Crafty Time %d - Opponent time: %d\n", crafty_time, otime);
+					snprintf(command, 256, "time %d\n", 100 * crafty_time);
+					write_to_crafty(command);
+					memset(command, 0, 256);
+					snprintf(command, 256, "otime %d\n", 100 * otime);
+					write_to_crafty(command);
+					memset(command, 0, 256);
+					snprintf(command, 256, "%s\n", san_move);
+					write_to_crafty(command);
+					free(command);
 				}
-				set_last_move(san_move);
-				debug("Emitting signal\n");
-				g_signal_emit_by_name(board, "got_move");
-			}
+				break;
+			case 0:
+			case -2:
+			case 2:
+				if (clock_started) {
+					debug("Swapping clocks here\n");
+					start_one_stop_other_clock(main_clock, (to_play == 'W') ? 0 : 1, true);
+				}
+				if (gamenum == my_game && finished_parsing_moves) {
+					if (!game_started) {
+						game_started = 1;
+					}
+					if (!clock_started && moveNum >= 2) {
+						clock_started = 1;
+						update_clocks(main_clock, white_time, black_time, true);
+						debug("Starting a clock here\n");
+						start_one_clock(main_clock, (to_play == 'W') ? 0 : 1);
+						debug("start clocks\n");
+					}
+					set_last_move(san_move);
+					debug("Emitting got-move signal while observing\n");
+					g_signal_emit_by_name(board, "got-move");
+				}
+				break;
+			default:
+				break;
 		}
-
 	}
-
 	return 0;
-
 }
 
 /* "Creating: julbra (1911) lesio ( 866) rated blitz 3 0" */
@@ -2614,6 +2626,9 @@ void start_game(char *w_name, char *b_name, int seconds, int increment, int rela
 			debug("Observing examined game\n");
 			game_mode = I_OBSERVE;
 			break;
+		case -3:
+			game_mode = MANUAL_PLAY;
+			break;
 		default:
 			debug("Unknown relation %d\n", relation);
 	}
@@ -2852,8 +2867,7 @@ void popup_login_box(gboolean lock_threads) {
 			exit(1);
 		}
 		try_login();
-	}
-	else {
+	} else {
 		invalid_password = FALSE;
 		toggle_login_box(TRUE);
 	}
@@ -3145,6 +3159,7 @@ void parse_ics_buffer(void) {
 						send_to_ics("cairoguestwo\n");
 					}
 				}
+				ics_logged_in = false;
 				popup_login_box(TRUE);
 				break;
 			case CONFIRM_GUEST_LOGIN_PROMPT:
@@ -3164,6 +3179,7 @@ void parse_ics_buffer(void) {
 				break;
 			case GOT_LOGIN:
 				/* successful login! */
+				ics_logged_in = true;
 				gdk_threads_enter();
 				if (gtk_toggle_button_get_active(GTK_TOGGLE_BUTTON(save_login))) {
 					set_save_login(TRUE);
@@ -3290,7 +3306,8 @@ void parse_ics_buffer(void) {
 						// determine relation
 						int relation = 1;
 						if (!strcmp(bn, my_handle)) relation = -1;
-						start_game(white_name, black_name, init_time*60, increment, relation, true);
+						start_game(white_name, black_name, init_time * 60, increment, relation, true);
+						start_new_uci_game(init_time * 60, ENGINE_ANALYSIS);
 						requested_start = 0;
 						if (crafty_mode) {
 							write_to_crafty("new\n");
@@ -3519,14 +3536,12 @@ gint cleanup(gpointer ignored) {
 	/* cancel threads and wait for all threads to exit */
 	debug("Cancelling all threads...\n");
 	if (ics_mode) {
-		//pthread_cancel(ics_writer_thread);
 		pthread_cancel(ics_reader_thread);
 		pthread_cancel(ics_buff_parser_thread);
 	}
 	pthread_cancel(move_event_processor_thread);
 	//pthread_cancel(button_release_event_processor_thread);
 	if (ics_mode) {
-		//pthread_join(ics_writer_thread, NULL);
 		pthread_join(ics_reader_thread, NULL);
 		pthread_join(ics_buff_parser_thread, NULL);
 	}
@@ -3855,7 +3870,7 @@ int main (int argc, char **argv) {
 		{"first", 	no_argument, &test_first_player, TRUE},
 		{"login1",	required_argument, 0, ICS_TEST_HANDLE1},
 		{"login2",	required_argument, 0, ICS_TEST_HANDLE2},
-		{"ics",		no_argument, &ics_mode, TRUE},
+		{"ics",		no_argument, &ics_mode, true},
 		{"crafty",		no_argument, &crafty_mode, TRUE},
 		{"firstguest",		no_argument, &crafty_first_guest, TRUE},
 		{"fig",		no_argument, &use_fig, TRUE},
@@ -4241,7 +4256,7 @@ int main (int argc, char **argv) {
 	g_signal_connect (G_OBJECT(board), "button-release-event", G_CALLBACK(on_button_release), NULL);
 	g_signal_connect (G_OBJECT(board), "motion_notify_event", G_CALLBACK(on_motion), NULL);
 	g_signal_connect (G_OBJECT(board), "configure_event", G_CALLBACK(on_configure_event), NULL);
-	g_signal_connect (G_OBJECT(board), "got_move", G_CALLBACK(on_get_move), NULL);
+	g_signal_connect (G_OBJECT(board), "got-move", G_CALLBACK(on_get_move), NULL);
 	g_signal_connect (G_OBJECT(board), "got-crafty-move", G_CALLBACK(on_get_crafty_move), NULL);
 	g_signal_connect (G_OBJECT(board), "got-uci-move", G_CALLBACK(on_get_uci_move), NULL);
 	g_signal_connect (G_OBJECT(board), "flip-board", G_CALLBACK(on_flip_board), NULL);
@@ -4294,10 +4309,8 @@ int main (int argc, char **argv) {
 		}
 	}
 
-//	if (!ics_mode) {
-		spawn_uci_engine();
-		debug("Spawned UCI engine\n");
-//	}
+	spawn_uci_engine();
+	debug("Spawned UCI engine\n");
 
 	spawn_mover();
 
@@ -4321,9 +4334,9 @@ int main (int argc, char **argv) {
 	char font_file[] = "DSEG7Classic-Bold.ttf";
 	error = FT_New_Face(library, font_file, 0, &sevenSegmentFTFace);
 	if (error == FT_Err_Unknown_File_Format) {
-		perror("Font format unsupported\n");
+		perror("Font format unsupported");
 	} else if (error) {
-		perror("font file could not be opened or read, or that it is brokenFont format unsupported\n");
+		perror("font file could not be opened or read, or it is broken");
 	} else {
 		FcBool ok = FcConfigAppFontAddFile(FcConfigGetCurrent(), (FcChar8 *)(font_file));
 		if (!ok) {
