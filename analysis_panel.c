@@ -4,15 +4,18 @@
 
 static GtkWidget* score_label;
 static GtkWidget* line_label;
+static GtkWidget* depth_label;
 static GtkWidget* nps_label;
 
 GtkWidget *create_analysis_panel(void) {
 	score_label = gtk_label_new("0");
 	line_label = gtk_label_new("");
-	nps_label = gtk_label_new("0 kNps");
+	depth_label = gtk_label_new("");
+	nps_label = gtk_label_new("0 kN/s");
 
 	gtk_label_set_xalign(GTK_LABEL(score_label), 0);
 	gtk_label_set_xalign(GTK_LABEL(line_label), 0);
+	gtk_label_set_xalign(GTK_LABEL(depth_label), 0);
 	gtk_label_set_xalign(GTK_LABEL(nps_label), 0);
 
 	gtk_label_set_max_width_chars(GTK_LABEL(line_label), 1);
@@ -25,6 +28,7 @@ GtkWidget *create_analysis_panel(void) {
 
 	gtk_box_pack_start(GTK_BOX(wrapper_box), score_label, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(wrapper_box), line_label, FALSE, TRUE, 0);
+	gtk_box_pack_start(GTK_BOX(wrapper_box), depth_label, FALSE, FALSE, 0);
 	gtk_box_pack_start(GTK_BOX(wrapper_box), nps_label, FALSE, FALSE, 0);
 	return wrapper_box;
 }
@@ -38,6 +42,12 @@ void set_analysis_score(const char *score_value) {
 void set_analysis_best_line(const char *best_line) {
 	gdk_threads_enter();
 	gtk_label_set_text(GTK_LABEL(line_label), best_line);
+	gdk_threads_leave();
+}
+
+void set_analysis_depth(const char *depth) {
+	gdk_threads_enter();
+	gtk_label_set_text(GTK_LABEL(depth_label), depth);
 	gdk_threads_leave();
 }
 

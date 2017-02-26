@@ -17,11 +17,12 @@ static pthread_t uci_read_thread;
 static regex_t option_matcher;
 static regex_t best_move_ponder_matcher;
 static regex_t best_move_matcher;
-static regex_t info_depth_matcher;
 static regex_t info_selective_depth_matcher;
 static regex_t info_time_matcher;
 static regex_t info_score_cp_matcher;
 static regex_t info_score_mate_matcher;
+static regex_t info_depth_matcher;
+static regex_t info_selective_depth_matcher;
 static regex_t info_nps_matcher;
 static regex_t info_best_line_matcher;
 
@@ -37,7 +38,7 @@ static char all_moves[4 * 8192];
 static UCI_MODE uci_mode;
 
 static int uci_scanner__scan_bytes(const char *, int length);
-static void *parse_uci_function();
+static void * parse_uci_function(void *pVoid);
 static void wait_for_engine(void);
 
 void best_line_to_san(char line[8192], char san[8192]);
@@ -83,12 +84,12 @@ void init_regex() {
 	compile_regex(&best_move_matcher, "bestmove (.*)");
 
 	// Info matchers
-	compile_regex(&info_depth_matcher, "depth ([0-9]+)");
-	compile_regex(&info_selective_depth_matcher, "seldepth ([0-9]+)");
-	compile_regex(&info_time_matcher, "time ([0-9]+)");
-	compile_regex(&info_score_cp_matcher, "score cp (-?[0-9]+)");
+	compile_regex(&info_depth_matcher, " depth ([0-9]+)");
+	compile_regex(&info_selective_depth_matcher, " seldepth ([0-9]+)");
+	compile_regex(&info_time_matcher, " time ([0-9]+)");
+	compile_regex(&info_score_cp_matcher, "score cp (-?[0-9]+)( upperbound| lowerbound)?");
 	compile_regex(&info_score_mate_matcher, "score mate (-?[0-9]+)");
-	compile_regex(&info_nps_matcher, "nps ([0-9]+)");
+	compile_regex(&info_nps_matcher, " nps ([0-9]+)");
 	compile_regex(&info_best_line_matcher, " pv ([a-h1-8 ]+)");
 }
 
@@ -117,10 +118,10 @@ int spawn_uci_engine(void) {
 	}
 	printf("UCI OK!\n");
 
-	write_to_uci("setoption name Threads value 1\n");
+	write_to_uci("setoption name Threads value 3\n");
 	write_to_uci("setoption name Hash value 512\n");
 	write_to_uci("setoption name Ponder value true\n");
-	write_to_uci("setoption name Skill Level value 0\n");
+//	write_to_uci("setoption name Skill Level value 5\n");
 	wait_for_engine();
 	return 0;
 }
@@ -330,71 +331,108 @@ void parse_move_with_ponder(char *moveText) {
 	pondering = true;
 }
 
-void parse_info(char *info_depth) {
-	regmatch_t pmatch[2];
+void parse_info(char *info) {
+	regmatch_t pmatch[3];
 	int status;
 
-	char scoreValue[16];
+	char score_value[16];
+	score_value[0] = '\0';
+	bool score_is_mate = false;
+
 	char scoreString[16];
-	status = regexec(&info_score_cp_matcher, info_depth, 2, pmatch, 0);
+	status = regexec(&info_score_cp_matcher, info, 3, pmatch, 0);
 	if (!status) {
-		extract_match(info_depth, pmatch[1], scoreValue);
-		int scoreInt = (int) strtol(scoreValue, NULL, 10);
+		extract_match(info, pmatch[1], score_value);
+		if (pmatch[2].rm_so > -1 && pmatch[2].rm_eo > -1) {
+			char score_bound[16];
+			extract_match(info, pmatch[2], score_bound);
+			debug("Score is %s\n", score_bound + 1);
+		}
+	} else {
+		status = regexec(&info_score_mate_matcher, info, 2, pmatch, 0);
+		if (!status) {
+			score_is_mate = true;
+			extract_match(info, pmatch[1], score_value);
+		}
+	}
+
+	if (score_value[0] != '\0') {
+		int score_int = (int) strtol(score_value, NULL, 10);
 		switch (uci_mode) {
 			case ENGINE_ANALYSIS:
 				if (to_play) {
-					scoreInt =-scoreInt;
+					score_int =-score_int;
 				}
 				break;
 			case ENGINE_BLACK:
-				scoreInt =-scoreInt;
+				score_int =-score_int;
 				break;
 			case ENGINE_WHITE:
 				break;
 		}
-		snprintf(scoreString, 16, "%.2f", scoreInt / 100.0);
-		set_analysis_score(scoreString);
-	} else {
-		status = regexec(&info_score_mate_matcher, info_depth, 2, pmatch, 0);
-		if (!status) {
-			debug("PARSE INFO '%s'\n", info_depth);
-			extract_match(info_depth, pmatch[1], scoreValue);
-			int scoreInt = (int) strtol(scoreValue, NULL, 10);
-			switch (uci_mode) {
-				case ENGINE_ANALYSIS:
-					if (to_play) {
-						scoreInt =-scoreInt;
-					}
-					break;
-				case ENGINE_BLACK:
-					scoreInt =-scoreInt;
-					break;
-				case ENGINE_WHITE:
-					break;
+		char *evaluation;
+		if (score_is_mate) {
+			if (score_int == 0) {
+				snprintf(scoreString, 16, "-");
+			} else {
+				evaluation = score_int > 0 ? "+ -" : "- +";
+				snprintf(scoreString, 16, "%d", score_int);
+				snprintf(scoreString, 16, "%s #(%d)", evaluation, score_int);
 			}
-			debug("mate score '%d'\n", scoreInt);
-			snprintf(scoreString, 16, "#%d", scoreInt);
-			set_analysis_score(scoreString);
+		} else {
+			if (abs(score_int) < 20) {
+				evaluation = "=";
+			} else if (score_int > 0 && score_int < 60) {
+				evaluation = "⩲";
+			} else if (score_int < 0 && score_int > -60) {
+				evaluation = "⩱";
+			} else if (score_int > 0 && score_int < 120) {
+				evaluation = "±";
+			} else if (score_int < 0 && score_int > -120) {
+				evaluation = "∓";
+			} else {
+				evaluation = score_int > 0 ? "+ -" : "- +";
+			}
+			snprintf(scoreString, 16, "%s (%.2f)", evaluation, score_int / 100.0);
 		}
+		set_analysis_score(scoreString);
 	}
 
-	char bestLine[BUFSIZ];
-	char best_line_san[BUFSIZ];
-	memset(bestLine, 0, BUFSIZ);
-	status = regexec(&info_best_line_matcher, info_depth, 2, pmatch, 0);
+	status = regexec(&info_best_line_matcher, info, 2, pmatch, 0);
 	if (!status) {
-		extract_match(info_depth, pmatch[1], bestLine);
+		char bestLine[BUFSIZ];
+		char best_line_san[BUFSIZ];
+		memset(bestLine, 0, BUFSIZ);
+
+		extract_match(info, pmatch[1], bestLine);
 		best_line_to_san(bestLine, best_line_san);
 		set_analysis_best_line(bestLine);
 	}
 
-	char nps[16];
-	char npsString[32];
-	status = regexec(&info_nps_matcher, info_depth, 2, pmatch, 0);
+	char depthString[32];
+	char depth[8];
+	memset(depth, 0, 8);
+	status = regexec(&info_depth_matcher, info, 2, pmatch, 0);
 	if (!status) {
-		extract_match(info_depth, pmatch[1], nps);
+		extract_match(info, pmatch[1], depth);
+		snprintf(depthString, 32, "%s", depth);
+		set_analysis_depth(depthString);
+	}
+	status = regexec(&info_selective_depth_matcher, info, 2, pmatch, 0);
+	if (!status) {
+		char sel_depth[8];
+		extract_match(info, pmatch[1], sel_depth);
+		snprintf(depthString, 32, "%s/%s", depth, sel_depth);
+		set_analysis_depth(depthString);
+	}
+
+	char npsString[32];
+	status = regexec(&info_nps_matcher, info, 2, pmatch, 0);
+	if (!status) {
+		char nps[16];
+		extract_match(info, pmatch[1], nps);
 		int npsInt = (int) strtol(nps, NULL, 10);
-		snprintf(npsString, 32, "%d kNps", npsInt / 1000);
+		snprintf(npsString, 32, "%d kN/s", npsInt / 1000);
 		set_analysis_nodes_per_second(npsString);
 	}
 }
@@ -482,7 +520,7 @@ void parse_uci_buffer(void) {
 	}
 }
 
-void *parse_uci_function() {
+void *parse_uci_function(void *ignored) {
 	fprintf(stdout, "[parse UCI thread] - Starting UCI parser\n");
 
 	while (g_atomic_int_get(&running_flag)) {
