@@ -7,6 +7,7 @@
 #include "analysis_panel.h"
 #include "uci-adapter.h"
 #include "uci_scanner.h"
+#include "cairo-board.h"
 
 static int uci_in;
 static int uci_out;
@@ -41,7 +42,7 @@ static int uci_scanner__scan_bytes(const char *, int length);
 static void * parse_uci_function(void *pVoid);
 static void wait_for_engine(void);
 
-void best_line_to_san(char line[8192], char san[8192]);
+void best_line_to_san(char line[8192], char san[8192], int);
 
 void write_to_uci(char *message) {
 	if (write(uci_in, message, strlen(message)) == -1) {
@@ -270,7 +271,7 @@ void parse_move(char *moveText) {
 
 	if (bestMoveLen > 4) {
 		debug("Handling promotion from Engine '%s' promo: '%c'\n", bestMove, bestMove[4]);
-		promo_type = char_to_type((char) (bestMove[4] - 32));
+		promo_type = char_to_type(main_game->whose_turn, (char) (bestMove[4] - 32));
 		debug("Handling promotion from Engine %c -> %d\n", bestMove[4], promo_type);
 	}
 	// Append move
@@ -314,7 +315,7 @@ void parse_move_with_ponder(char *moveText) {
 	size_t bestMoveLen = strlen(bestMove);
 
 	if (bestMoveLen > 4) {
-		promo_type = char_to_type((char) (bestMove[4] - 32));
+		promo_type = char_to_type(main_game->whose_turn, (char) (bestMove[4] - 32));
 		debug("Handling promotion from Engine %c -> %d\n", bestMove[4], promo_type);
 	}
 
@@ -332,6 +333,11 @@ void parse_move_with_ponder(char *moveText) {
 }
 
 void parse_info(char *info) {
+	debug("GOT INFO %s\n", info);
+
+	static int parser_index = 0;
+	parser_index++;
+
 	regmatch_t pmatch[3];
 	int status;
 
@@ -403,10 +409,11 @@ void parse_info(char *info) {
 		char bestLine[BUFSIZ];
 		char best_line_san[BUFSIZ];
 		memset(bestLine, 0, BUFSIZ);
+		memset(best_line_san, 0, BUFSIZ);
 
 		extract_match(info, pmatch[1], bestLine);
-		best_line_to_san(bestLine, best_line_san);
-		set_analysis_best_line(bestLine);
+		best_line_to_san(bestLine, best_line_san, parser_index);
+		set_analysis_best_line(best_line_san);
 	}
 
 	char depthString[32];
@@ -437,27 +444,78 @@ void parse_info(char *info) {
 	}
 }
 
-void best_line_to_san(char *line, char *san) {
-	chess_piece trans_set[32];
-	chess_square trans_squares[8][8];
-	copy_situation(squares, trans_squares, trans_set);
+void best_line_to_san(char *line, char *san, int parser_index) {
 
-//	int resolved = resolve_move(type, currentMoveString, resolved_move, whose_turn, white_set, black_set, squares);
-//	if (resolved) {
-//		char san_move[SAN_MOVE_SIZE];
-//		move_piece(squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE_NO_ANIM, san_move, whose_turn, white_set, black_set, true);
-//		update_eco_tag(true);
-//		if (is_king_checked(whose_turn, squares)) {
-//			if (is_check_mate(whose_turn, squares)) {
-//				san_move[strlen(san_move)] = '#';
-//			} else {
-//				san_move[strlen(san_move)] = '+';
-//			}
-//		}
-//		plys_list_append_ply(main_list, ply_new(resolved_move[0], resolved_move[1], resolved_move[2], resolved_move[3], NULL, san_move));
-//	} else {
-//		fprintf(stderr, "Could not resolve move %c%s\n", type_to_char(type), currentMoveString);
-//	}
+	chess_game *trans_game = game_new();
+	copy_situation(main_game->squares, trans_game->squares, trans_game->white_set, trans_game->black_set);
+
+	trans_game->whose_turn = main_game->whose_turn;
+	debug("best_line_to_san Parsing line: %d '%s'\n", parser_index, line);
+	char *left_over = line;
+	char *parsed_to = line;
+	size_t line_len = strlen(line);
+	char move[6];
+	while (left_over != NULL && left_over - line <= line_len) {
+		debug("best_line_to_san While %d\n", parser_index);
+		left_over = strchr(left_over, ' ');
+		if (left_over == NULL) {
+			left_over = parsed_to + strlen(parsed_to);
+		}
+		memset(move, 0, 6);
+		memcpy(move, parsed_to, left_over - parsed_to);
+		debug("Parsing move: '%s'\n", move);
+
+		int ocol = move[0] - 'a';
+		int orow = move[1] - '1';
+		int ncol = move[2] - 'a';
+		int nrow = move[3] - '1';
+		char promo_char = move[4];
+		if (promo_char != '\0') {
+			debug("best_line_to_san  Move is a promotion! %s %c\n", move, promo_char);
+		}
+
+		debug("best_line_to_san Move is from %d %d to %d %d\n", ocol, orow, ncol, nrow);
+
+		chess_piece *piece = trans_game->squares[ocol][orow].piece;
+		if (piece == NULL) {
+			debug("best_line_to_san Ooops no piece here!\n");
+			return;
+		}
+
+		int type = piece->type;
+		int resolved_move[4];
+		int resolved = resolve_move(trans_game, type, move, resolved_move);
+		if (resolved) {
+			char san_move[SAN_MOVE_SIZE];
+			move_piece(trans_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0,
+			           AUTO_SOURCE_NO_ANIM, san_move, trans_game, true);
+			if (is_king_checked(trans_game, trans_game->whose_turn)) {
+				if (is_check_mate(trans_game)) {
+					san_move[strlen(san_move)] = '#';
+				} else {
+					san_move[strlen(san_move)] = '+';
+				}
+			}
+			debug("best_line_to_san Parsed move: '%s' into '%s'\n", move, san_move);
+			debug("best_line_to_san 1 append parsed move: '%s'\n", san);
+			size_t newMoveLen = strlen(san_move);
+			size_t movesLength = strlen(san);
+			san[movesLength] = ' ';
+			memcpy(san + movesLength + 1, san_move, newMoveLen + 1); // includes terminating null
+			debug("best_line_to_san 2 append parsed move: '%s'\n", san);
+		} else {
+			debug("best_line_to_san Could not resolve move %c%s\n", type_to_char(type), move);
+		}
+
+		left_over++;
+		parsed_to = left_over;
+		debug("best_line_to_san Parsing line left over: '%s'\n", left_over);
+
+	}
+
+	free(trans_game);
+
+	debug("best_line_to_san Parsing line: %d RETURNS\n", parser_index);
 
 }
 
@@ -530,3 +588,4 @@ void *parse_uci_function(void *ignored) {
 	fprintf(stdout, "[parse UCI thread] - Closing UCI parser\n");
 	return 0;
 }
+

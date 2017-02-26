@@ -1,9 +1,7 @@
 #include <stdlib.h>
 
 #include "chess-backend.h"
-
-static uint64_t zobrist_hash_history[50];
-static int hash_history_index = 0;
+#include "cairo-board.h"
 
 /* Returns the colour of the square[col][row]
  * 0 -> white
@@ -40,38 +38,45 @@ chess_piece *get_king(int colour, chess_square sq[8][8]) {
 	return NULL;
 }
 
-void init_en_passant(void) {
+void init_en_passant(chess_game *game) {
 	int i;
 	for (i = 0; i < 8; i++) {
-		en_passant[i] = 0;
+		game->en_passant[i] = 0;
 	}
 }
 
-void reset_en_passant(void) {
+void reset_en_passant(chess_game *game) {
 	int i;
 	for (i = 0; i < 8; i++) {
-		if (en_passant[i]) {
-			en_passant[i] = 0;
-			current_hash ^= zobrist_keys_en_passant[i];
+		if (game->en_passant[i]) {
+			game->en_passant[i] = 0;
+			game->current_hash ^= zobrist_keys_en_passant[i];
 		}
 	}
 }
 
 
-int is_fifty_move_counter_expired(void) {
-	return fifty_move_counter <= 0;
+int is_fifty_move_counter_expired(chess_game *game) {
+	return game->fifty_move_counter <= 0;
 }
 
-void copy_situation(chess_square source[8][8], chess_square dest[8][8], chess_piece copy[32]) {
+void copy_situation(chess_square source[8][8], chess_square dest[8][8], chess_piece copy_w[16], chess_piece copy_b[16]) {
 	int i,j;
-	int count = 0;
+	int w_count = 0;
+	int b_count = 0;
 
 	for (i = 0; i < 8; i++) {
 		for (j = 0; j < 8; j++) {
 			if (source[i][j].piece != NULL) {
-				copy[count] = *(source[i][j].piece);
-				dest[i][j].piece = &copy[count];
-				count++;
+				if (source[i][j].piece->colour) {
+					copy_b[b_count] = *(source[i][j].piece);
+					dest[i][j].piece = &copy_b[b_count];
+					b_count++;
+				} else {
+					copy_w[w_count] = *(source[i][j].piece);
+					dest[i][j].piece = &copy_w[w_count];
+					w_count++;
+				}
 			}
 			else {
 				dest[i][j].piece = NULL;
@@ -92,69 +97,67 @@ void copy_situation(chess_square source[8][8], chess_square dest[8][8], chess_pi
  * 	he moves through nor the square that he ends up on
  * 	(transient check).
  * */
-int can_castle(int colour, int side, chess_square sq[8][8]) {
+int can_castle(int colour, int side, chess_game *game) {
 
 	// check for 1. (static check)
-	if ( ! castle_state[colour][side]) {
+	if (!game->castle_state[colour][side]) {
 		return 0;
 	}
 
 	// check for 2. (no pieces in between)
-	if ( ! colour ) { // white
-		if ( side ) { // white right side
-			if (sq[5][0].piece != NULL || sq[6][0].piece != NULL) {
+	if (!colour) { // white
+		if (side) { // white right side
+			if (game->squares[5][0].piece != NULL || game->squares[6][0].piece != NULL) {
+				return 0;
+			}
+		} else { // white left side
+			if (game->squares[1][0].piece != NULL || game->squares[2][0].piece != NULL || game->squares[3][0].piece != NULL) {
 				return 0;
 			}
 		}
-		else { // white left side
-			if (sq[1][0].piece != NULL || sq[2][0].piece != NULL || sq[3][0].piece != NULL) {
+	} else { // black
+		if (side) { // black right side
+			if (game->squares[5][7].piece != NULL || game->squares[6][7].piece != NULL) {
 				return 0;
 			}
-		}
-	}
-	else { // black
-		if ( side ) { // black right side
-			if (sq[5][7].piece != NULL || sq[6][7].piece != NULL) {
-				return 0;
-			}
-		}
-		else { // black left side
-			if (sq[1][7].piece != NULL || sq[2][7].piece != NULL || sq[3][7].piece != NULL) {
+		} else { // black left side
+			if (game->squares[1][7].piece != NULL || game->squares[2][7].piece != NULL || game->squares[3][7].piece != NULL) {
 				return 0;
 			}
 		}
 	}
 
 	// check for 3 (most expensive check)
-	if (is_king_checked(colour, sq)) {
+	if (is_king_checked(game, colour)) {
 		return 0;
 	}
-	chess_piece trans_set[32];
-	chess_square trans_squares[8][8];
-	copy_situation(sq, trans_squares, trans_set);
+	chess_game *trans_game = game_new();
+	copy_situation(game->squares, trans_game->squares, trans_game->white_set, trans_game->black_set);
 
-	chess_piece *king = get_king(colour, trans_squares);
+	chess_piece *king = get_king(colour, trans_game->squares);
 
 	// Do the proposed move on the transient set of pieces
-	raw_move(trans_squares, king, king->pos.column+(side?1:-1), king->pos.row, 0);
-	if (is_king_checked(colour, trans_squares)) {
+	raw_move(trans_game, king, king->pos.column+(side?1:-1), king->pos.row, 0);
+	if (is_king_checked(trans_game, colour)) {
 		return 0;
 	}
-	raw_move(trans_squares, king, king->pos.column+(side?1:-1), king->pos.row, 0);
-	if (is_king_checked(colour, trans_squares)) {
+	raw_move(trans_game, king, king->pos.column+(side?1:-1), king->pos.row, 0);
+	if (is_king_checked(trans_game, colour)) {
 		return 0;
 	}
+
+	free(trans_game);
 
 	// all conditions met
 	return 1;
 }
 
-void raw_move(chess_square sq[8][8], chess_piece *piece, int col, int row, int update_hash) {
+void raw_move(chess_game *game, chess_piece *piece, int col, int row, int update_hash) {
 	int i, j;
 
 	if (update_hash) {
 		// remove piece at old position from hash
-		toggle_piece(piece);
+		toggle_piece(game, piece);
 	}
 
 	// get old position
@@ -162,33 +165,33 @@ void raw_move(chess_square sq[8][8], chess_piece *piece, int col, int row, int u
 	j = piece->pos.row;
 
 	// clean out source square
-	sq[i][j].piece = NULL;
+	game->squares[i][j].piece = NULL;
 
 	// set new position
 	piece->pos.column = col;
 	piece->pos.row = row;
 
 	// Handle killed piece if any
-	chess_piece *to_kill = sq[col][row].piece;
+	chess_piece *to_kill = game->squares[col][row].piece;
 	if ( to_kill != NULL) {
 		// removed killed piece from hash
-		toggle_piece(to_kill);
+		toggle_piece(game, to_kill);
 		to_kill->dead = 1;
 	}
 
 	// instate square->piece link
-	sq[col][row].piece = piece;
+	game->squares[col][row].piece = piece;
 
 	if (update_hash) {
 		// add piece at new position to hash
-		toggle_piece(piece);
+		toggle_piece(game, piece);
 	}
 }
 
 
 
-int is_check_mate(int whose_turn, chess_square sq[8][8]) {
-	if (!is_king_checked(whose_turn, sq)) {
+int is_check_mate(chess_game *game) {
+	if (!is_king_checked(game, game->whose_turn)) {
 		return 0;
 	}
 
@@ -198,12 +201,12 @@ int is_check_mate(int whose_turn, chess_square sq[8][8]) {
 
 	for (i = 0; i < 8; i++) {
 		for (j = 0; j < 8; j++) {
-			chess_piece *piece = sq[i][j].piece;
-			if (piece != NULL && piece->colour == whose_turn) {
+			chess_piece *piece = game->squares[i][j].piece;
+			if (piece != NULL && piece->colour == game->whose_turn) {
 				// don't consider castle: since the king is checked castling is illegal
-				count = get_possible_moves( piece, sq, selected_moves, 0);
+				count = get_possible_moves(game, piece, selected_moves, 0);
 				for (k = 0; k < count; k++) {
-					if ( is_move_legal(piece, selected_moves[k][0], selected_moves[k][1], whose_turn, sq) ) {
+					if (is_move_legal(game, piece, selected_moves[k][0], selected_moves[k][1]) ) {
 						//printf("No mate: found legal move %c%c%c\n", type_to_char(piece->type), 'a'+selected_moves[k][0], '1'+selected_moves[k][1]);
 						return 0;
 					}
@@ -214,9 +217,9 @@ int is_check_mate(int whose_turn, chess_square sq[8][8]) {
 	return 1;
 }
 
-int is_stale_mate(int whose_turn, chess_square sq[8][8]) {
+int is_stale_mate(chess_game *game) {
 
-	if (is_king_checked(whose_turn, sq)) {
+	if (is_king_checked(game, game->whose_turn)) {
 		return 0;
 	}
 
@@ -226,13 +229,13 @@ int is_stale_mate(int whose_turn, chess_square sq[8][8]) {
 
 	for (i = 0; i < 8; i++) {
 		for (j = 0; j < 8; j++) {
-			chess_piece *piece = sq[i][j].piece;
-			if (piece != NULL && piece->colour == whose_turn) {
+			chess_piece *piece = game->squares[i][j].piece;
+			if (piece != NULL && piece->colour == game->whose_turn) {
 				// don't consider castle
 				// if king can castle he can do other things so no stalemate
-				count = get_possible_moves( piece, sq, selected_moves, 0);
+				count = get_possible_moves(game, piece, selected_moves, 0);
 				for (k = 0; k < count; k++) {
-					if ( is_move_legal(piece, selected_moves[k][0], selected_moves[k][1], whose_turn, sq) ) {
+					if (is_move_legal(game, piece, selected_moves[k][0], selected_moves[k][1]) ) {
 						return 0;
 					}
 				}
@@ -379,12 +382,12 @@ int is_material_draw(chess_piece w_set[16], chess_piece b_set[16]) {
 }
 
 
-int is_king_checked(int colour, chess_square sq[8][8]) {
-	return is_piece_under_attack_raw(get_king(colour, sq), sq);
+int is_king_checked(chess_game *game, int colour) {
+	return is_piece_under_attack_raw(game, get_king(colour, game->squares));
 }
 
 /* Determine whether piece may be under attack in passed situation */
-int is_piece_under_attack_raw(chess_piece* piece, chess_square sq[8][8]) {
+int is_piece_under_attack_raw(chess_game *game, chess_piece* piece) {
 	int i,j,k;
 	int colour = piece->colour;
 	int col = piece->pos.column;
@@ -398,11 +401,11 @@ int is_piece_under_attack_raw(chess_piece* piece, chess_square sq[8][8]) {
 
 	for (i = 0; i < 8; i++) {
 		for (j = 0; j < 8; j++) {
-			cur_piece = sq[i][j].piece;
+			cur_piece = game->squares[i][j].piece;
 			if (cur_piece != NULL) {
 				// Only deal with pieces of the opposite colour
 				if (cur_piece->colour != colour) {
-					count = get_possible_moves(cur_piece, sq, possible_moves, 0);
+					count = get_possible_moves(game, cur_piece, possible_moves, 0);
 					for (k = 0; k < count; k++) {
 						if (possible_moves[k][0] == col && possible_moves[k][1] == row) {
 							maybe_under_attack++;
@@ -420,24 +423,24 @@ int is_piece_under_attack_raw(chess_piece* piece, chess_square sq[8][8]) {
 
 // move should have already be filtered by get_possible_moves
 // so some of these checks are redundant
-int is_move_en_passant(chess_piece *piece, int col, int row, chess_square sq[8][8]) {
+int is_move_en_passant(chess_game *game, chess_piece *piece, int col, int row) {
 	if ( piece->type != W_PAWN && piece->type != B_PAWN ) {
 		return 0;
 	}
-	if ( ! en_passant[col] ) {
+	if (!game->en_passant[col]) {
 		return 0;
 	}
 
-	if (row == piece->pos.row + (whose_turn ? -1 : 1 ) && col != piece->pos.column && sq[col][row].piece == NULL ) {
+	if (row == piece->pos.row + (game->whose_turn ? -1 : 1 ) && col != piece->pos.column && game->squares[col][row].piece == NULL ) {
 		return EN_PASSANT;
 	}
 	return 0;
 }
 
-int is_move_legal(chess_piece *piece, int col, int row, int blacks_ply, chess_square sq[8][8]) {
+int is_move_legal(chess_game *game, chess_piece *piece, int col, int row) {
 
 	// Player can't move if not his turn
-	if (piece->colour != blacks_ply) {
+	if (piece->colour != game->whose_turn) {
 		return 0;
 	}
 
@@ -448,7 +451,7 @@ int is_move_legal(chess_piece *piece, int col, int row, int blacks_ply, chess_sq
 
 	int selected[64][2];
 
-	int count = get_possible_moves(piece, sq, selected, 1);
+	int count = get_possible_moves(game, piece, selected, 1);
 
 	int possible = 0;
 	for (i = 0; i < count; i++) {
@@ -470,15 +473,12 @@ int is_move_legal(chess_piece *piece, int col, int row, int blacks_ply, chess_sq
 	// First make a transient copy of the pieces' state
 	// We'll apply changes to this transient copy and do our checks
 
-	//chess_piece trans_white_set[16];
-	//chess_piece trans_black_set[16];
-	chess_piece trans_set[32];
-	chess_square trans_squares[8][8];
+	chess_game *trans_game = game_new();
 	//copy_situation(white_set, black_set, trans_white_set, trans_black_set, trans_squares);
-	copy_situation(sq, trans_squares, trans_set);
+	copy_situation(game->squares, trans_game->squares, trans_game->white_set, trans_game->black_set);
 
 	// get equivalent of selected piece from transient squares
-	chess_piece *trans_piece = trans_squares[start_col][start_row].piece;
+	chess_piece *trans_piece = trans_game->squares[start_col][start_row].piece;
 
 
 	/* There is a very special case where our king is checked
@@ -487,23 +487,25 @@ int is_move_legal(chess_piece *piece, int col, int row, int blacks_ply, chess_sq
 	 * is taken and is not on the destination square of the 
 	 * proposed move. We need to remove that pawn from the 
 	 * transient squares now */
-	if (is_move_en_passant(trans_piece, col, row, trans_squares)) {
-		chess_square *to_kill = &(trans_squares[col][row + (blacks_ply ? 1 : -1) ]);
+	if (is_move_en_passant(trans_game, trans_piece, col, row)) {
+		chess_square *to_kill = &(trans_game->squares[col][row + (game->whose_turn ? 1 : -1) ]);
 		// kill pawn
 		to_kill->piece->dead = 1;
 		to_kill->piece = NULL;
 	}
 
 	// Do the proposed move on the transient set of pieces
-	raw_move(trans_squares, trans_piece, col, row, 0);
+	raw_move(trans_game, trans_piece, col, row, 0);
 
 	// Check that the proposed move does not leave or put our king in check
-	int would_check = is_king_checked(colour, trans_squares);
+	int would_check = is_king_checked(trans_game, colour);
 	if (would_check) {
 		// Move not possible as would put/leave our king in check
 		//printf("Proposed move would check our king\n");
 		return 0;
 	}
+
+	free(trans_game);
 
 	return possible;
 }
@@ -517,8 +519,9 @@ static void select_square(int selected[64][2], int *count, int col, int row) {
 
 /* List all possible moves for the piece
  * NOTE: we don't check for the absolute legality yet */
-int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[64][2], int consider_castling_moves) {
+int get_possible_moves(chess_game *game, chess_piece *piece, int selected[64][2], int consider_castling_moves) {
 
+//	debug("getting possible moves\n");
 	int i;
 
 	int start_col = piece->pos.column;
@@ -530,50 +533,50 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 
 		case W_PAWN:
 			if (start_row == 4) {
-				if (start_col > 0 && en_passant[start_col-1]) {
+				if (start_col > 0 && game->en_passant[start_col-1]) {
 					select_square(selected, &count, start_col-1, start_row + 1);
 				}
-				if (start_col < 7 && en_passant[start_col+1]) {
+				if (start_col < 7 && game->en_passant[start_col+1]) {
 					select_square(selected, &count, start_col+1, start_row + 1);
 				}
 			}
 			if (start_row < 7) {
-				if (sq[start_col][start_row+1].piece == NULL) {
+				if (game->squares[start_col][start_row+1].piece == NULL) {
 					select_square(selected, &count, start_col, start_row + 1);
 					if (start_row == 1)
-						if (sq[start_col][start_row + 2].piece == NULL)
+						if (game->squares[start_col][start_row + 2].piece == NULL)
 							select_square(selected, &count, start_col, start_row + 2);
 				}
 				if (start_col > 0)
-				if (sq[start_col - 1][start_row + 1].piece != NULL && sq[start_col - 1][start_row + 1].piece->colour)
+				if (game->squares[start_col - 1][start_row + 1].piece != NULL && game->squares[start_col - 1][start_row + 1].piece->colour)
 					select_square(selected, &count, start_col - 1, start_row + 1);
 				if (start_col < 7)
-				if (sq[start_col + 1][start_row + 1].piece != NULL && sq[start_col + 1][start_row + 1].piece->colour)
+				if (game->squares[start_col + 1][start_row + 1].piece != NULL && game->squares[start_col + 1][start_row + 1].piece->colour)
 					select_square(selected, &count, start_col + 1, start_row + 1);
 			}
 		break;
 
 		case B_PAWN:
 			if (start_row == 3) {
-				if (start_col > 0 && en_passant[start_col-1]) {
+				if (start_col > 0 && game->en_passant[start_col-1]) {
 					select_square(selected, &count, start_col-1, start_row - 1);
 				}
-				if (start_col < 7 && en_passant[start_col+1]) {
+				if (start_col < 7 && game->en_passant[start_col+1]) {
 					select_square(selected, &count, start_col+1, start_row - 1);
 				}
 			}
 			if (start_row > 0) {
-				if (sq[start_col][start_row - 1].piece == NULL) {
+				if (game->squares[start_col][start_row - 1].piece == NULL) {
 					select_square(selected, &count, start_col, start_row - 1);
 					if (start_row == 6)
-						if (sq[start_col][start_row - 2].piece == NULL)
+						if (game->squares[start_col][start_row - 2].piece == NULL)
 							select_square(selected, &count, start_col, start_row - 2);
 				}
 				if (start_col > 0)
-				if (sq[start_col - 1][start_row - 1].piece != NULL && ! sq[start_col - 1][start_row - 1].piece->colour)
+				if (game->squares[start_col - 1][start_row - 1].piece != NULL && ! game->squares[start_col - 1][start_row - 1].piece->colour)
 					select_square(selected, &count, start_col - 1, start_row - 1);
 				if (start_col < 7)
-				if (sq[start_col + 1][start_row - 1].piece != NULL && ! sq[start_col + 1][start_row - 1].piece->colour)
+				if (game->squares[start_col + 1][start_row - 1].piece != NULL && ! game->squares[start_col + 1][start_row - 1].piece->colour)
 					select_square(selected, &count, start_col + 1, start_row - 1);
 			}
 		break;
@@ -582,82 +585,82 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 		case B_KNIGHT:
 			if (start_row < 7) {
 				if (start_col - 2 >= 0 ) {
-					if (sq[start_col - 2][start_row + 1].piece == NULL) {
+					if (game->squares[start_col - 2][start_row + 1].piece == NULL) {
 						select_square(selected, &count, start_col - 2, start_row + 1);
 					}
 					else if (colour ?
-						! sq[start_col - 2][start_row + 1].piece->colour :
-						sq[start_col - 2][start_row + 1].piece->colour)
+						! game->squares[start_col - 2][start_row + 1].piece->colour :
+						     game->squares[start_col - 2][start_row + 1].piece->colour)
 							select_square(selected, &count, start_col - 2, start_row + 1);
 				}
 				if (start_col + 2 <= 7 ) {
-					if (sq[start_col + 2][start_row + 1].piece == NULL) {
+					if (game->squares[start_col + 2][start_row + 1].piece == NULL) {
 						select_square(selected, &count, start_col + 2, start_row + 1);
 					}
 					else if (colour ?
-						! sq[start_col + 2][start_row + 1].piece->colour :
-						sq[start_col + 2][start_row + 1].piece->colour)
+						! game->squares[start_col + 2][start_row + 1].piece->colour :
+						     game->squares[start_col + 2][start_row + 1].piece->colour)
 							select_square(selected, &count, start_col + 2, start_row + 1);
 				}
 
 				if (start_row < 6) {
 					if (start_col - 1 >= 0 ) {
-						if (sq[start_col - 1][start_row + 2].piece == NULL) {
+						if (game->squares[start_col - 1][start_row + 2].piece == NULL) {
 							select_square(selected, &count, start_col - 1, start_row + 2);
 						}
 					else if (colour ?
-						! sq[start_col - 1][start_row + 2].piece->colour :
-						sq[start_col - 1][start_row + 2].piece->colour)
+						! game->squares[start_col - 1][start_row + 2].piece->colour :
+						     game->squares[start_col - 1][start_row + 2].piece->colour)
 							select_square(selected, &count, start_col - 1, start_row + 2);
 					}
 					if (start_col + 1 <= 7 ) {
-						if (sq[start_col + 1][start_row + 2].piece == NULL) {
+						if (game->squares[start_col + 1][start_row + 2].piece == NULL) {
 							select_square(selected, &count, start_col + 1, start_row + 2);
 						}
 						else if (colour ?
-							! sq[start_col + 1][start_row + 2].piece->colour :
-							sq[start_col + 1][start_row + 2].piece->colour)
+							! game->squares[start_col + 1][start_row + 2].piece->colour :
+							     game->squares[start_col + 1][start_row + 2].piece->colour)
 								select_square(selected, &count, start_col + 1, start_row + 2);
 					}
 				}
 			}
 			if (start_row > 0) {
 				if (start_col - 2 >= 0 ) {
-					if (sq[start_col - 2][start_row - 1].piece == NULL) {
+					if (game->squares[start_col - 2][start_row - 1].piece == NULL) {
 						select_square(selected, &count, start_col - 2, start_row - 1);
 					}
 					else if (colour ?
-						! sq[start_col - 2][start_row - 1].piece->colour :
-						sq[start_col - 2][start_row - 1].piece->colour)
+						! game->squares[start_col - 2][start_row - 1].piece->colour :
+						     game->squares[start_col - 2][start_row - 1].piece->colour)
 							select_square(selected, &count, start_col - 2, start_row - 1);
 				}
 				if (start_col + 2 <= 7 ) {
-					if (sq[start_col + 2][start_row - 1].piece == NULL) {
+					if (game->squares[start_col + 2][start_row - 1].piece == NULL) {
 						select_square(selected, &count, start_col + 2, start_row - 1);
 					}
 					else if (colour ?
-						! sq[start_col + 2][start_row - 1].piece->colour :
-						sq[start_col + 2][start_row - 1].piece->colour)
+						! game->squares[start_col + 2][start_row - 1].piece->colour :
+						     game->squares[start_col + 2][start_row - 1].piece->colour)
 							select_square(selected, &count, start_col + 2, start_row - 1);
 				}
 
 				if (start_row > 1) {
 					if (start_col - 1 >= 0 ) {
-						if (sq[start_col - 1][start_row - 2].piece == NULL) {
+						if (game->squares[start_col - 1][start_row - 2].piece == NULL) {
 							select_square(selected, &count, start_col - 1, start_row - 2);
 						}
 						else if (colour ?
-							! sq[start_col - 1][start_row - 2].piece->colour :
-							sq[start_col - 1][start_row - 2].piece->colour)
+							! game->squares[start_col - 1][start_row - 2].piece->colour :
+							     game->squares[start_col - 1][start_row - 2].piece->colour)
 								select_square(selected, &count, start_col - 1, start_row - 2);
 					}
 					if (start_col + 1 <= 7 ) {
-						if (sq[start_col + 1][start_row - 2].piece == NULL) {
+						if (game->squares[start_col + 1][start_row - 2].piece == NULL) {
 							select_square(selected, &count, start_col + 1, start_row - 2);
 						}
 						else if (colour ?
-							! sq[start_col + 1][start_row - 2].piece->colour :
-							sq[start_col + 1][start_row - 2].piece->colour)
+							! game->squares[start_col + 1][start_row - 2].piece->colour :
+							     game->squares[start_col + 1][start_row - 2].piece->colour)
 								select_square(selected, &count, start_col + 1, start_row - 2);
 					}
 				}
@@ -670,12 +673,12 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 			for (i=1;;i++) {
 				if (start_col + i > 7 || start_row + i > 7)
 					break;
-				if (sq[start_col + i][start_row + i].piece == NULL)
+				if (game->squares[start_col + i][start_row + i].piece == NULL)
 					select_square(selected, &count, start_col + i, start_row + i);
 				else {
 					if (colour ?
-						! sq[start_col + i][start_row + i].piece->colour :
-						sq[start_col + i][start_row + i].piece->colour)
+						! game->squares[start_col + i][start_row + i].piece->colour :
+						game->squares[start_col + i][start_row + i].piece->colour)
 					{
 						select_square(selected, &count, start_col + i, start_row + i);
 					}
@@ -685,12 +688,12 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 			for (i=1;;i++) {
 				if (start_col - i < 0 || start_row + i > 7)
 					break;
-				if (sq[start_col - i][start_row + i].piece == NULL)
+				if (game->squares[start_col - i][start_row + i].piece == NULL)
 					select_square(selected, &count, start_col - i, start_row + i);
 				else {
 					if (colour ?
-						! sq[start_col - i][start_row + i].piece->colour :
-						sq[start_col - i][start_row + i].piece->colour)
+						! game->squares[start_col - i][start_row + i].piece->colour :
+						game->squares[start_col - i][start_row + i].piece->colour)
 					{
 						select_square(selected, &count, start_col - i, start_row + i);
 					}
@@ -700,12 +703,12 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 			for (i=1;;i++) {
 				if (start_col - i < 0 || start_row - i < 0)
 					break;
-				if (sq[start_col - i][start_row - i].piece == NULL)
+				if (game->squares[start_col - i][start_row - i].piece == NULL)
 					select_square(selected, &count, start_col - i, start_row - i);
 				else {
 					if (colour ?
-						! sq[start_col - i][start_row - i].piece->colour :
-						sq[start_col - i][start_row - i].piece->colour)
+						! game->squares[start_col - i][start_row - i].piece->colour :
+						game->squares[start_col - i][start_row - i].piece->colour)
 					{
 						select_square(selected, &count, start_col - i, start_row - i);
 					}
@@ -715,12 +718,12 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 			for (i=1;;i++) {
 				if (start_col + i > 7 || start_row - i < 0)
 					break;
-				if (sq[start_col + i][start_row - i].piece == NULL)
+				if (game->squares[start_col + i][start_row - i].piece == NULL)
 					select_square(selected, &count, start_col + i, start_row - i);
 				else {
 					if (colour ?
-						! sq[start_col + i][start_row - i].piece->colour :
-						sq[start_col + i][start_row - i].piece->colour)
+						! game->squares[start_col + i][start_row - i].piece->colour :
+						game->squares[start_col + i][start_row - i].piece->colour)
 					{
 						select_square(selected, &count, start_col + i, start_row - i);
 					}
@@ -735,12 +738,12 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 			for (i=1;;i++) {
 				if (start_row + i > 7)
 					break;
-				if (sq[start_col][start_row + i].piece == NULL)
+				if (game->squares[start_col][start_row + i].piece == NULL)
 					select_square(selected, &count, start_col, start_row + i);
 				else {
 					if (colour ?
-						! sq[start_col][start_row + i].piece->colour :
-						sq[start_col][start_row + i].piece->colour)
+						! game->squares[start_col][start_row + i].piece->colour :
+						game->squares[start_col][start_row + i].piece->colour)
 					{
 						select_square(selected, &count, start_col, start_row + i);
 					}
@@ -750,12 +753,12 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 			for (i=1;;i++) {
 				if (start_col - i < 0)
 					break;
-				if (sq[start_col - i][start_row].piece == NULL)
+				if (game->squares[start_col - i][start_row].piece == NULL)
 					select_square(selected, &count, start_col - i, start_row);
 				else {
 					if (colour ?
-						! sq[start_col - i][start_row].piece->colour :
-						sq[start_col - i][start_row].piece->colour)
+						! game->squares[start_col - i][start_row].piece->colour :
+						game->squares[start_col - i][start_row].piece->colour)
 					{
 						select_square(selected, &count, start_col - i, start_row);
 					}
@@ -765,12 +768,12 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 			for (i=1;;i++) {
 				if (start_row - i < 0)
 					break;
-				if (sq[start_col][start_row - i].piece == NULL)
+				if (game->squares[start_col][start_row - i].piece == NULL)
 					select_square(selected, &count, start_col, start_row - i);
 				else {
 					if (colour ?
-						! sq[start_col][start_row - i].piece->colour :
-						sq[start_col][start_row - i].piece->colour)
+						! game->squares[start_col][start_row - i].piece->colour :
+						game->squares[start_col][start_row - i].piece->colour)
 					{
 						select_square(selected, &count, start_col, start_row - i);
 					}
@@ -780,12 +783,12 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 			for (i=1;;i++) {
 				if (start_col + i > 7)
 					break;
-				if (sq[start_col + i][start_row].piece == NULL)
+				if (game->squares[start_col + i][start_row].piece == NULL)
 					select_square(selected, &count, start_col + i, start_row);
 				else {
 					if (colour ?
-						! sq[start_col + i][start_row].piece->colour :
-						sq[start_col + i][start_row].piece->colour)
+						! game->squares[start_col + i][start_row].piece->colour :
+						game->squares[start_col + i][start_row].piece->colour)
 					{
 						select_square(selected, &count, start_col + i, start_row);
 					}
@@ -800,12 +803,12 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 			for (i=1;;i++) {
 				if (start_col + i > 7 || start_row + i > 7)
 					break;
-				if (sq[start_col + i][start_row + i].piece == NULL)
+				if (game->squares[start_col + i][start_row + i].piece == NULL)
 					select_square(selected, &count, start_col + i, start_row + i);
 				else {
 					if (colour ?
-						! sq[start_col + i][start_row + i].piece->colour :
-						sq[start_col + i][start_row + i].piece->colour)
+						! game->squares[start_col + i][start_row + i].piece->colour :
+						game->squares[start_col + i][start_row + i].piece->colour)
 					{
 						select_square(selected, &count, start_col + i, start_row + i);
 					}
@@ -815,12 +818,12 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 			for (i=1;;i++) {
 				if (start_col - i < 0 || start_row + i > 7)
 					break;
-				if (sq[start_col - i][start_row + i].piece == NULL)
+				if (game->squares[start_col - i][start_row + i].piece == NULL)
 					select_square(selected, &count, start_col - i, start_row + i);
 				else {
 					if (colour ?
-						! sq[start_col - i][start_row + i].piece->colour :
-						sq[start_col - i][start_row + i].piece->colour)
+						! game->squares[start_col - i][start_row + i].piece->colour :
+						game->squares[start_col - i][start_row + i].piece->colour)
 					{
 						select_square(selected, &count, start_col - i, start_row + i);
 					}
@@ -830,12 +833,12 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 			for (i=1;;i++) {
 				if (start_col - i < 0 || start_row - i < 0)
 					break;
-				if (sq[start_col - i][start_row - i].piece == NULL)
+				if (game->squares[start_col - i][start_row - i].piece == NULL)
 					select_square(selected, &count, start_col - i, start_row - i);
 				else {
 					if (colour ?
-						! sq[start_col - i][start_row - i].piece->colour :
-						sq[start_col - i][start_row - i].piece->colour)
+						! game->squares[start_col - i][start_row - i].piece->colour :
+						game->squares[start_col - i][start_row - i].piece->colour)
 					{
 						select_square(selected, &count, start_col - i, start_row - i);
 					}
@@ -845,12 +848,12 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 			for (i=1;;i++) {
 				if (start_col + i > 7 || start_row - i < 0)
 					break;
-				if (sq[start_col + i][start_row - i].piece == NULL)
+				if (game->squares[start_col + i][start_row - i].piece == NULL)
 					select_square(selected, &count, start_col + i, start_row - i);
 				else {
 					if (colour ?
-						! sq[start_col + i][start_row - i].piece->colour :
-						sq[start_col + i][start_row - i].piece->colour)
+						! game->squares[start_col + i][start_row - i].piece->colour :
+						game->squares[start_col + i][start_row - i].piece->colour)
 					{
 						select_square(selected, &count, start_col + i, start_row - i);
 					}
@@ -860,12 +863,12 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 			for (i=1;;i++) {
 				if (start_row + i > 7)
 					break;
-				if (sq[start_col][start_row + i].piece == NULL)
+				if (game->squares[start_col][start_row + i].piece == NULL)
 					select_square(selected, &count, start_col, start_row + i);
 				else {
 					if (colour ?
-						! sq[start_col][start_row + i].piece->colour :
-						sq[start_col][start_row + i].piece->colour)
+						! game->squares[start_col][start_row + i].piece->colour :
+						game->squares[start_col][start_row + i].piece->colour)
 					{
 						select_square(selected, &count, start_col, start_row + i);
 					}
@@ -875,12 +878,12 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 			for (i=1;;i++) {
 				if (start_col - i < 0)
 					break;
-				if (sq[start_col - i][start_row].piece == NULL)
+				if (game->squares[start_col - i][start_row].piece == NULL)
 					select_square(selected, &count, start_col - i, start_row);
 				else {
 					if (colour ?
-						! sq[start_col - i][start_row].piece->colour :
-						sq[start_col - i][start_row].piece->colour)
+						! game->squares[start_col - i][start_row].piece->colour :
+						game->squares[start_col - i][start_row].piece->colour)
 					{
 						select_square(selected, &count, start_col - i, start_row);
 					}
@@ -890,12 +893,12 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 			for (i=1;;i++) {
 				if (start_row - i < 0)
 					break;
-				if (sq[start_col][start_row - i].piece == NULL)
+				if (game->squares[start_col][start_row - i].piece == NULL)
 					select_square(selected, &count, start_col, start_row - i);
 				else {
 					if (colour ?
-						! sq[start_col][start_row - i].piece->colour :
-						sq[start_col][start_row - i].piece->colour)
+						! game->squares[start_col][start_row - i].piece->colour :
+						game->squares[start_col][start_row - i].piece->colour)
 					{
 						select_square(selected, &count, start_col, start_row - i);
 					}
@@ -905,12 +908,12 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 			for (i=1;;i++) {
 				if (start_col + i > 7)
 					break;
-				if (sq[start_col + i][start_row].piece == NULL)
+				if (game->squares[start_col + i][start_row].piece == NULL)
 					select_square(selected, &count, start_col + i, start_row);
 				else {
 					if (colour ?
-						! sq[start_col + i][start_row].piece->colour :
-						sq[start_col + i][start_row].piece->colour)
+						! game->squares[start_col + i][start_row].piece->colour :
+						game->squares[start_col + i][start_row].piece->colour)
 					{
 						select_square(selected, &count, start_col + i, start_row);
 					}
@@ -923,67 +926,67 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 		case W_KING:
 		case B_KING:
 			if (consider_castling_moves) {
-				if ( can_castle(colour, 0, sq) ) { // can castle left
+				if (can_castle(colour, 0, game)) { // can castle left
 					select_square(selected, &count, start_col - 2, start_row);
 				}
-				if ( can_castle(colour, 1, sq) ) { // can castle right
+				if (can_castle(colour, 1, game)) { // can castle right
 					select_square(selected, &count, start_col + 2, start_row);
 				}
 			}
 			if (start_col > 0) {
-				if (sq[start_col - 1][start_row].piece == NULL)
+				if (game->squares[start_col - 1][start_row].piece == NULL)
 					select_square(selected, &count, start_col - 1, start_row);
 				else {
 					if (colour ?
-						! sq[start_col - 1][start_row].piece->colour :
-						sq[start_col - 1][start_row].piece->colour)
+						! game->squares[start_col - 1][start_row].piece->colour :
+						game->squares[start_col - 1][start_row].piece->colour)
 					{
 						select_square(selected, &count, start_col - 1, start_row);
 					}
 				}
 			}
 			if (start_col < 7) {
-				if (sq[start_col + 1][start_row].piece == NULL)
+				if (game->squares[start_col + 1][start_row].piece == NULL)
 					select_square(selected, &count, start_col + 1, start_row);
 				else {
 					if (colour ?
-						! sq[start_col + 1][start_row].piece->colour :
-						sq[start_col + 1][start_row].piece->colour)
+						! game->squares[start_col + 1][start_row].piece->colour :
+						game->squares[start_col + 1][start_row].piece->colour)
 					{
 						select_square(selected, &count, start_col + 1, start_row);
 					}
 				}
 			}
 			if (start_row < 7) {
-				if (sq[start_col][start_row + 1].piece == NULL)
+				if (game->squares[start_col][start_row + 1].piece == NULL)
 					select_square(selected, &count, start_col, start_row + 1);
 				else {
 					if (colour ?
-						! sq[start_col][start_row + 1].piece->colour :
-						sq[start_col][start_row + 1].piece->colour)
+						! game->squares[start_col][start_row + 1].piece->colour :
+						game->squares[start_col][start_row + 1].piece->colour)
 					{
 						select_square(selected, &count, start_col, start_row + 1);
 					}
 				}
 				if (start_col > 0) {
-					if (sq[start_col - 1][start_row + 1].piece == NULL)
+					if (game->squares[start_col - 1][start_row + 1].piece == NULL)
 						select_square(selected, &count, start_col - 1, start_row + 1);
 					else {
 						if (colour ?
-							! sq[start_col - 1][start_row + 1].piece->colour :
-							sq[start_col - 1][start_row + 1].piece->colour)
+							! game->squares[start_col - 1][start_row + 1].piece->colour :
+							game->squares[start_col - 1][start_row + 1].piece->colour)
 						{
 							select_square(selected, &count, start_col - 1, start_row + 1);
 						}
 					}
 				}
 				if (start_col < 7) {
-					if (sq[start_col + 1][start_row + 1].piece == NULL)
+					if (game->squares[start_col + 1][start_row + 1].piece == NULL)
 						select_square(selected, &count, start_col + 1, start_row + 1);
 					else {
 						if (colour ?
-							! sq[start_col + 1][start_row + 1].piece->colour :
-							sq[start_col + 1][start_row + 1].piece->colour)
+							! game->squares[start_col + 1][start_row + 1].piece->colour :
+							game->squares[start_col + 1][start_row + 1].piece->colour)
 						{
 							select_square(selected, &count, start_col + 1, start_row + 1);
 						}
@@ -991,35 +994,35 @@ int get_possible_moves(chess_piece *piece, chess_square sq[8][8], int selected[6
 				}
 			}
 			if (start_row > 0) {
-				if (sq[start_col][start_row - 1].piece == NULL)
+				if (game->squares[start_col][start_row - 1].piece == NULL)
 					select_square(selected, &count, start_col, start_row - 1);
 				else {
 					if (colour ?
-						! sq[start_col][start_row - 1].piece->colour :
-						sq[start_col][start_row - 1].piece->colour)
+						! game->squares[start_col][start_row - 1].piece->colour :
+						game->squares[start_col][start_row - 1].piece->colour)
 					{
 						select_square(selected, &count, start_col, start_row - 1);
 					}
 				}
 				if (start_col > 0) {
-					if (sq[start_col - 1][start_row - 1].piece == NULL)
+					if (game->squares[start_col - 1][start_row - 1].piece == NULL)
 						select_square(selected, &count, start_col - 1, start_row - 1);
 					else {
 						if (colour ?
-							! sq[start_col - 1][start_row - 1].piece->colour :
-							sq[start_col - 1][start_row - 1].piece->colour)
+							! game->squares[start_col - 1][start_row - 1].piece->colour :
+							game->squares[start_col - 1][start_row - 1].piece->colour)
 						{
 							select_square(selected, &count, start_col - 1, start_row - 1);
 						}
 					}
 				}
 				if (start_col < 7) {
-					if (sq[start_col + 1][start_row - 1].piece == NULL)
+					if (game->squares[start_col + 1][start_row - 1].piece == NULL)
 						select_square(selected, &count, start_col + 1, start_row - 1);
 					else {
 						if (colour ?
-							! sq[start_col + 1][start_row - 1].piece->colour :
-							sq[start_col + 1][start_row - 1].piece->colour)
+							! game->squares[start_col + 1][start_row - 1].piece->colour :
+							game->squares[start_col + 1][start_row - 1].piece->colour)
 						{
 							select_square(selected, &count, start_col + 1, start_row - 1);
 						}
@@ -1051,11 +1054,11 @@ uint64_t get_random_64b() {
 }
 
 // Toggle piece to hash
-void toggle_piece(chess_piece *piece) {
-	current_hash ^= zobrist_keys_squares[piece->pos.column][piece->pos.row][piece->type];
+void toggle_piece(chess_game *game, chess_piece *piece) {
+	game->current_hash ^= zobrist_keys_squares[piece->pos.column][piece->pos.row][piece->type];
 }
 
-void init_zobrist_keys(void) {
+void init_zobrist_keys() {
 	int i,j,k;
 
 	// init seed
@@ -1086,21 +1089,21 @@ void init_zobrist_keys(void) {
 	zobrist_keys_blacks_turn = get_random_64b();
 }
 
-void init_zobrist_hash_history(void) {
+void init_zobrist_hash_history(chess_game *game) {
 	int i;
 	for (i = 0; i < 50; i++) {
-		zobrist_hash_history[i] = 0;
+		game->zobrist_hash_history[i] = 0;
 	}
 }
 
-uint64_t generate_zobrist_hash(chess_square sq[8][8]) {
+uint64_t generate_zobrist_hash(chess_game *game) {
 	int i, j;
 
 	uint64_t hash = 0;
 
 	for (i = 0; i < 8; i++) {
 		for (j = 0; j < 8; j++) {
-			chess_piece *piece = sq[i][j].piece;
+			chess_piece *piece = game->squares[i][j].piece;
 			if (piece != NULL) {
 				hash ^= zobrist_keys_squares[i][j][piece->type];
 			}
@@ -1109,19 +1112,19 @@ uint64_t generate_zobrist_hash(chess_square sq[8][8]) {
 
 	for (i = 0; i < 2; i++) {
 		for (j = 0; j < 2; j++) {
-			if (castle_state[i][j]) {
+			if (game->castle_state[i][j]) {
 				hash ^= zobrist_keys_castle[i][j];
 			}
 		}
 	}
 
 	for (i = 0; i < 8; i++) {
-		if (en_passant[i]) {
+		if (game->en_passant[i]) {
 			hash ^= zobrist_keys_en_passant[i];
 		}
 	}
 
-	if (whose_turn) {
+	if (game->whose_turn) {
 		hash ^= zobrist_keys_blacks_turn;
 	}
 
@@ -1129,23 +1132,33 @@ uint64_t generate_zobrist_hash(chess_square sq[8][8]) {
 }
 
 // Recomputes the hash from scratch
-void init_hash(chess_square sq[8][8]) {
-	current_hash = generate_zobrist_hash(sq);
+void init_hash(chess_game *game) {
+	game->current_hash = generate_zobrist_hash(game);
 }
 
+chess_game *game_new() {
+	chess_game *new_game = malloc(sizeof(chess_game));
+	if (!new_game) {
+		perror("Malloc new_game failed");
+		return NULL;
+	}
+	new_game->hash_history_index = 0;
+	return new_game;
+}
 
 // Saves the current hash to history and increment the hash_index
-void persist_hash(void) {
-	zobrist_hash_history[hash_history_index] = current_hash;
-	hash_history_index++;
-	hash_history_index %= 50;
+void persist_hash(chess_game *game) {
+	debug("persist_hash: game->hash_history_index = %d\n", game->hash_history_index);
+	game->zobrist_hash_history[game->hash_history_index] = game->current_hash;
+	game->hash_history_index++;
+	game->hash_history_index %= 50;
 }
 
-int check_hash_triplet(void) {
+int check_hash_triplet(chess_game *game) {
 	int i;
 
 	int match = 0;
-	int start_index = hash_history_index - 1;
+	int start_index = game->hash_history_index - 1;
 	if (start_index < 0) {
 		start_index = 49;
 	}
@@ -1158,7 +1171,7 @@ int check_hash_triplet(void) {
 		if (count < 0) {
 			count = 49;
 		}
-		if (zobrist_hash_history[start_index] == zobrist_hash_history[count]) {
+		if (game->zobrist_hash_history[start_index] == game->zobrist_hash_history[count]) {
 			match++;
 		}
 		if (match > 1) {

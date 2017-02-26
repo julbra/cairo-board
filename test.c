@@ -16,8 +16,8 @@ void test_random_animation(void) {
 	gettimeofday(&tv, NULL);
 	srand(tv.tv_usec);
 
-	g_timeout_add(1000/240, test_animate_random_step, &white_set[QUEEN]);
-	g_timeout_add(1000/240, test_animate_random_step, &black_set[QUEEN]);
+	g_timeout_add(1000/240, test_animate_random_step, &main_game->white_set[QUEEN]);
+	g_timeout_add(1000/240, test_animate_random_step, &main_game->black_set[QUEEN]);
 }
 
 gboolean test_random_flip(gpointer trash) {

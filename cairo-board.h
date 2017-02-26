@@ -73,6 +73,44 @@ typedef struct {
 	char san_string[16];
 } ply;
 
+typedef struct {
+	chess_piece *piece;
+} chess_square;
+
+typedef struct {
+	chess_piece white_set[16];
+	chess_piece black_set[16];
+	chess_square squares[8][8];
+
+	chess_clock *clock;
+
+	unsigned int current_move_number;
+
+	/* *
+	 * castling state variables
+	 * these are used for permanent prohibitions when a rook or king has moved
+	 * it doesn't check for transient impossibilities due to checks etc...
+	 * format is:
+	 * castle_state[colour][side]
+	 * colour: 0 -> white 1 -> black
+	 * side:  0 -> left  1 -> right
+	 * */
+	int castle_state[2][2];
+	int en_passant[8];
+	int whose_turn;
+	int fifty_move_counter;
+	uint64_t current_hash;
+
+	uint64_t zobrist_hash_history[50];
+	int hash_history_index;
+
+	char white_name[256];
+	char black_name[256];
+	char white_rating[32];
+	char black_rating[32];
+
+} chess_game;
+
 ply *ply_new(int oc, int or, int nc, int nr, chess_piece *taken, const char *san);
 
 /* *
@@ -101,10 +139,6 @@ plys_list *plys_list_new(void);
 void plys_list_free(plys_list *to_destroy);
 void plys_list_append_ply(plys_list *list, ply *to_append);
 void plys_list_print(plys_list *list);
-
-typedef struct {
-    chess_piece *piece;
-} chess_square;
 
 enum {
 	KILLED_BY_NONE = 0,
@@ -212,7 +246,7 @@ enum {
 extern gboolean debug_flag;
 extern gboolean use_fig;
 extern gboolean crafty_mode;
-extern bool ics_mode;
+extern gboolean ics_mode;
 
 extern double svg_w, svg_h;
 extern double dr,dg, db;
@@ -221,9 +255,6 @@ extern double lr, lg, lb;
 extern int needs_update;
 extern int needs_scale;
 
-extern chess_piece white_set[16];
-extern chess_piece black_set[16];
-extern chess_square squares[8][8];
 extern gboolean flipped;
 
 extern int mouse_clicked[2];
@@ -265,24 +296,25 @@ extern gboolean has_chosen;
 extern gboolean highlight_last_move;
 
 extern chess_clock *main_clock;
+chess_game *main_game;
 
 extern cairo_font_face_t *sevenSegmentFace;
 
 
 /* exported helpers */
-void assign_surfaces(void);
+void assign_surfaces();
 void piece_to_xy(chess_piece *piece, int *xy ,int wi, int hi);
 void loc_to_xy(int column, int row, int *xy, int wi, int hi);
-int char_to_type(char c);
+int char_to_type(int whose_turn, char c);
 char type_to_char(int);
 char type_to_fen_char(int type);
-int move_piece(chess_piece *piece, int col, int row, int check_legality, int move_source, char san_move[SAN_MOVE_SIZE], int blacks_ply, chess_piece w_set[16], chess_piece b_set[16], gboolean lock_threads);
+int move_piece(chess_piece *piece, int col, int row, int check_legality, int move_source, char san_move[SAN_MOVE_SIZE], chess_game *game, bool lock_threads);
 void send_to_ics(char *s);
 void send_to_uci(char *s);
 void insert_san_move(const char*, gboolean should_lock_threads);
-void check_ending_clause(void);
+void check_ending_clause(chess_game *game);
 void xy_to_loc(int x, int y, int *pos, int wi, int hi);
-chess_square *xy_to_square(int x, int y, int wi, int hi);
+chess_square *xy_to_square(chess_game *game, int x, int y, int wi, int hi);
 void flip_board(int wi, int hi);
 wint_t type_to_unicode_char(int type);
 bool can_i_move_piece(chess_piece* piece);
@@ -290,7 +322,7 @@ void set_last_move(char *move);
 void start_game(char *w_name, char *b_name, int seconds, int increment, int relation, bool should_lock);
 void update_eco_tag(gboolean should_lock_threads);
 void popup_join_channel_dialog(gboolean lock_threads);
-int resolve_move(int t, char *move, int resolved_move[4], int blacks_ply, chess_piece w_set[16], chess_piece b_set[16], chess_square sq[8][8]);
+int resolve_move(chess_game *game, int t, char *move, int resolved_move[4]);
 
 /********** FROM DRAWING BACKEND *************/
 extern RsvgHandle *piecesSvg[12];

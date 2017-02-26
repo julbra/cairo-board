@@ -7,6 +7,7 @@
 
 #include "clocks.h"
 #include "clock-widget.h"
+#include "chess-backend.h"
 
 #define CLOCK_INTERVAL 100000 // 100ms
 
@@ -123,14 +124,14 @@ chess_clock *clock_new(int initial_time_s, int incerement_s, int relation) {
 	clock->last_modified_time[0].tv_sec = 0;
 	clock->last_modified_time[1].tv_sec = 0;
 
-	sem_init( &clock->sem_white, 0, 0); // locked state
-	sem_init( &clock->sem_black, 0, 0); // locked state
+	sem_init(&clock->sem_white, 0, 0); // locked state
+	sem_init(&clock->sem_black, 0, 0); // locked state
 	pthread_mutex_init(&clock->update_mutex, NULL);// = PTHREAD_MUTEX_INITIALIZER;
 
 	// Spawn both white and black runner threads
 	// (both in blocked state)
-	pthread_create( &clock->white_clock_runner, NULL, white_clock_runner_function, clock);
-	pthread_create( &clock->black_clock_runner, NULL, black_clock_runner_function, clock);
+	pthread_create(&clock->white_clock_runner, NULL, white_clock_runner_function, clock);
+	pthread_create(&clock->black_clock_runner, NULL, black_clock_runner_function, clock);
 	return clock;
 }
 

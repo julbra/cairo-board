@@ -77,7 +77,7 @@ void update_pieces_surfaces(int wi, int hi) {
 		rsvg_handle_render_cairo (piecesSvg[i], dc);
 		cairo_destroy(dc);
 	}
-	assign_surfaces();
+	assign_surfaces(main_game);
 }
 
 /* Internal convenience method */
@@ -242,14 +242,14 @@ void draw_pieces_surface(int width, int height) {
 
 	int xy[2];
 	for (i=0; i<16; i++) {
-		if (! white_set[i].dead ) {
-			piece_to_xy(&white_set[i], xy, width, height);
-			apply_surface_at(dc, white_set[i].surf, xy[0]-width/16.0f , xy[1]-height/16.0f, width/8.0f, height/8.0f);
+		if (!main_game->white_set[i].dead ) {
+			piece_to_xy(&main_game->white_set[i], xy, width, height);
+			apply_surface_at(dc, main_game->white_set[i].surf, xy[0]-width/16.0f , xy[1]-height/16.0f, width/8.0f, height/8.0f);
 		}
 
-		if (! black_set[i].dead ) {
-			piece_to_xy(&black_set[i], xy, width, height);
-			apply_surface_at(dc, black_set[i].surf, xy[0]-width/16.0f , xy[1]-height/16.0f, width/8.0f, height/8.0f);
+		if (!main_game->black_set[i].dead ) {
+			piece_to_xy(&main_game->black_set[i], xy, width, height);
+			apply_surface_at(dc, main_game->black_set[i].surf, xy[0]-width/16.0f , xy[1]-height/16.0f, width/8.0f, height/8.0f);
 		}
 
 	}
@@ -283,7 +283,7 @@ void update_pieces_surface_by_loc(int width, int height, int old_col, int old_ro
 	// Add new piece to surface
 	chess_piece *piece = NULL;
 	if (new_col >= 0 && new_row >= 0) {
-		piece = squares[new_col][new_row].piece;
+		piece = main_game->squares[new_col][new_row].piece;
 	}
 	if (piece != NULL) {
 		loc_to_xy(piece->pos.column, piece->pos.row, xy, width, height);
@@ -494,7 +494,7 @@ void highlightPotentialMoves(GtkWidget *pWidget, chess_piece *piece, int wi, int
 
 	int i;
 
-	if (whose_turn != piece->colour) {
+	if (main_game->whose_turn != piece->colour) {
 		return;
 	}
 
@@ -508,7 +508,7 @@ void highlightPotentialMoves(GtkWidget *pWidget, chess_piece *piece, int wi, int
 
 	int highlighted[64][2];
 	int count;
-	count = get_possible_moves(piece, squares, highlighted, 1);
+	count = get_possible_moves(main_game, piece, highlighted, 1);
 
 	for (i = 0; i < count; i++) {
 		preSelect(on_off, bdc, highlighted[i][0], highlighted[i][1], wi, hi);
@@ -1114,7 +1114,7 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 	}
 
 	// actual move
-	int move_result = move_piece(piece, new_col, new_row, check_legality, move_source, last_san_move, whose_turn, white_set, black_set, lock_threads);
+	int move_result = move_piece(piece, new_col, new_row, check_legality, move_source, last_san_move, main_game, lock_threads);
 
 	if (move_result >= 0) {
 
@@ -1146,7 +1146,7 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 			}
 
 			// Append to moves-list
-			check_ending_clause();
+			check_ending_clause(main_game);
 			plys_list_append_ply(main_list, ply_new(p_old_col, p_old_row, new_col, new_row, NULL, last_san_move));
 			insert_san_move(last_san_move, lock_threads);
 
@@ -1381,7 +1381,7 @@ static void restore_dragging_background(chess_piece *piece, int move_result, int
 	int pawn_xy[2];
 	if (move_result > 0 && move_result & EN_PASSANT) {
 		// repaint square where eaten pawn was
-		loc_to_xy(piece->pos.column, piece->pos.row +(whose_turn ? - 1 : 1), pawn_xy, wi, hi);
+		loc_to_xy(piece->pos.column, piece->pos.row +(main_game->whose_turn ? - 1 : 1), pawn_xy, wi, hi);
 		cairo_rectangle(drag_dc, pawn_xy[0]-wi/16.0f, pawn_xy[1]-hi/16.0f, ww, hh);
 		cairo_set_operator (drag_dc, CAIRO_OPERATOR_SOURCE);
 		cairo_set_source_surface(drag_dc, layer_0, 0.0f, 0.0f);
@@ -1449,8 +1449,7 @@ void handle_button_release(void) {
 
 			debug("Trying move\n");
 			// try the move
-			move_result = move_piece(mouse_dragged_piece, ij[0], ij[1], 1, MANUAL_SOURCE, last_san_move, whose_turn,
-			                         white_set, black_set, FALSE);
+			move_result = move_piece(mouse_dragged_piece, ij[0], ij[1], 1, MANUAL_SOURCE, last_san_move, main_game, FALSE);
 
 			if (move_result >= 0) {
 
@@ -1490,7 +1489,7 @@ void handle_button_release(void) {
 				}
 				//debug("SAN: %s\n", san_move);
 				if (!delay_from_promotion) {
-					check_ending_clause();
+					check_ending_clause(main_game);
 					plys_list_append_ply(main_list, ply_new(p_old_col, p_old_row, ij[0], ij[1], NULL, last_san_move));
 					insert_san_move(last_san_move, FALSE);
 					/* update eco - we're already inside threads lock */
@@ -1599,7 +1598,7 @@ void handle_button_release(void) {
 			cairo_set_source_surface(cache_dc, layer_0, 0.0f, 0.0f);
 			cairo_set_operator (cache_dc, CAIRO_OPERATOR_SOURCE);
 			cairo_fill(cache_dc);
-			kill_piece_from_surface(wi, hi, ij[0], ij[1] + (whose_turn ? -1 : 1));
+			kill_piece_from_surface(wi, hi, ij[0], ij[1] + (main_game->whose_turn ? -1 : 1));
 		}
 
 
@@ -1654,7 +1653,7 @@ void handle_button_release(void) {
 	 *    NOTE: in the deselecting cases, we don't need to do anything
 	 *    graphics related as this has been done in the on_press step */
 	if (mouse_clicked_piece != NULL && move_result < 0) {
-		chess_square *square = xy_to_square(new_x, new_y, wi, hi);
+		chess_square *square = xy_to_square(main_game, new_x, new_y, wi, hi);
 		chess_piece* piece = square->piece;
 		if (mouse_clicked_piece == piece) {
 
@@ -1717,7 +1716,7 @@ void handle_left_button_press(GtkWidget *pWidget, int wi, int hi, int x, int y) 
 		clean_highlight_surface(mouse_clicked[0], mouse_clicked[1], wi, hi);
 	}
 
-	chess_square* square = xy_to_square(x, y, wi, hi);
+	chess_square* square = xy_to_square(main_game, x, y, wi, hi);
 
 	if (mouse_clicked_piece != NULL && mouse_clicked[0] >= 0 && mouse_clicked[1] >= 0) {
 		int ij[2];
@@ -1729,7 +1728,7 @@ void handle_left_button_press(GtkWidget *pWidget, int wi, int hi, int x, int y) 
 		// NB: when automove fails we don't return to allow user to grab the piece for dragging
 	}
 
-	if (square->piece != NULL && whose_turn == square->piece->colour && can_i_move_piece(square->piece)) {
+	if (square->piece != NULL && main_game->whose_turn == square->piece->colour && can_i_move_piece(square->piece)) {
 		mouse_clicked_piece = square->piece;
 	}
 	else {
@@ -2152,7 +2151,7 @@ static void highlight_square(cairo_t *dc, int col, int row, double r, double g, 
 
 static void logical_promote(int last_promote) {
 	debug("Logical Promote\n");
-	toggle_piece(to_promote);
+	toggle_piece(main_game, to_promote);
 
 	switch (last_promote) {
 			case W_QUEEN:
@@ -2188,7 +2187,7 @@ static void logical_promote(int last_promote) {
 		}
 
 		// add promoted pawn from hash
-		toggle_piece(to_promote);
+		toggle_piece(main_game, to_promote);
 }
 
 void choose_promote(int last_promote, bool only_surfaces, int ocol, int orow, int ncol, int nrow, bool lock_threads) {
@@ -2243,7 +2242,7 @@ void choose_promote(int last_promote, bool only_surfaces, int ocol, int orow, in
 			sprintf(bufstr, "=%c", type_to_char(to_promote->type));
 		}
 		strcat(last_san_move, bufstr);
-		check_ending_clause();
+		check_ending_clause(main_game);
 
 		plys_list_append_ply(main_list, ply_new(ocol, orow, ncol, nrow, NULL, last_san_move));
 		// FIXME: review this lock thread for inserting a move into list

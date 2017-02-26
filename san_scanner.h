@@ -8,14 +8,8 @@
 int san_scanner_lex(void);
 void san_scanner_restart (FILE *input_file);
 
-int char_to_type(char);
+int char_to_type(int whose_turn, char);
 char type_to_char(int);
-
-extern int whose_turn;
-extern char white_name[];
-extern char black_name[];
-extern char white_rating[];
-extern char black_rating[];
 
 extern int promo_type;
 extern int type;

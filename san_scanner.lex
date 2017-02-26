@@ -27,9 +27,9 @@ piecechar	[RBNQKP]
 	int skip2 = 0;
 
 	/* get the piece type */
-	type = char_to_type(yytext[0]);
+	type = char_to_type(main_game->whose_turn, yytext[0]);
 	if (type == -1) {
-		type = (whose_turn? B_PAWN: W_PAWN);
+		type = (main_game->whose_turn? B_PAWN: W_PAWN);
 		skip1--;
 	}
 
@@ -40,7 +40,7 @@ piecechar	[RBNQKP]
 
 	/* get promo char */
 	if ((yytext[4+skip1+skip2] == '=')) {
-		promo_type = char_to_type(yytext[5+skip1+skip2]);
+		promo_type = char_to_type(main_game->whose_turn, yytext[5+skip1+skip2]);
 		debug("Promo to %c\n", yytext[5+skip1+skip2]);
 	}
 
@@ -60,9 +60,9 @@ piecechar	[RBNQKP]
 	int skip2 = 0;
 
 	/* get the piece type */
-	type = char_to_type(yytext[0]);
+	type = char_to_type(main_game->whose_turn, yytext[0]);
 	if (type == -1) {
-		type = (whose_turn? B_PAWN: W_PAWN);
+		type = (main_game->whose_turn? B_PAWN: W_PAWN);
 		skip1--;
 	}
 
@@ -73,7 +73,7 @@ piecechar	[RBNQKP]
 
 	/* get promo char */
 	if ((yytext[4+skip1+skip2] == '=')) {
-		promo_type = char_to_type(yytext[5+skip1+skip2]);
+		promo_type = char_to_type(main_game->whose_turn, yytext[5+skip1+skip2]);
 		debug("Promo to %c\n", yytext[5+skip1+skip2]);
 	}
 
@@ -93,9 +93,9 @@ piecechar	[RBNQKP]
 	int skip2 = 0;
 
 	/* get the piece type */
-	type = char_to_type(yytext[0]);
+	type = char_to_type(main_game->whose_turn, yytext[0]);
 	if (type == -1) {
-		type = (whose_turn? B_PAWN: W_PAWN);
+		type = (main_game->whose_turn? B_PAWN: W_PAWN);
 		skip1--;
 	}
 
@@ -106,7 +106,7 @@ piecechar	[RBNQKP]
 
 	/* get promo char */
 	if ((yytext[4+skip1+skip2] == '=')) {
-		promo_type = char_to_type(yytext[5+skip1+skip2]);
+		promo_type = char_to_type(main_game->whose_turn, yytext[5+skip1+skip2]);
 		debug("Promo to %c\n", yytext[5+skip1+skip2]);
 	}
 
@@ -125,9 +125,9 @@ piecechar	[RBNQKP]
 	int skip = 0;
 
 	/* get the piece type */
-	type = char_to_type(yytext[0]);
+	type = char_to_type(main_game->whose_turn, yytext[0]);
 	if (type == -1) {
-		type = (whose_turn? B_PAWN: W_PAWN);
+		type = (main_game->whose_turn? B_PAWN: W_PAWN);
 		skip--;
 	}
 
@@ -138,7 +138,7 @@ piecechar	[RBNQKP]
 
 	/* get promo char */
 	if ((yytext[3+skip] == '=')) {
-		promo_type = char_to_type(yytext[4+skip]);
+		promo_type = char_to_type(main_game->whose_turn, yytext[4+skip]);
 		debug("Promo to %c\n", yytext[4+skip]);
 	}
 
@@ -154,7 +154,7 @@ piecechar	[RBNQKP]
 	char *begin = strchr(yytext, '"')+1;
 	char *end = strrchr(yytext, '"');
 	size_t length = (end-begin)/sizeof(char);
-	strncpy(white_name, begin, length);
+	strncpy(main_game->white_name, begin, length);
 	// skip tags for now
 	return 2;
 }
@@ -164,7 +164,7 @@ piecechar	[RBNQKP]
 	char *begin = strchr(yytext, '"')+1;
 	char *end = strrchr(yytext, '"');
 	size_t length = (end-begin)/sizeof(char);
-	strncpy(black_name, begin, length);
+	strncpy(main_game->black_name, begin, length);
 	// skip tags for now
 	return 2;
 }
@@ -175,10 +175,10 @@ piecechar	[RBNQKP]
 	char *end = strrchr(yytext, '"');
 	size_t length = (end-begin)/sizeof(char);
 	if (length > 0) {
-		strncpy(white_rating, begin, length);
+		strncpy(main_game->white_rating, begin, length);
 	}
 	else {
-		memset(white_rating, 0, 128);
+		memset(main_game->white_rating, 0, 32);
 	}
 	// skip tags for now
 	return 2;
@@ -190,10 +190,10 @@ piecechar	[RBNQKP]
 	char *end = strrchr(yytext, '"');
 	size_t length = (end-begin)/sizeof(char);
 	if (length > 0) {
-		strncpy(black_rating, begin, length);
+		strncpy(main_game->black_rating, begin, length);
 	}
 	else {
-		memset(black_rating, 0, 128);
+		memset(main_game->black_rating, 0, 32);
 	}
 	// skip tags for now
 	return 2;
@@ -208,7 +208,7 @@ piecechar	[RBNQKP]
 
 00|0-0|oo|OO|o-o|O-O {
 	// king-side castle
-	if (!whose_turn) { // white
+	if (!main_game->whose_turn) { // white
 		type = W_KING;
 		currentMoveString[0] = 'g';
 		currentMoveString[1] = '1';
@@ -225,7 +225,7 @@ piecechar	[RBNQKP]
 
 000|0-0-0|ooo|OOO|o-o-o|O-O-O   {
 	// queen-side castle
-	if (!whose_turn) { // white
+	if (!main_game->whose_turn) { // white
 		type = W_KING;
 		currentMoveString[0] = 'c';
 		currentMoveString[1] = '1';

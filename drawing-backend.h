@@ -9,6 +9,7 @@
 #define DRAWINGBACKEND_H_
 
 #include "cairo-board.h"
+#include "chess-backend.h"
 
 #define ANIM_SIZE 2048
 

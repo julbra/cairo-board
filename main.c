@@ -102,7 +102,7 @@ void sig_handler(int sig) {
 
 /* <Options variables> */
 gboolean debug_flag = FALSE;
-bool ics_mode = false;
+gboolean ics_mode = FALSE;
 
 gboolean crafty_mode = FALSE;
 gboolean crafty_first_guest = FALSE;
@@ -232,27 +232,9 @@ extern uint64_t zobrist_keys_castle[2][2];
 // Rule engine variables
 
 chess_piece *last_piece_taken = NULL;
-int current_move_number;
-chess_piece white_set[16];
-chess_piece black_set[16];
-chess_square squares[8][8];
-
-/* castling state variables
- * these are used for permanent prohibitions when a rook or king has moved
- * it doesn't check for transient impossibilities due to checks etc...
- * format is:
- * castle_state[colour][side]
- * colour: 0 -> white 1 -> black
- * side:  0 -> left  1 -> right
- * */
-int castle_state[2][2];
-int whose_turn;
-int en_passant[8];
-int fifty_move_counter;
 
 // Game Metadata
 plys_list *main_list;
-extern uint64_t current_hash;
 char last_eco_code[16];
 char last_eco_description[128];
 
@@ -363,16 +345,16 @@ void xy_to_loc(int x, int y, int *pos, int wi, int hi) {
 }
 
 /* Returns the square at x,y coordinates */
-chess_square *xy_to_square(int x, int y, int wi, int hi) {
+chess_square *xy_to_square(chess_game *game, int x, int y, int wi, int hi) {
 	int ij[2];
 	xy_to_loc(x, y, ij, wi, hi);
-	return &squares[ij[0]][ij[1]];
+	return &game->squares[ij[0]][ij[1]];
 }
 
 /* Converts column,row to x,y coordinates */
 void ij_to_xy(int i, int j, int *xy, int wi, int hi) {
-	xy[0]= (wi * ( (flipped ? 7-i : i) + .5f) ) / 8;
-	xy[1]= (hi * ( (flipped ? 7-j : j) + .5f) ) / 8;
+	xy[0] = (wi * ((flipped ? 7 - i : i) + .5f)) / 8;
+	xy[1] = (hi * ((flipped ? 7 - j : j) + .5f)) / 8;
 }
 
 void loc_to_xy(int column, int row, int *xy, int wi, int hi) {
@@ -386,11 +368,11 @@ void piece_to_xy(chess_piece *piece, int *xy ,int wi, int hi) {
 
 extern cairo_surface_t *piecesSurf[12];
 
-void assign_surfaces(void) {
+void assign_surfaces() {
 	int i;
 	for (i=0; i<16; i++) {
-		white_set[i].surf = piecesSurf[white_set[i].type];
-		black_set[i].surf = piecesSurf[black_set[i].type];
+		main_game->white_set[i].surf = piecesSurf[main_game->white_set[i].type];
+		main_game->black_set[i].surf = piecesSurf[main_game->black_set[i].type];
 	}
 }
 
@@ -416,7 +398,7 @@ void flip_board(int wi, int hi) {
 	draw_pieces_surface(wi, hi);
 }
 
-int char_to_type(char c) {
+int char_to_type(int whose_turn, char c) {
 	switch(c) {
 		case 'R':
 			return (whose_turn ? B_ROOK : W_ROOK);
@@ -559,9 +541,9 @@ int is_move_promotion(chess_piece *piece, int col, int row) {
 }
 
 // move is legal so we can make assumptions
-int is_move_capture(chess_piece *piece, int col, int row) {
-	if (squares[col][row].piece != NULL) {
-		last_piece_taken = squares[col][row].piece;
+int is_move_capture(chess_game *game, chess_piece *piece, int col, int row) {
+	if (game->squares[col][row].piece != NULL) {
+		last_piece_taken = game->squares[col][row].piece;
 		return PIECE_TAKEN;
 	}
 	return 0;
@@ -582,13 +564,13 @@ static void get_int_from_popup(void) {
 	GtkWidget *knight_item;
 
 	char item_text[32];
-	sprintf(item_text, "%lc: _Queen", type_to_unicode_char(whose_turn?B_QUEEN:W_QUEEN));
+	sprintf(item_text, "%lc: _Queen", type_to_unicode_char(main_game->whose_turn ? B_QUEEN : W_QUEEN));
 	queen_item = gtk_menu_item_new_with_mnemonic(item_text);
-	sprintf(item_text, "%lc: _Rook", type_to_unicode_char(whose_turn?B_ROOK:W_ROOK));
+	sprintf(item_text, "%lc: _Rook", type_to_unicode_char(main_game->whose_turn ? B_ROOK : W_ROOK));
 	rook_item = gtk_menu_item_new_with_mnemonic(item_text);
-	sprintf(item_text, "%lc: _Bishop", type_to_unicode_char(whose_turn?B_BISHOP:W_BISHOP));
+	sprintf(item_text, "%lc: _Bishop", type_to_unicode_char(main_game->whose_turn ? B_BISHOP : W_BISHOP));
 	bishop_item = gtk_menu_item_new_with_mnemonic(item_text);
-	sprintf(item_text, "%lc: _Knight", type_to_unicode_char(whose_turn?B_KNIGHT:W_KNIGHT));
+	sprintf(item_text, "%lc: _Knight", type_to_unicode_char(main_game->whose_turn ? B_KNIGHT : W_KNIGHT));
 	knight_item = gtk_menu_item_new_with_mnemonic(item_text);
 
 	g_signal_connect(queen_item, "activate", G_CALLBACK (choose_promote_handler), GINT_TO_POINTER(W_QUEEN));
@@ -620,11 +602,11 @@ static void get_int_from_popup(void) {
 }
 
 
-void init_castle_state(void) {
+void init_castle_state(chess_game *game) {
 	int i, j;
 	for (i=0; i<2; i++)
 		for (j=0; j<2; j++)
-			castle_state[i][j] = 1;
+			game->castle_state[i][j] = 1;
 }
 
 /* basic sanity check to prevent moving while observing or moving oponent's pieces */
@@ -650,7 +632,7 @@ void update_eco_tag(gboolean should_lock_threads) {
 	char *fen = calloc(128, sizeof(char));
     char *eco = calloc(128, sizeof(char));
 
-	generate_fen_no_enpassant(fen, squares, castle_state, whose_turn);
+	generate_fen_no_enpassant(fen, main_game->squares, main_game->castle_state, main_game->whose_turn);
 	//debug("%s\n", fen);
 	char *eco_code = get_eco_short(fen);
 	char *eco_desc = get_eco_long(fen);
@@ -677,21 +659,23 @@ void update_eco_tag(gboolean should_lock_threads) {
 	free(eco);
 }
 
-int move_piece(chess_piece *piece, int col, int row, int check_legality, int move_source, char san_move[SAN_MOVE_SIZE], int blacks_ply, chess_piece w_set[16], chess_piece b_set[16], gboolean lock_threads) {
+int move_piece(chess_piece *piece, int col, int row, int check_legality, int move_source, char san_move[SAN_MOVE_SIZE], chess_game *game, bool lock_threads) {
 
 	// Determine whether proposed move is legal
-	if (!check_legality || is_move_legal(piece, col, row, whose_turn, squares)) {
+	if (!check_legality || is_move_legal(game, piece, col, row)) {
 
 		int reset_fifty_counter = 0;
 		int was_castle = is_move_castle(piece, col, row);
 		int was_double_pawn_push = is_move_double_pawn_push(piece, col, row);
-		int was_en_passant = is_move_en_passant(piece, col, row, squares);
+		int was_en_passant = is_move_en_passant(game, piece, col, row);
 		int was_promotion = is_move_promotion(piece, col, row);
-		int piece_taken = is_move_capture(piece, col, row);
+		int piece_taken = is_move_capture(game, piece, col, row);
 
 		if (san_move != NULL) { // we've been asked to build the san move
 			/* move is valid, start building the san_move string */
+			debug("Before memset\n");
 			memset(san_move, 0, SAN_MOVE_SIZE);
+			debug("After memset\n");
 
 			/* handle castle special case */
 			if (was_castle) {
@@ -722,23 +706,23 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 				}
 
 				/* do we need a disambiguator? */
-				int disambiguator_need = 0; // 1 column, 2 row, 3 both 
+				int disambiguator_need = 0; // 1 column, 2 row, 3 both
 				if (!ptype) {
 					if (piece_taken) { // special pawn-taking case
 						disambiguator_need = 1;
 					}
 				} else { // non-pawn case
 					/* remember this turn's whose_turn swap hasn't happened yet */
-					chess_piece *set = blacks_ply ? b_set : w_set;
+					chess_piece *set = game->whose_turn ? game->black_set : game->white_set;
 
 					int i, j;
 					for (i = 0; i < 16; i++) {
 						if (!set[i].dead && set[i].type == piece->type && &set[i] != piece) {
-							/* found a piece from same set with same type 
+							/* found a piece from same set with same type
 							 * we now check whether it can go to the same dest */
 							//debug("found potential competitor\n");
 							int possible_moves[64][2];
-							int count = get_possible_moves(&set[i], squares, possible_moves, 0);
+							int count = get_possible_moves(game, &set[i], possible_moves, 0);
 							for (j = 0; j < count; j++) {
 								//debug("considering move: %c%c (%d/%d)\n", 'a'+possible_moves[j][0], '1'+possible_moves[j][1],j+1, count);
 								if (possible_moves[j][0] == col && possible_moves[j][1] == row) {
@@ -792,7 +776,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 		orow = piece->pos.row;
 
 		/* Raw move */
-		raw_move(squares, piece, col, row, 1);
+		raw_move(game, piece, col, row, 1);
 
 		// Reset the 50 move counter if piece was a pawn or a piece was taken
 		if (piece->type == W_PAWN || piece->type == B_PAWN) {
@@ -806,10 +790,10 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 		// NOTE: no need to reset 50 counter as done already
 		if (was_en_passant) {
 			// get square where pawn to kill is
-			chess_square *to_kill = &(squares[col][row + (whose_turn ? 1 : -1)]);
+			chess_square *to_kill = &(game->squares[col][row + (game->whose_turn ? 1 : -1)]);
 
 			// remove piece from hash
-			toggle_piece(to_kill->piece);
+			toggle_piece(game, to_kill->piece);
 
 			// kill pawn
 			to_kill->piece->dead = true;
@@ -829,7 +813,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 					if (use_fig) {
 						char promo_string[8];
 						memset(promo_string, 0, 8);
-						sprintf(promo_string, "=%lc", type_to_unicode_char(whose_turn ? B_QUEEN : W_QUEEN));
+						sprintf(promo_string, "=%lc", type_to_unicode_char(game->whose_turn ? B_QUEEN : W_QUEEN));
 						strcat(san_move, promo_string);
 					} else {
 						strcat(san_move, "=Q");
@@ -841,7 +825,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 				char promo_string[8];
 				memset(promo_string, 0, 8);
 				if (use_fig) {
-					sprintf(promo_string, "=%lc", type_to_unicode_char(colorise_type(promo_type, whose_turn)));
+					sprintf(promo_string, "=%lc", type_to_unicode_char(colorise_type(promo_type, game->whose_turn)));
 				}
 				else {
 					sprintf(promo_string, "=%c", type_to_char(promo_type));
@@ -886,9 +870,9 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 					exit(1);
 					break;
 			}
-			chess_piece *rook = squares[old_col][old_row].piece;
+			chess_piece *rook = game->squares[old_col][old_row].piece;
 			// Actual move
-			raw_move(squares, rook, new_col, rook->pos.row, 1);
+			raw_move(game, rook, new_col, rook->pos.row, 1);
 		}
 
 		// disable castling state switches if needed and some are still set
@@ -896,7 +880,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 		bool needs_check = false;
 		for (i = 0; i < 2; i++) {
 			for (j = 0; j < 2; j++) {
-				if (castle_state[i][j]) {
+				if (game->castle_state[i][j]) {
 					needs_check = true;
 					break;
 				}
@@ -906,49 +890,49 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 		if (needs_check) {
 			switch (piece->type) {
 				case W_ROOK:
-					if (castle_state[0][0] && !piece->pos.column && !piece->pos.row) {
-						if (castle_state[0][0]) {
-							castle_state[0][0] = 0;
-							current_hash ^= zobrist_keys_castle[0][0];
+					if (game->castle_state[0][0] && !piece->pos.column && !piece->pos.row) {
+						if (game->castle_state[0][0]) {
+							game->castle_state[0][0] = 0;
+							game->current_hash ^= zobrist_keys_castle[0][0];
 						}
-					} else if (castle_state[0][1] && piece->pos.column == 7 && !piece->pos.row) {
-						if (castle_state[0][1]) {
-							castle_state[0][1] = 0;
-							current_hash ^= zobrist_keys_castle[0][1];
+					} else if (game->castle_state[0][1] && piece->pos.column == 7 && !piece->pos.row) {
+						if (game->castle_state[0][1]) {
+							game->castle_state[0][1] = 0;
+							game->current_hash ^= zobrist_keys_castle[0][1];
 						}
 					}
 					break;
 				case B_ROOK:
-					if (castle_state[1][0] && !piece->pos.column && piece->pos.row == 7) {
-						if (castle_state[1][0]) {
-							castle_state[1][0] = 0;
-							current_hash ^= zobrist_keys_castle[1][0];
+					if (game->castle_state[1][0] && !piece->pos.column && piece->pos.row == 7) {
+						if (game->castle_state[1][0]) {
+							game->castle_state[1][0] = 0;
+							game->current_hash ^= zobrist_keys_castle[1][0];
 						}
-					} else if (castle_state[1][1] && piece->pos.column == 7 && piece->pos.row == 7) {
-						if (castle_state[1][1]) {
-							castle_state[1][1] = 0;
-							current_hash ^= zobrist_keys_castle[1][1];
+					} else if (game->castle_state[1][1] && piece->pos.column == 7 && piece->pos.row == 7) {
+						if (game->castle_state[1][1]) {
+							game->castle_state[1][1] = 0;
+							game->current_hash ^= zobrist_keys_castle[1][1];
 						}
 					}
 					break;
 				case W_KING:
-					if (castle_state[0][0]) {
-						castle_state[0][0] = 0;
-						current_hash ^= zobrist_keys_castle[0][0];
+					if (game->castle_state[0][0]) {
+						game->castle_state[0][0] = 0;
+						game->current_hash ^= zobrist_keys_castle[0][0];
 					}
-					if (castle_state[0][1]) {
-						castle_state[0][1] = 0;
-						current_hash ^= zobrist_keys_castle[0][1];
+					if (game->castle_state[0][1]) {
+						game->castle_state[0][1] = 0;
+						game->current_hash ^= zobrist_keys_castle[0][1];
 					}
 					break;
 				case B_KING:
-					if (castle_state[1][0]) {
-						castle_state[1][0] = 0;
-						current_hash ^= zobrist_keys_castle[1][0];
+					if (game->castle_state[1][0]) {
+						game->castle_state[1][0] = 0;
+						game->current_hash ^= zobrist_keys_castle[1][0];
 					}
-					if (castle_state[1][1]) {
-						castle_state[1][1] = 0;
-						current_hash ^= zobrist_keys_castle[1][1];
+					if (game->castle_state[1][1]) {
+						game->castle_state[1][1] = 0;
+						game->current_hash ^= zobrist_keys_castle[1][1];
 					}
 					break;
 				default:
@@ -959,34 +943,37 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 
 		// Handle en-passant swicthes
 
+		debug("Handle en-passant swicthes\n");
 		// Disable old switches since they are obsolete
-		reset_en_passant();
+		reset_en_passant(game);
 
 		// Enable potential new switches
 		if (was_double_pawn_push) {
-			en_passant[col] = 1;
-			current_hash ^= zobrist_keys_en_passant[col];
+			game->en_passant[col] = 1;
+			game->current_hash ^= zobrist_keys_en_passant[col];
 		}
 
 		// Reset fifty move counter
 		if (reset_fifty_counter) {
-			fifty_move_counter = 100;
+			game->fifty_move_counter = 100;
 		}
 
 		// Increase full move number
-		if (whose_turn) {
-			current_move_number++;
+		if (game->whose_turn) {
+			game->current_move_number++;
 		}
 
 		// Swap turns
-		whose_turn = !whose_turn;
+		game->whose_turn = !game->whose_turn;
 
 		// Decrement fifty move counter
-		fifty_move_counter--;
+		game->fifty_move_counter--;
 
-		current_hash ^= zobrist_keys_blacks_turn;
+		game->current_hash ^= zobrist_keys_blacks_turn;
 
-		persist_hash();
+		debug("persist_hash\n");
+		persist_hash(game);
+		debug("after persist_hash\n");
 
 		return was_castle | piece_taken | was_en_passant | was_promotion;
 	}
@@ -995,33 +982,26 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 	}
 }
 
-void check_ending_clause(void) {
-	if (is_king_checked(whose_turn, squares)) {
-		if (is_check_mate(whose_turn, squares)) {
+void check_ending_clause(chess_game *game) {
+	if (is_king_checked(game, game->whose_turn)) {
+		if (is_check_mate(game)) {
 			last_san_move[strlen(last_san_move)] = '#';
-			printf("Checkmate! %s wins\n", (whose_turn ? "White" : "Black"));
+			printf("Checkmate! %s wins\n", (game->whose_turn ? "White" : "Black"));
 		} else {
 			last_san_move[strlen(last_san_move)] = '+';
 		}
-	} else if (is_stale_mate(whose_turn, squares)) {
+	} else if (is_stale_mate(game)) {
 		printf("Stalemate! Game drawn\n");
-	} else if (check_hash_triplet()) {
+	} else if (check_hash_triplet(game)) {
 		printf("Game drawn by repetition\n");
 		send_to_ics("draw\n");
-	} else if (is_material_draw(white_set, black_set)) {
+	} else if (is_material_draw(game->white_set, game->black_set)) {
 		printf("Insufficient material! Game drawn\n");
 		send_to_ics("draw\n");
-	} else if (is_fifty_move_counter_expired()) {
+	} else if (is_fifty_move_counter_expired(game)) {
 		printf("Game drawn by 50 move rule\n");
 		send_to_ics("draw\n");
 	}
-}
-
-
-int elapsed_ms;
-
-int min(int a, int b) {
-	return (a < b ? a : b);
 }
 
 static gboolean on_button_press(GtkWidget *pWidget, GdkEventButton *pButton, GdkWindowEdge edge) {
@@ -1239,74 +1219,76 @@ static int load_piecesSvg() {
 	return 0;
 }
 
-static int init_pieces() {
+static int init_pieces(chess_game *game) {
 	int i,j;
 
 	for (i=0; i<8; i++) {
-		white_set[i].type = W_PAWN;
-		white_set[i].pos.row = 1;
-		white_set[i].pos.column = i;
-		squares[i][1].piece = &white_set[i];
+		game->white_set[i].type = W_PAWN;
+		game->white_set[i].pos.row = 1;
+		game->white_set[i].pos.column = i;
+		game->squares[i][1].piece = &game->white_set[i];
 
-		black_set[i].type = B_PAWN;
-		black_set[i].pos.row = 6;
-		black_set[i].pos.column = i;
-		squares[i][6].piece = &black_set[i];
+		game->black_set[i].type = B_PAWN;
+		game->black_set[i].pos.row = 6;
+		game->black_set[i].pos.column = i;
+		game->squares[i][6].piece = &game->black_set[i];
 	}
 	for (i=8; i<16; i++) {
-		white_set[i].pos.row = 0;
-		white_set[i].pos.column = i-8;
-		squares[i-8][0].piece = &white_set[i];
+		game->white_set[i].pos.row = 0;
+		game->white_set[i].pos.column = i-8;
+		game->squares[i-8][0].piece = &game->white_set[i];
 
-		black_set[i].pos.row = 7;
-		black_set[i].pos.column = i-8;
-		squares[i-8][7].piece = &black_set[i];
+		game->black_set[i].pos.row = 7;
+		game->black_set[i].pos.column = i-8;
+		game->squares[i-8][7].piece = &game->black_set[i];
 	}
 
-	white_set[ROOK1].type = W_ROOK;
-	white_set[ROOK2].type = W_ROOK;
-	white_set[BISHOP1].type = W_BISHOP;
-	white_set[BISHOP2].type = W_BISHOP;
-	white_set[KNIGHT1].type = W_KNIGHT;
-	white_set[KNIGHT2].type = W_KNIGHT;
-	white_set[QUEEN].type = W_QUEEN;
-	white_set[KING].type = W_KING;
+	game->white_set[ROOK1].type = W_ROOK;
+	game->white_set[ROOK2].type = W_ROOK;
+	game->white_set[BISHOP1].type = W_BISHOP;
+	game->white_set[BISHOP2].type = W_BISHOP;
+	game->white_set[KNIGHT1].type = W_KNIGHT;
+	game->white_set[KNIGHT2].type = W_KNIGHT;
+	game->white_set[QUEEN].type = W_QUEEN;
+	game->white_set[KING].type = W_KING;
 
-	black_set[ROOK1].type = B_ROOK;
-	black_set[ROOK2].type = B_ROOK;
-	black_set[BISHOP1].type = B_BISHOP;
-	black_set[BISHOP2].type = B_BISHOP;
-	black_set[KNIGHT1].type = B_KNIGHT;
-	black_set[KNIGHT2].type = B_KNIGHT;
-	black_set[QUEEN].type = B_QUEEN;
-	black_set[KING].type = B_KING;
+	game->black_set[ROOK1].type = B_ROOK;
+	game->black_set[ROOK2].type = B_ROOK;
+	game->black_set[BISHOP1].type = B_BISHOP;
+	game->black_set[BISHOP2].type = B_BISHOP;
+	game->black_set[KNIGHT1].type = B_KNIGHT;
+	game->black_set[KNIGHT2].type = B_KNIGHT;
+	game->black_set[QUEEN].type = B_QUEEN;
+	game->black_set[KING].type = B_KING;
 
-	for (i=0; i<16; i++) {
-		white_set[i].dead = false;
-		black_set[i].dead = false;
-		white_set[i].colour = WHITE;
-		black_set[i].colour = BLACK;
+	for (i = 0; i < 16; i++) {
+		game->white_set[i].dead = false;
+		game->black_set[i].dead = false;
+		game->white_set[i].colour = WHITE;
+		game->black_set[i].colour = BLACK;
 	}
 
-	for (i=0; i<8; i++)
-		for (j=2; j<6; j++)
-			squares[i][j].piece = NULL;
+	for (i = 0; i < 8; i++) {
+		for (j = 2; j < 6; j++) {
+			game->squares[i][j].piece = NULL;
+		}
+	}
 
 
-	init_en_passant();
-	init_castle_state();
-	fifty_move_counter = 100;
-	whose_turn = 0;
+	init_en_passant(game);
+	init_castle_state(game);
+	game->fifty_move_counter = 100;
+	game->whose_turn = 0;
 
-	init_hash(squares);
+	init_hash(game);
 
 	return 0;
 }
 
 static void reset_game(void) {
-	current_move_number = 1;
-	init_zobrist_hash_history();
-	init_pieces();
+	main_game->current_move_number = 1;
+	init_zobrist_hash_history(main_game);
+	init_pieces(main_game);
 	if (main_list != NULL) {
 		plys_list_free(main_list);
 	}
@@ -1376,7 +1358,7 @@ void send_to_uci(char *s) {
 }
 
 /* move must be a NULL terminated string */
-int resolve_move(int t, char *move, int resolved_move[4], int blacks_ply, chess_piece w_set[16], chess_piece b_set[16], chess_square sq[8][8]) {
+int resolve_move(chess_game *game, int t, char *move, int resolved_move[4]) {
 
 	int i, j, count;
 	int ocol = -1, orow = -1;
@@ -1384,28 +1366,28 @@ int resolve_move(int t, char *move, int resolved_move[4], int blacks_ply, chess_
 
 	int resolved = 0;
 
-//	debug("Strlen (move) == %zd\n", strlen(move));
-//	debug("type == %d\n", type);
-//	debug("move == %s\n", move);
+	debug("Strlen (move) == %zd\n", strlen(move));
+	debug("type == %d\n", type);
+	debug("move == %s\n", move);
 
 	if ( strlen(move) == 2 ) {
 		ncol = move[0] - 'a';
 		nrow = move[1] - '1';
-//		debug("ncol: %d - nrow: %d\n", ncol, nrow);
+		debug("ncol: %d - nrow: %d\n", ncol, nrow);
 	}
 	else if ( strlen(move) == 4 ) {
 		ocol = move[0] - 'a';
 		orow = move[1] - '1';
 		ncol = move[2] - 'a';
 		nrow = move[3] - '1';
-//		debug("ocol %d - orow: %d - ncol: %d - nrow: %d\n", ocol, orow, ncol, nrow);
+		debug("ocol %d - orow: %d - ncol: %d - nrow: %d\n", ocol, orow, ncol, nrow);
 	}
 
 	chess_piece *piece;
 	int possible_moves[64][2];
 	for (i = 0; i < 16; i++) {
-		piece = &(blacks_ply ? b_set : w_set)[i];
-		//debug("Considering piece: %c%c%d - checking for dead %d - type %d , requested type %d\n", type_to_char(piece->type), 'a'+piece->pos.column, 1+piece->pos.row, piece->dead, piece->type, t);
+		piece = &(game->whose_turn ? game->black_set : game->white_set)[i];
+//		debug("Considering piece: %c%c%d - checking for dead %d - type %d , requested type %d\n", type_to_char(piece->type), 'a'+piece->pos.column, 1+piece->pos.row, piece->dead, piece->type, t);
 		if (!piece->dead && piece->type == t) {
 //			if (t == W_PAWN || t == B_PAWN) {
 //				debug("Considering piece: %c%d - checking for dead %d - type %d , requested type %d\n", 'a'+piece->pos.column, 1+piece->pos.row, piece->dead, piece->type, t);
@@ -1419,18 +1401,18 @@ int resolve_move(int t, char *move, int resolved_move[4], int blacks_ply, chess_
 			if (orow != -1 && orow != piece->pos.row) {
 				continue;
 			}
-			count = get_possible_moves(piece, sq, possible_moves, 1);
+			count = get_possible_moves(game, piece, possible_moves, 1);
 			for (j = 0; j < count; j++) {
 				if (possible_moves[j][0] == ncol && possible_moves[j][1] == nrow) {
-//					debug("Resolved Move: Piece set[%d] to %d,%d - checking legality...\n", i, ncol, nrow);
-					if ( is_move_legal(piece, ncol, nrow, blacks_ply, sq) ) {
-//						debug("- Move legal [ok]\n");
+					debug("Resolved Move: Piece set[%d] to %d,%d - checking legality...\n", i, ncol, nrow);
+					if (is_move_legal(game, piece, ncol, nrow) ) {
+						debug("- Move legal [ok]\n");
 						resolved = 1;
 						break;
 					}
 					else {
-//						debug("Resolving Move: Piece set[%d] to %c%c%d\n", i, type_to_char(piece->type), 'a'+ncol, 1+nrow);
-//						debug("- Move illegal [!!]\n");
+						debug("Resolving Move: Piece set[%d] to %c%c%d\n", i, type_to_char(piece->type), 'a'+ncol, 1+nrow);
+						debug("- Move illegal [!!]\n");
 					}
 				}
 			}
@@ -1515,11 +1497,11 @@ void load_game(const char* file_path, int game_num) {
 			if (found_my_game) {
 				printf("raw move %c%s - whose_turn %d\n", type_to_char(type), currentMoveString, blacks_ply);
 				type = colorise_type(type, blacks_ply);
-				int resolved = resolve_move(type, currentMoveString, resolved_move, blacks_ply, white_set, black_set, squares);
+				int resolved = resolve_move(main_game, type, currentMoveString, resolved_move);
 				if (resolved) {
 					printf("move resolved to %c%d-%c%d\n", resolved_move[0]+'a', resolved_move[1]+1, resolved_move[2]+'a', resolved_move[3]+1);
 					char san[SAN_MOVE_SIZE];
-					move_piece(squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE_NO_ANIM, san, blacks_ply, white_set, black_set, TRUE);
+					move_piece(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE_NO_ANIM, san, main_game, TRUE);
 					plys_list_append_ply(main_list, ply_new(resolved_move[0], resolved_move[1], resolved_move[2], resolved_move[3], NULL, san));
 					blacks_ply = ! blacks_ply;
 				}
@@ -1582,7 +1564,7 @@ gboolean auto_play_one_move(gpointer data) {
 			playing = 0;
 			if (i == MATCHED_END_TOKEN) {
 				char bufstr[33];
-				if (!whose_turn) {
+				if (!main_game->whose_turn) {
 					snprintf(bufstr, 33, "\t%s", san_scanner_text);
 				}
 				else {
@@ -1610,10 +1592,10 @@ gboolean auto_play_one_move(gpointer data) {
 			}
 			//start_one_clock(main_clock, 0);
 		}
-		int resolved = resolve_move(type, currentMoveString, resolved_move, whose_turn, white_set, black_set, squares);
+		int resolved = resolve_move(main_game, type, currentMoveString, resolved_move);
 		if (resolved) {
 //			//swap_clocks(main_clock);
-			auto_move(squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE);
+			auto_move(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE);
 			return TRUE;
 		}
 		else {
@@ -1625,48 +1607,6 @@ gboolean auto_play_one_move(gpointer data) {
 	playing = 0;
 	return FALSE;
 }
-
-static gboolean g_started = FALSE;
-static int gcount = 0;
-
-// Play one move from the san scanner but don't show it on the board
-gboolean auto_play_one_move_dry(void) {
-	int i;
-	char san_move[SAN_MOVE_SIZE];
-
-	i = san_scanner_lex();
-	if (i == 2) {
-		if (g_started) {
-			g_started = FALSE;
-			reset_game();
-			reset_moves_list_view(TRUE);
-		}
-		while (i == 2) {
-			i = san_scanner_lex();
-		}
-	}
-	if (i != -1) {
-		if (!g_started) {
-			gcount++;
-			g_started = TRUE;
-		}
-		int resolved = resolve_move(type, currentMoveString, resolved_move, whose_turn, white_set, black_set, squares);
-		if (resolved) {
-			int move_result = move_piece(squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE_NO_ANIM, san_move, whose_turn, white_set, black_set, TRUE);
-			debug("SAN move: %s, move_result %d\n", san_move, move_result);
-			return move_result >= 0;
-		}
-		else {
-			printf("Could not resolve move %c%s\n", type_to_char(type), currentMoveString);
-		}
-	}
-
-	printf("Parsed %d games!\n", gcount);
-	// Reached EOF
-	playing = 0;
-	return FALSE;
-}
-
 
 gboolean print_main_clock(gpointer data) {
 	print_clock(main_clock);
@@ -1690,10 +1630,10 @@ gboolean auto_play_one_ics_move(gpointer data) {
 		} else {
 			debug("Raw Move %c%s\n", type_char, currentMoveString);
 		}
-		int resolved = resolve_move(type, currentMoveString, resolved_move, whose_turn, white_set, black_set, squares);
+		int resolved = resolve_move(main_game, type, currentMoveString, resolved_move);
 		if (resolved) {
 			debug("Move resolved to %c%d-%c%d\n", resolved_move[0] + 'a', resolved_move[1] + 1, resolved_move[2] + 'a', resolved_move[3] + 1);
-			auto_move(squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE);
+			auto_move(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE);
 			return true;
 		} else {
 			fprintf(stderr, "Could not resolve move %c%s\n", type_to_char(type), currentMoveString);
@@ -1726,7 +1666,7 @@ gboolean auto_play_one_crafty_move(gpointer data) {
 		else {
 			debug("Raw Move %c%s\n", ctype, currentMoveString);
 		}
-		int resolved = resolve_move(type, currentMoveString, resolved_move, whose_turn, white_set, black_set, squares);
+		int resolved = resolve_move(main_game, type, currentMoveString, resolved_move);
 		if (resolved) {
 			char *ics_command = calloc(16, sizeof(char));
 			snprintf(ics_command, 16, "%c%d%c%d", resolved_move[0]+'a', resolved_move[1]+1, resolved_move[2]+'a', resolved_move[3]+1);
@@ -1744,7 +1684,7 @@ gboolean auto_play_one_crafty_move(gpointer data) {
 
 			free(ics_command);
 
-			auto_move(squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE);
+			auto_move(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE);
 			return TRUE;
 		}
 		else {
@@ -1773,7 +1713,7 @@ gboolean auto_play_one_uci_move(gpointer data) {
 	resolved_move[3] = lm[3] - '1';
 	debug("resolved_move %d%d %d%d\n", resolved_move[0], resolved_move[1], resolved_move[2], resolved_move[3]);
 
-	auto_move(squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE);
+	auto_move(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE);
 	return true;
 }
 
@@ -2440,13 +2380,13 @@ int scan_append_ply(char *ply) {
 	san_scanner__scan_string(ply);
 	if (san_scanner_lex() != -1) {
 		playing = 1;
-		int resolved = resolve_move(type, currentMoveString, resolved_move, whose_turn, white_set, black_set, squares);
+		int resolved = resolve_move(main_game, type, currentMoveString, resolved_move);
 		if (resolved) {
 			char san_move[SAN_MOVE_SIZE];
-			move_piece(squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE_NO_ANIM, san_move, whose_turn, white_set, black_set, true);
+			move_piece(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE_NO_ANIM, san_move, main_game, true);
 			update_eco_tag(true);
-			if (is_king_checked(whose_turn, squares)) {
-				if (is_check_mate(whose_turn, squares)) {
+			if (is_king_checked(main_game, main_game->whose_turn)) {
+				if (is_check_mate(main_game)) {
 					san_move[strlen(san_move)] = '#';
 				} else {
 					san_move[strlen(san_move)] = '+';
@@ -3331,7 +3271,7 @@ void parse_ics_buffer(void) {
 				if (parse_end_message(ics_scanner_text, end_token) == 4) {
 
 					char bufstr[33];
-					if (!whose_turn) {
+					if (!main_game->whose_turn) {
 						snprintf(bufstr, 33, "\t%s", end_token);
 					}
 					else {
@@ -3722,7 +3662,7 @@ void refresh_moves_list_view(plys_list *list) {
 		ply_colour = (p->ply_number + 1) % 2; // remember plys start at 1
 
 		char pchar = p->san_string[0];
-		int tt = char_to_type(pchar);
+		int tt = char_to_type(main_game->whose_turn, pchar);
 		if (use_fig && tt != -1) {
 			tt = colorise_type(tt, ply_colour);
 			sprintf(str1, "%lc", type_to_unicode_char(tt));
@@ -3761,10 +3701,10 @@ void insert_san_move(const char* san_move, gboolean should_lock_threads) {
 	memset(buf_str, 0, sizeof(buf_str));
 
 	char pchar = san_move[0];
-	int tt = char_to_type(pchar);
+	int tt = char_to_type(main_game->whose_turn, pchar);
 	if (use_fig && tt != -1) {
 		// char_to_type() will return opposite colour because we swapped whose_turn already
-		tt = colorise_type(tt, !whose_turn);
+		tt = colorise_type(tt, !main_game->whose_turn);
 		sprintf(buf_str, "%lc", type_to_unicode_char(tt));
 		strcat(buf_str, san_move + 1);
 	}
@@ -3773,8 +3713,8 @@ void insert_san_move(const char* san_move, gboolean should_lock_threads) {
 	}
 
 	/* insert move number if it *was* white's ply */
-	if (whose_turn) {
-		sprintf(str, "%d.\t", current_move_number);
+	if (main_game->whose_turn) {
+		sprintf(str, "%d.\t", main_game->current_move_number);
 		strcat(str, buf_str);
 		strcat(str, "\t");
 	}
@@ -3870,7 +3810,7 @@ int main (int argc, char **argv) {
 		{"first", 	no_argument, &test_first_player, TRUE},
 		{"login1",	required_argument, 0, ICS_TEST_HANDLE1},
 		{"login2",	required_argument, 0, ICS_TEST_HANDLE2},
-		{"ics",		no_argument, &ics_mode, true},
+		{"ics",		no_argument, &ics_mode, TRUE},
 		{"crafty",		no_argument, &crafty_mode, TRUE},
 		{"firstguest",		no_argument, &crafty_first_guest, TRUE},
 		{"fig",		no_argument, &use_fig, TRUE},
@@ -4022,6 +3962,8 @@ int main (int argc, char **argv) {
 	gtk_init(&argc, &argv);
 
 	load_piecesSvg();
+
+	main_game = game_new();
 
 	main_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
 
@@ -4355,6 +4297,8 @@ int main (int argc, char **argv) {
 
 	gdk_threads_leave();
 
+	free(main_clock);
+	free(main_game);
 	return 0;
 }
 
