@@ -186,7 +186,7 @@ static GtkWidget* goto_first_button;
 static GtkWidget* goto_last_button;
 static GtkWidget* go_back_button;
 static GtkWidget* go_forward_button;
-static GtkWidget* play_pause_button;
+//static GtkWidget* play_pause_button;
 
 
 static GtkWidget *clock_widget;
@@ -215,7 +215,6 @@ FT_Library library;
 cairo_font_face_t *sevenSegmentFace;
 
 // globals
-int promo_type = 0;
 int mouse_clicked[2] = {-1, -1};
 int type;
 char currentMoveString[5]; // accommodate for one move
@@ -270,11 +269,9 @@ double lb = 181.0/255.0;
 char *get_eco_long(const char *fen_key);
 char *get_eco_short(const char *fen_key);
 wint_t type_to_unicode_char(int type);
-int colorise_type(int tt, int colour);
 
 int open_file(const char*);
 gboolean auto_play_one_move(gpointer data);
-gboolean auto_play_loop_ics_move(gpointer data);
 gboolean auto_play_one_ics_move(gpointer data);
 void reset_moves_list_view(gboolean lock_threads);
 gboolean auto_play_one_crafty_move(gpointer data);
@@ -302,10 +299,7 @@ int moveit_flag;
 int running_flag;
 int more_events_flag;
 
-key_t key_shmem_last_move;
-int shmid_last_move;
 pthread_mutex_t mutex_last_move = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t mutex_dragged_piece = PTHREAD_MUTEX_INITIALIZER;
 
 char last_move[MOVE_BUFF_SIZE];
 
@@ -673,9 +667,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 
 		if (san_move != NULL) { // we've been asked to build the san move
 			/* move is valid, start building the san_move string */
-			debug("Before memset\n");
 			memset(san_move, 0, SAN_MOVE_SIZE);
-			debug("After memset\n");
 
 			/* handle castle special case */
 			if (was_castle) {
@@ -825,15 +817,15 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 				char promo_string[8];
 				memset(promo_string, 0, 8);
 				if (use_fig) {
-					sprintf(promo_string, "=%lc", type_to_unicode_char(colorise_type(promo_type, game->whose_turn)));
+					sprintf(promo_string, "=%lc", type_to_unicode_char(colorise_type(game->promo_type, game->whose_turn)));
 				}
 				else {
-					sprintf(promo_string, "=%c", type_to_char(promo_type));
+					sprintf(promo_string, "=%c", type_to_char(game->promo_type));
 				}
 				strcat(san_move, promo_string);
 
 				if (move_source == AUTO_SOURCE_NO_ANIM) {
-					choose_promote(promo_type, FALSE, ocol, orow, col, row, lock_threads);
+					choose_promote(game->promo_type, FALSE, ocol, orow, col, row, lock_threads);
 					// If animating, handle promotion at end of the animation (because it's prettier!)
 				}
 			}
@@ -943,7 +935,6 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 
 		// Handle en-passant swicthes
 
-		debug("Handle en-passant swicthes\n");
 		// Disable old switches since they are obsolete
 		reset_en_passant(game);
 
@@ -971,9 +962,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 
 		game->current_hash ^= zobrist_keys_blacks_turn;
 
-		debug("persist_hash\n");
 		persist_hash(game);
-		debug("after persist_hash\n");
 
 		return was_castle | piece_taken | was_en_passant | was_promotion;
 	}
@@ -1366,21 +1355,20 @@ int resolve_move(chess_game *game, int t, char *move, int resolved_move[4]) {
 
 	int resolved = 0;
 
-	debug("Strlen (move) == %zd\n", strlen(move));
-	debug("type == %d\n", type);
-	debug("move == %s\n", move);
+//	debug("Strlen (move) == %zd\n", strlen(move));
+//	debug("type == %d\n", type);
+//	debug("move == %s\n", move);
 
-	if ( strlen(move) == 2 ) {
+	if (strlen(move) == 2) {
 		ncol = move[0] - 'a';
 		nrow = move[1] - '1';
-		debug("ncol: %d - nrow: %d\n", ncol, nrow);
-	}
-	else if ( strlen(move) == 4 ) {
+//		debug("ncol: %d - nrow: %d\n", ncol, nrow);
+	} else if (strlen(move) >= 4) {
 		ocol = move[0] - 'a';
 		orow = move[1] - '1';
 		ncol = move[2] - 'a';
 		nrow = move[3] - '1';
-		debug("ocol %d - orow: %d - ncol: %d - nrow: %d\n", ocol, orow, ncol, nrow);
+//		debug("ocol %d - orow: %d - ncol: %d - nrow: %d\n", ocol, orow, ncol, nrow);
 	}
 
 	chess_piece *piece;
@@ -1404,16 +1392,16 @@ int resolve_move(chess_game *game, int t, char *move, int resolved_move[4]) {
 			count = get_possible_moves(game, piece, possible_moves, 1);
 			for (j = 0; j < count; j++) {
 				if (possible_moves[j][0] == ncol && possible_moves[j][1] == nrow) {
-					debug("Resolved Move: Piece set[%d] to %d,%d - checking legality...\n", i, ncol, nrow);
+//					debug("Resolved Move: Piece set[%d] to %d,%d - checking legality...\n", i, ncol, nrow);
 					if (is_move_legal(game, piece, ncol, nrow) ) {
-						debug("- Move legal [ok]\n");
+//						debug("- Move legal [ok]\n");
 						resolved = 1;
 						break;
 					}
-					else {
-						debug("Resolving Move: Piece set[%d] to %c%c%d\n", i, type_to_char(piece->type), 'a'+ncol, 1+nrow);
-						debug("- Move illegal [!!]\n");
-					}
+//					else {
+//						debug("Resolving Move: Piece set[%d] to %c%c%d\n", i, type_to_char(piece->type), 'a'+ncol, 1+nrow);
+//						debug("- Move illegal [!!]\n");
+//					}
 				}
 			}
 		}
@@ -3938,7 +3926,7 @@ int main (int argc, char **argv) {
 	int win_def_wi;
 	int win_def_hi;
 
-	win_def_wi = 1238;
+	win_def_wi = 1338;
 	win_def_hi = 950;
 
 	create_signals();
@@ -4025,11 +4013,11 @@ int main (int argc, char **argv) {
 	gtk_container_add (GTK_CONTAINER (label_frame_event_box), label_frame);
 
 	/* controls for displayed ply */
-	play_pause_button = gtk_button_new();
-	g_object_set(play_pause_button, "can-focus", FALSE, NULL);
-	gtk_widget_set_tooltip_text(play_pause_button, "Play/Pause");
-	gtk_button_set_image(GTK_BUTTON(play_pause_button),
-	                     (gtk_image_new_from_stock(GTK_STOCK_MEDIA_PLAY, GTK_ICON_SIZE_SMALL_TOOLBAR)));
+//	play_pause_button = gtk_button_new();
+//	g_object_set(play_pause_button, "can-focus", FALSE, NULL);
+//	gtk_widget_set_tooltip_text(play_pause_button, "Play/Pause");
+//	gtk_button_set_image(GTK_BUTTON(play_pause_button),
+//	                     (gtk_image_new_from_stock(GTK_STOCK_MEDIA_PLAY, GTK_ICON_SIZE_SMALL_TOOLBAR)));
 
 	goto_first_button = gtk_button_new();
 	g_object_set(goto_first_button, "can-focus", FALSE, NULL);
@@ -4058,7 +4046,7 @@ int main (int argc, char **argv) {
 	GtkWidget *controls_h_box = gtk_hbox_new(TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(controls_h_box), goto_first_button, TRUE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(controls_h_box), go_back_button, TRUE, TRUE, 0);
-	gtk_box_pack_start(GTK_BOX(controls_h_box), play_pause_button, TRUE, TRUE, 0);
+//	gtk_box_pack_start(GTK_BOX(controls_h_box), play_pause_button, TRUE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(controls_h_box), go_forward_button, TRUE, TRUE, 0);
 	gtk_box_pack_start(GTK_BOX(controls_h_box), goto_last_button, TRUE, TRUE, 0);
 
@@ -4155,10 +4143,8 @@ int main (int argc, char **argv) {
 	gtk_notebook_set_scrollable(GTK_NOTEBOOK(channels_notebook), TRUE);
 	//gtk_notebook_popup_enable(GTK_NOTEBOOK(channels_notebook));
 
-	GtkWidget *analysis_panel = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0);
-	gtk_box_pack_start(GTK_BOX(analysis_panel), create_analysis_panel(), FALSE, FALSE, 0);
-	GtkWidget *collapsible_analysis = gtk_expander_new("Stockfish Analysis");
-	gtk_container_add(GTK_CONTAINER(collapsible_analysis), analysis_panel);
+	GtkWidget *collapsible_analysis = gtk_expander_new_with_mnemonic("Computer _Analysis");
+	gtk_container_add(GTK_CONTAINER(collapsible_analysis), create_analysis_panel());
 	gtk_expander_set_expanded(GTK_EXPANDER(collapsible_analysis), true);
 
 	// Pack analysis pane and moves list into a wrapper
@@ -4175,8 +4161,7 @@ int main (int argc, char **argv) {
 	gtk_paned_pack1(GTK_PANED(split_pane), left_grid, TRUE, FALSE);
 	gtk_paned_pack2(GTK_PANED(split_pane), right_split_pane, FALSE, FALSE);
 
-	gtk_paned_set_position(GTK_PANED(split_pane), (gint) (-2 + ((double) clock_board_ratio) /
-	                                                           ((double) clock_board_ratio + 1.0f) * win_def_hi));
+	gtk_paned_set_position(GTK_PANED(split_pane), (gint) (-16 + ((double) clock_board_ratio) / ((double) clock_board_ratio + 1.0f) * win_def_hi));
 
 	gtk_container_add(GTK_CONTAINER (main_window), split_pane);
 

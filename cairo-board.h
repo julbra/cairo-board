@@ -82,9 +82,8 @@ typedef struct {
 	chess_piece black_set[16];
 	chess_square squares[8][8];
 
-	chess_clock *clock;
-
 	unsigned int current_move_number;
+	int promo_type;
 
 	/* *
 	 * castling state variables
@@ -99,8 +98,8 @@ typedef struct {
 	int en_passant[8];
 	int whose_turn;
 	int fifty_move_counter;
-	uint64_t current_hash;
 
+	uint64_t current_hash;
 	uint64_t zobrist_hash_history[50];
 	int hash_history_index;
 
@@ -283,7 +282,6 @@ extern bool delay_from_promotion;
 extern int p_old_col, p_old_row;
 
 extern plys_list *main_list;
-extern int promo_type;
 
 extern gint last_move_x, last_move_y;
 extern gint last_release_x, last_release_y;
@@ -302,6 +300,7 @@ extern cairo_font_face_t *sevenSegmentFace;
 
 
 /* exported helpers */
+int colorise_type(int tt, int colour);
 void assign_surfaces();
 void piece_to_xy(chess_piece *piece, int *xy ,int wi, int hi);
 void loc_to_xy(int column, int row, int *xy, int wi, int hi);

@@ -40,7 +40,7 @@ piecechar	[RBNQKP]
 
 	/* get promo char */
 	if ((yytext[4+skip1+skip2] == '=')) {
-		promo_type = char_to_type(main_game->whose_turn, yytext[5+skip1+skip2]);
+		main_game->promo_type = char_to_type(main_game->whose_turn, yytext[5+skip1+skip2]);
 		debug("Promo to %c\n", yytext[5+skip1+skip2]);
 	}
 
@@ -73,7 +73,7 @@ piecechar	[RBNQKP]
 
 	/* get promo char */
 	if ((yytext[4+skip1+skip2] == '=')) {
-		promo_type = char_to_type(main_game->whose_turn, yytext[5+skip1+skip2]);
+		main_game->promo_type = char_to_type(main_game->whose_turn, yytext[5+skip1+skip2]);
 		debug("Promo to %c\n", yytext[5+skip1+skip2]);
 	}
 
@@ -106,7 +106,7 @@ piecechar	[RBNQKP]
 
 	/* get promo char */
 	if ((yytext[4+skip1+skip2] == '=')) {
-		promo_type = char_to_type(main_game->whose_turn, yytext[5+skip1+skip2]);
+		main_game->promo_type = char_to_type(main_game->whose_turn, yytext[5+skip1+skip2]);
 		debug("Promo to %c\n", yytext[5+skip1+skip2]);
 	}
 
@@ -138,7 +138,7 @@ piecechar	[RBNQKP]
 
 	/* get promo char */
 	if ((yytext[3+skip] == '=')) {
-		promo_type = char_to_type(main_game->whose_turn, yytext[4+skip]);
+		main_game->promo_type = char_to_type(main_game->whose_turn, yytext[4+skip]);
 		debug("Promo to %c\n", yytext[4+skip]);
 	}
 

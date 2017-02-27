@@ -60,30 +60,47 @@ int is_fifty_move_counter_expired(chess_game *game) {
 	return game->fifty_move_counter <= 0;
 }
 
-void copy_situation(chess_square source[8][8], chess_square dest[8][8], chess_piece copy_w[16], chess_piece copy_b[16]) {
+void clone_game(chess_game *src_game, chess_game *trans_game) {
 	int i,j;
 	int w_count = 0;
 	int b_count = 0;
 
 	for (i = 0; i < 8; i++) {
 		for (j = 0; j < 8; j++) {
-			if (source[i][j].piece != NULL) {
-				if (source[i][j].piece->colour) {
-					copy_b[b_count] = *(source[i][j].piece);
-					dest[i][j].piece = &copy_b[b_count];
+			if (src_game->squares[i][j].piece != NULL) {
+				if (src_game->squares[i][j].piece->colour) {
+					trans_game->black_set[b_count] = *(src_game->squares[i][j].piece);
+					trans_game->squares[i][j].piece = &trans_game->black_set[b_count];
 					b_count++;
 				} else {
-					copy_w[w_count] = *(source[i][j].piece);
-					dest[i][j].piece = &copy_w[w_count];
+					trans_game->white_set[w_count] = *(src_game->squares[i][j].piece);
+					trans_game->squares[i][j].piece = &trans_game->white_set[w_count];
 					w_count++;
 				}
 			}
 			else {
-				dest[i][j].piece = NULL;
+				trans_game->squares[i][j].piece = NULL;
 			}
 
 		}
 	}
+
+	trans_game->whose_turn = src_game->whose_turn;
+	trans_game->current_move_number = src_game->current_move_number;
+	for (i = 0; i < 2; ++i) {
+		for (j = 0; j < 2; ++j) {
+			trans_game->castle_state[i][j] = src_game->castle_state[i][j];
+		}
+	}
+	for (i = 0; i < 8; ++i) {
+		trans_game->en_passant[i] = src_game->en_passant[i];
+	}
+	trans_game->fifty_move_counter = src_game->fifty_move_counter;
+	trans_game->current_hash = src_game->current_hash;
+	for (i = 0; i < 50; ++i) {
+		trans_game->zobrist_hash_history[i] = src_game->zobrist_hash_history[i];
+	}
+	trans_game->hash_history_index = src_game->hash_history_index;
 }
 
 /* *
@@ -132,7 +149,7 @@ int can_castle(int colour, int side, chess_game *game) {
 		return 0;
 	}
 	chess_game *trans_game = game_new();
-	copy_situation(game->squares, trans_game->squares, trans_game->white_set, trans_game->black_set);
+	clone_game(game, trans_game);
 
 	chess_piece *king = get_king(colour, trans_game->squares);
 
@@ -474,8 +491,7 @@ int is_move_legal(chess_game *game, chess_piece *piece, int col, int row) {
 	// We'll apply changes to this transient copy and do our checks
 
 	chess_game *trans_game = game_new();
-	//copy_situation(white_set, black_set, trans_white_set, trans_black_set, trans_squares);
-	copy_situation(game->squares, trans_game->squares, trans_game->white_set, trans_game->black_set);
+	clone_game(game, trans_game);
 
 	// get equivalent of selected piece from transient squares
 	chess_piece *trans_piece = trans_game->squares[start_col][start_row].piece;
@@ -488,7 +504,7 @@ int is_move_legal(chess_game *game, chess_piece *piece, int col, int row) {
 	 * proposed move. We need to remove that pawn from the 
 	 * transient squares now */
 	if (is_move_en_passant(trans_game, trans_piece, col, row)) {
-		chess_square *to_kill = &(trans_game->squares[col][row + (game->whose_turn ? 1 : -1) ]);
+		chess_square *to_kill = &(trans_game->squares[col][row + (game->whose_turn ? 1 : -1)]);
 		// kill pawn
 		to_kill->piece->dead = 1;
 		to_kill->piece = NULL;
@@ -1148,7 +1164,6 @@ chess_game *game_new() {
 
 // Saves the current hash to history and increment the hash_index
 void persist_hash(chess_game *game) {
-	debug("persist_hash: game->hash_history_index = %d\n", game->hash_history_index);
 	game->zobrist_hash_history[game->hash_history_index] = game->current_hash;
 	game->hash_history_index++;
 	game->hash_history_index %= 50;

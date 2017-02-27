@@ -36,13 +36,15 @@ static unsigned int ply_num;
 static int to_play;
 
 static char all_moves[4 * 8192];
+char shown_best_line[BUFSIZ] = "";
+size_t shown_best_line_len = 0;
 static UCI_MODE uci_mode;
 
 static int uci_scanner__scan_bytes(const char *, int length);
 static void * parse_uci_function(void *pVoid);
 static void wait_for_engine(void);
 
-void best_line_to_san(char line[8192], char san[8192], int);
+void best_line_to_san(char line[8192], char san[8192]);
 
 void write_to_uci(char *message) {
 	if (write(uci_in, message, strlen(message)) == -1) {
@@ -91,7 +93,7 @@ void init_regex() {
 	compile_regex(&info_score_cp_matcher, "score cp (-?[0-9]+)( upperbound| lowerbound)?");
 	compile_regex(&info_score_mate_matcher, "score mate (-?[0-9]+)");
 	compile_regex(&info_nps_matcher, " nps ([0-9]+)");
-	compile_regex(&info_best_line_matcher, " pv ([a-h1-8 ]+)");
+	compile_regex(&info_best_line_matcher, " pv ([a-h1-8rnbq ]+)");
 }
 
 int spawn_uci_engine(void) {
@@ -271,8 +273,8 @@ void parse_move(char *moveText) {
 
 	if (bestMoveLen > 4) {
 		debug("Handling promotion from Engine '%s' promo: '%c'\n", bestMove, bestMove[4]);
-		promo_type = char_to_type(main_game->whose_turn, (char) (bestMove[4] - 32));
-		debug("Handling promotion from Engine %c -> %d\n", bestMove[4], promo_type);
+		main_game->promo_type = char_to_type(main_game->whose_turn, (char) (bestMove[4] - 32));
+		debug("Handling promotion from Engine %c -> %d\n", bestMove[4], main_game->promo_type);
 	}
 	// Append move
 	append_move(bestMove, true);
@@ -315,8 +317,8 @@ void parse_move_with_ponder(char *moveText) {
 	size_t bestMoveLen = strlen(bestMove);
 
 	if (bestMoveLen > 4) {
-		promo_type = char_to_type(main_game->whose_turn, (char) (bestMove[4] - 32));
-		debug("Handling promotion from Engine %c -> %d\n", bestMove[4], promo_type);
+		main_game->promo_type = char_to_type(main_game->whose_turn, (char) (bestMove[4] - 32));
+		debug("Handling promotion from Engine %c -> %d\n", bestMove[4], main_game->promo_type);
 	}
 
 	// Append move
@@ -406,14 +408,25 @@ void parse_info(char *info) {
 
 	status = regexec(&info_best_line_matcher, info, 2, pmatch, 0);
 	if (!status) {
-		char bestLine[BUFSIZ];
+		char best_line[BUFSIZ];
 		char best_line_san[BUFSIZ];
-		memset(bestLine, 0, BUFSIZ);
+		memset(best_line, 0, BUFSIZ);
 		memset(best_line_san, 0, BUFSIZ);
 
-		extract_match(info, pmatch[1], bestLine);
-		best_line_to_san(bestLine, best_line_san, parser_index);
-		set_analysis_best_line(best_line_san);
+		extract_match(info, pmatch[1], best_line);
+		best_line_to_san(best_line, best_line_san);
+		debug("Best line in SAN: '%s'\n", best_line_san);
+
+		size_t best_line_len = strlen(best_line);
+		if (best_line_len > shown_best_line_len || strncmp(best_line, shown_best_line, best_line_len) != 0) {
+			debug("New best line: '%s' '%s'\n", best_line, shown_best_line);
+			memcpy(shown_best_line, best_line, BUFSIZ);
+			shown_best_line_len = best_line_len;
+			set_analysis_best_line(best_line_san);
+		} else {
+			debug("best line NOT new: '%s' '%s'\n", best_line, shown_best_line);
+		}
+
 	}
 
 	char depthString[32];
@@ -422,14 +435,14 @@ void parse_info(char *info) {
 	status = regexec(&info_depth_matcher, info, 2, pmatch, 0);
 	if (!status) {
 		extract_match(info, pmatch[1], depth);
-		snprintf(depthString, 32, "%s", depth);
+		snprintf(depthString, 32, "Depth: %s", depth);
 		set_analysis_depth(depthString);
 	}
 	status = regexec(&info_selective_depth_matcher, info, 2, pmatch, 0);
 	if (!status) {
 		char sel_depth[8];
 		extract_match(info, pmatch[1], sel_depth);
-		snprintf(depthString, 32, "%s/%s", depth, sel_depth);
+		snprintf(depthString, 32, "Depth: %s/%s", depth, sel_depth);
 		set_analysis_depth(depthString);
 	}
 
@@ -444,39 +457,39 @@ void parse_info(char *info) {
 	}
 }
 
-void best_line_to_san(char *line, char *san, int parser_index) {
+void best_line_to_san(char *line, char *san) {
 
 	chess_game *trans_game = game_new();
-	copy_situation(main_game->squares, trans_game->squares, trans_game->white_set, trans_game->black_set);
+	clone_game(main_game, trans_game);
 
-	trans_game->whose_turn = main_game->whose_turn;
-	debug("best_line_to_san Parsing line: %d '%s'\n", parser_index, line);
+	if (trans_game->whose_turn) {
+		char move_num[16];
+		sprintf(move_num, "%d...", trans_game->current_move_number);
+		strcat(san, move_num);
+	}
+
 	char *left_over = line;
 	char *parsed_to = line;
 	size_t line_len = strlen(line);
 	char move[6];
 	while (left_over != NULL && left_over - line <= line_len) {
-		debug("best_line_to_san While %d\n", parser_index);
 		left_over = strchr(left_over, ' ');
 		if (left_over == NULL) {
 			left_over = parsed_to + strlen(parsed_to);
 		}
 		memset(move, 0, 6);
 		memcpy(move, parsed_to, left_over - parsed_to);
-		debug("Parsing move: '%s'\n", move);
 
-		int ocol = move[0] - 'a';
-		int orow = move[1] - '1';
-		int ncol = move[2] - 'a';
-		int nrow = move[3] - '1';
+//		debug("best_line_to_san move is %s\n", move);
+		int source_col = move[0] - 'a';
+		int source_row = move[1] - '1';
 		char promo_char = move[4];
 		if (promo_char != '\0') {
-			debug("best_line_to_san  Move is a promotion! %s %c\n", move, promo_char);
+			trans_game->promo_type = char_to_type(trans_game->whose_turn, (char) (promo_char - 32));
+			debug("best_line_to_san  Move is a promotion! %s %c -> %c, %d\n", move, promo_char, (char) (promo_char - 32), trans_game->promo_type);
 		}
 
-		debug("best_line_to_san Move is from %d %d to %d %d\n", ocol, orow, ncol, nrow);
-
-		chess_piece *piece = trans_game->squares[ocol][orow].piece;
+		chess_piece *piece = trans_game->squares[source_col][source_row].piece;
 		if (piece == NULL) {
 			debug("best_line_to_san Ooops no piece here!\n");
 			return;
@@ -484,6 +497,14 @@ void best_line_to_san(char *line, char *san, int parser_index) {
 
 		int type = piece->type;
 		int resolved_move[4];
+
+
+		if (!trans_game->whose_turn) {
+			char move_num[16];
+			sprintf(move_num, "%d. ", trans_game->current_move_number);
+			strcat(san, move_num);
+		}
+
 		int resolved = resolve_move(trans_game, type, move, resolved_move);
 		if (resolved) {
 			char san_move[SAN_MOVE_SIZE];
@@ -496,26 +517,33 @@ void best_line_to_san(char *line, char *san, int parser_index) {
 					san_move[strlen(san_move)] = '+';
 				}
 			}
-			debug("best_line_to_san Parsed move: '%s' into '%s'\n", move, san_move);
-			debug("best_line_to_san 1 append parsed move: '%s'\n", san);
-			size_t newMoveLen = strlen(san_move);
+
+			// Append move
+			char pchar = san_move[0];
+			int tt = char_to_type(trans_game->whose_turn, pchar);
+			if (use_fig && tt != -1) {
+				char buf_str[SAN_MOVE_SIZE];
+				memset(buf_str, 0, SAN_MOVE_SIZE);
+				// char_to_type() will return opposite colour because we swapped whose_turn already
+				tt = colorise_type(tt, !trans_game->whose_turn);
+				sprintf(buf_str, "%lc%s", type_to_unicode_char(tt), san_move + 1);
+				strcpy(san_move, buf_str);
+			}
+
+			san_move[strlen(san_move)] = ' ';
+
 			size_t movesLength = strlen(san);
-			san[movesLength] = ' ';
-			memcpy(san + movesLength + 1, san_move, newMoveLen + 1); // includes terminating null
-			debug("best_line_to_san 2 append parsed move: '%s'\n", san);
+			size_t newMoveLen = strlen(san_move);
+			memcpy(san + movesLength, san_move, newMoveLen + 1); // includes terminating null
 		} else {
 			debug("best_line_to_san Could not resolve move %c%s\n", type_to_char(type), move);
 		}
 
 		left_over++;
 		parsed_to = left_over;
-		debug("best_line_to_san Parsing line left over: '%s'\n", left_over);
 
 	}
-
 	free(trans_game);
-
-	debug("best_line_to_san Parsing line: %d RETURNS\n", parser_index);
 
 }
 
@@ -527,8 +555,8 @@ void parse_uci_buffer(void) {
 	int nread = (int) read(uci_out, &raw_buff, BUFSIZ);
 	if (nread < 1) {
 		fprintf(stderr, "ERROR: failed to read data from UCI Engine pipe\n");
-        usleep(1000000);
-        return;
+		usleep(1000000);
+		return;
 	}
 	uci_scanner__scan_bytes(raw_buff, nread);
 	int i = 0;
@@ -546,6 +574,7 @@ void parse_uci_buffer(void) {
 			case UCI_ID_NAME: {
 				printf("Got UCI Name: %s\n", uci_scanner_text);
 				strcpy(engine_name, uci_scanner_text + 8);
+				set_analysis_engine_name(engine_name);
 				break;
 			}
 			case UCI_ID_AUTHOR: {

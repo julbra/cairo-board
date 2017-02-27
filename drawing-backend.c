@@ -1214,9 +1214,9 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 		animation->new_row = new_row;
 		animation->move_result = move_result;
 		if (move_result & PROMOTE) {
-			animation->promo_type = promo_type;
+			animation->promo_type = main_game->promo_type;
 			if (move_source != MANUAL_SOURCE) {
-				logical_promote(promo_type);
+				logical_promote(main_game->promo_type);
 			}
 
 		}
@@ -1498,12 +1498,7 @@ void handle_button_release(void) {
 
 				// only redraw pieces we need to redraw!
 				update_pieces_surface(wi, hi, p_old_col, p_old_row, mouse_dragged_piece);
-			} else {
-				debug("Ooops move failed!\n");
 			}
-		} else {
-			debug("Ooops cannot move? p_old_row: %d, ij[1]: %d, p_old_col: %d, ij[0]: %d, can_i_move_piece(mouse_dragged_piece): %d\n", p_old_row, ij[1], p_old_col, ij[0], can_i_move_piece(mouse_dragged_piece));
-			p_old_row != ij[1] || p_old_col != ij[0] && can_i_move_piece(mouse_dragged_piece);
 		}
 		if (!piece_moved) {
 			restore_piece_to_surface(wi, hi, mouse_dragged_piece);

@@ -31,7 +31,7 @@ int is_move_legal(chess_game *game, chess_piece *piece, int col, int row);
 
 chess_piece *get_king(int, chess_square[8][8]);
 
-void copy_situation(chess_square[8][8], chess_square [8][8], chess_piece [16], chess_piece [16]);
+void clone_game(chess_game *src, chess_game *dst);
 
 int can_castle(int color, int side, chess_game *game);
 
