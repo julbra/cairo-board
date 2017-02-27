@@ -193,15 +193,15 @@ static GtkWidget *clock_widget;
 
 gboolean flipped = 0;
 
-gint last_move_x, last_move_y;
-gint last_release_x, last_release_y;
+static int last_move_x, last_move_y;
+static int last_release_x, last_release_y;
+static int dragging_prev_x = 0;
+static int dragging_prev_y = 0;
 
 int old_wi, old_hi;
 double w_ratio = 1.0;
 double h_ratio = 1.0;
 
-int dragging_prev_x = 0;
-int dragging_prev_y = 0;
 
 
 static int playing = 0;
@@ -212,7 +212,6 @@ static guint clock_refresher = 0;
 
 // FreeType
 FT_Library library;
-cairo_font_face_t *sevenSegmentFace;
 
 // globals
 int mouse_clicked[2] = {-1, -1};
@@ -295,26 +294,124 @@ static void get_int_from_popup(void);
 static void spawn_mover(void);
 
 /************************ <MULTITHREAD STUFF> ******************************/
-int moveit_flag;
-int running_flag;
-int more_events_flag;
+static bool moveit_flag;
+static bool running_flag;
+static bool more_events_flag;
 
 pthread_mutex_t mutex_last_move = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t last_move_xy_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t last_release_xy_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t dragging_prev_xy_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t moveit_flag_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t running_flag_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t more_events_flag_lock = PTHREAD_MUTEX_INITIALIZER;
+
+void cleanup_mutexes(void) {
+	pthread_mutex_destroy(&mutex_last_move);
+	pthread_mutex_destroy(&last_move_xy_lock);
+	pthread_mutex_destroy(&last_release_xy_lock);
+	pthread_mutex_destroy(&dragging_prev_xy_lock);
+	pthread_mutex_destroy(&moveit_flag_lock);
+	pthread_mutex_destroy(&running_flag_lock);
+	pthread_mutex_destroy(&more_events_flag_lock);
+}
 
 char last_move[MOVE_BUFF_SIZE];
 
-int ics_open_flag;
-
 void set_last_move(char *move) {
-	pthread_mutex_lock( &mutex_last_move );
+	pthread_mutex_lock(&mutex_last_move);
 	strncpy(last_move, move, MOVE_BUFF_SIZE);
-	pthread_mutex_unlock( &mutex_last_move );
+	pthread_mutex_unlock(&mutex_last_move);
 }
 
 void get_last_move(char *data) {
-	pthread_mutex_lock( &mutex_last_move );
+	pthread_mutex_lock(&mutex_last_move);
 	strncpy(data, last_move, MOVE_BUFF_SIZE);
-	pthread_mutex_unlock( &mutex_last_move );
+	pthread_mutex_unlock(&mutex_last_move);
+}
+
+void get_last_move_xy(int *x, int *y) {
+	pthread_mutex_lock(&last_move_xy_lock);
+	*x = last_move_x;
+	*y = last_move_y;
+	pthread_mutex_unlock(&last_move_xy_lock);
+}
+
+void set_last_move_xy(int x, int y) {
+	pthread_mutex_lock(&last_move_xy_lock);
+	last_move_x = x;
+	last_move_y = y;
+	pthread_mutex_unlock(&last_move_xy_lock);
+}
+
+void get_last_release_xy(int *x, int *y) {
+	pthread_mutex_lock(&last_release_xy_lock);
+	*x = last_release_x;
+	*y = last_release_y;
+	pthread_mutex_unlock(&last_release_xy_lock);
+}
+
+void set_last_release_xy(int x, int y) {
+	pthread_mutex_lock(&last_release_xy_lock);
+	last_release_x = x;
+	last_release_y = y;
+	pthread_mutex_unlock(&last_release_xy_lock);
+}
+
+void get_dragging_prev_xy(int *x, int *y) {
+	pthread_mutex_lock(&dragging_prev_xy_lock);
+	*x = dragging_prev_x;
+	*y = dragging_prev_y;
+	pthread_mutex_unlock(&dragging_prev_xy_lock);
+}
+
+void set_dragging_prev_xy(int x, int y) {
+	pthread_mutex_lock(&dragging_prev_xy_lock);
+	dragging_prev_x = x;
+	dragging_prev_y = y;
+	pthread_mutex_unlock(&dragging_prev_xy_lock);
+}
+
+void set_moveit_flag(bool val) {
+	pthread_mutex_lock(&moveit_flag_lock);
+	moveit_flag = val;
+	pthread_mutex_unlock(&moveit_flag_lock);
+}
+
+bool is_moveit_flag() {
+	bool val;
+	pthread_mutex_lock(&moveit_flag_lock);
+	val = moveit_flag;
+	pthread_mutex_unlock(&moveit_flag_lock);
+	return val;
+}
+
+void set_running_flag(bool val) {
+	pthread_mutex_lock(&running_flag_lock);
+	running_flag = val;
+	pthread_mutex_unlock(&running_flag_lock);
+}
+
+bool is_running_flag() {
+	bool val;
+	pthread_mutex_lock(&running_flag_lock);
+	val = running_flag;
+	pthread_mutex_unlock(&running_flag_lock);
+	return val;
+}
+
+void set_more_events_flag(bool val) {
+	pthread_mutex_lock(&more_events_flag_lock);
+	more_events_flag = val;
+	pthread_mutex_unlock(&more_events_flag_lock);
+}
+
+bool is_more_events_flag() {
+	bool val;
+	pthread_mutex_lock(&more_events_flag_lock);
+	val = more_events_flag;
+	pthread_mutex_unlock(&more_events_flag_lock);
+	return val;
 }
 
 /************************ </MULTITHREAD STUFF> *****************************/
@@ -1017,11 +1114,9 @@ static gboolean on_button_press(GtkWidget *pWidget, GdkEventButton *pButton, Gdk
 }
 
 static gboolean on_button_release (GtkWidget *pWidget, GdkEventButton *pButton, GdkWindowEdge edge) {
-	debug("BR\n");
 	if (pButton->type == GDK_BUTTON_RELEASE) {
 		if (pButton->button == 1) {
-			g_atomic_int_set(&last_release_x, (gint) pButton->x);
-			g_atomic_int_set(&last_release_y, (gint) pButton->y);
+			set_last_release_xy((int) pButton->x, (int) pButton->y);
 			handle_button_release();
 		}
 	}
@@ -1030,10 +1125,9 @@ static gboolean on_button_release (GtkWidget *pWidget, GdkEventButton *pButton, 
 
 static gboolean on_motion(GtkWidget *pWidget, GdkEventMotion *event) {
 	// Grab the last event
-	if (g_atomic_int_get(&moveit_flag)) {
-		g_atomic_int_set(&last_move_x, (gint) event->x);
-		g_atomic_int_set(&last_move_y, (gint) event->y);
-		g_atomic_int_set(&more_events_flag, 1);
+	if (is_moveit_flag()) {
+		set_last_move_xy((int) event->x, (int) event->y);
+		set_more_events_flag(true);
 	}
 	return TRUE;
 }
@@ -1307,12 +1401,12 @@ void *read_message_function(void *ptr) {
 
 void *parse_ics_function(void *ptr) {
 
-    while (g_atomic_int_get(&running_flag)) {
-        parse_ics_buffer();
-    }
+	while (is_running_flag()) {
+		parse_ics_buffer();
+	}
 
-    fprintf(stdout, "[parse ics thread] - Closing ICS parser\n");
-    return 0;
+	fprintf(stdout, "[parse ics thread] - Closing ICS parser\n");
+	return 0;
 }
 
 static pthread_t ics_reader_thread;
@@ -1321,7 +1415,6 @@ static pthread_t move_event_processor_thread;
 
 void CloseTCP() {
 	//set_ics_open_flag(0);
-	g_atomic_int_set(&ics_open_flag, 0);
 	close(ics_socket);
 }
 
@@ -1534,7 +1627,7 @@ gboolean auto_play_one_move(gpointer data) {
 
 	int i;
 
-	if( ! g_atomic_int_get(&running_flag)) {
+	if (!is_running_flag()) {
 		return FALSE;
 	}
 
@@ -2507,12 +2600,6 @@ void start_game(char *w_name, char *b_name, int seconds, int increment, int rela
 		gdk_threads_enter();
 	}
 
-//	if (mouse_dragged_piece != NULL) {
-//		g_atomic_int_set(&moveit_flag, 0);
-//		mouse_dragged_piece = NULL;
-//		debug("Mouse dragged set to Null\n");
-//	}
-
 	game_started = 1;
 
 	reset_game();
@@ -3450,16 +3537,13 @@ gint cleanup(gpointer ignored) {
 	}
 
 	/* set global running flag off */
-	//set_running_flag(0);
-	g_atomic_int_set(&running_flag, 0);
+	set_running_flag(false);
 
 	/* close socket */
-	if (g_atomic_int_get(&ics_open_flag)) {
-		//CloseTCP();
-		//set_ics_open_flag(0);
-		g_atomic_int_set(&ics_open_flag, 0);
-		close_tcp(ics_fd);
-	}
+//	if (ics_open_flag) {
+//		ics_open_flag = false;
+//		close_tcp(ics_fd);
+//	}
 
 	/* cancel threads and wait for all threads to exit */
 	debug("Cancelling all threads...\n");
@@ -4194,9 +4278,9 @@ int main (int argc, char **argv) {
 	svg_w = 1.0f / (8.0f * (double) g_DimensionData.width);
 	svg_h = 1.0f / (8.0f * (double) g_DimensionData.height);
 
-	g_atomic_int_set(&moveit_flag, 0);
-	g_atomic_int_set(&running_flag, 1);
-	g_atomic_int_set(&more_events_flag, 0);
+	set_moveit_flag(false);
+	set_running_flag(true);
+	set_more_events_flag(false);
 
 	reset_game();
 
@@ -4284,6 +4368,10 @@ int main (int argc, char **argv) {
 
 	free(main_clock);
 	free(main_game);
+
+	cleanup_uci();
+	cleanup_mutexes();
+
 	return 0;
 }
 

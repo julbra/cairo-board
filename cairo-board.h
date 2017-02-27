@@ -266,14 +266,7 @@ extern chess_piece *mouse_clicked_piece;
 
 extern int game_mode;
 
-extern int moveit_flag;
-extern int running_flag;
-extern int more_events_flag;
-
 extern GtkWidget *board;
-
-extern int dragging_prev_x;
-extern int dragging_prev_y;
 
 extern char last_san_move[SAN_MOVE_SIZE];
 extern chess_piece *last_piece_taken;
@@ -283,11 +276,17 @@ extern int p_old_col, p_old_row;
 
 extern plys_list *main_list;
 
-extern gint last_move_x, last_move_y;
-extern gint last_release_x, last_release_y;
+void get_last_move_xy(int *x, int*y);
+void get_last_release_xy(int *x, int*y);
+void get_dragging_prev_xy(int *x, int*y);
+void set_dragging_prev_xy(int, int);
+bool is_moveit_flag();
+void set_moveit_flag(bool);
+bool is_running_flag();
+bool is_more_events_flag();
+void set_more_events_flag(bool);
 
 extern chess_piece *to_promote;
-extern gulong hide_handler_id;
 
 extern gboolean highlight_moves;
 extern gboolean has_chosen;
@@ -295,9 +294,6 @@ extern gboolean highlight_last_move;
 
 extern chess_clock *main_clock;
 chess_game *main_game;
-
-extern cairo_font_face_t *sevenSegmentFace;
-
 
 /* exported helpers */
 int colorise_type(int tt, int colour);

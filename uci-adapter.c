@@ -7,7 +7,6 @@
 #include "analysis_panel.h"
 #include "uci-adapter.h"
 #include "uci_scanner.h"
-#include "cairo-board.h"
 
 static int uci_in;
 static int uci_out;
@@ -28,10 +27,18 @@ static regex_t info_nps_matcher;
 static regex_t info_best_line_matcher;
 
 static char engine_name[256] = "";
-static bool uci_ok = false;
-static bool uci_ready = false;
-static bool pondering;
-static bool analysing;
+
+static bool uci_ok = 0;
+static bool uci_ready = 0;
+static bool analysing = 0;
+static bool stop_requested = 0;
+
+static pthread_mutex_t uci_writer_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t uci_ok_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t uci_ready_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t analysing_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t stop_requested_lock = PTHREAD_MUTEX_INITIALIZER;
+
 static unsigned int ply_num;
 static int to_play;
 
@@ -46,26 +53,112 @@ static void wait_for_engine(void);
 
 void best_line_to_san(char line[8192], char san[8192]);
 
+void cleanup_uci() {
+	pthread_mutex_destroy(&uci_writer_lock);
+	pthread_mutex_destroy(&uci_ok_lock);
+	pthread_mutex_destroy(&uci_ready_lock);
+	pthread_mutex_destroy(&analysing_lock);
+	pthread_mutex_destroy(&stop_requested_lock);
+}
+
+void set_uci_ok(bool val) {
+	pthread_mutex_lock(&uci_ok_lock);
+	uci_ok = val;
+	pthread_mutex_unlock(&uci_ok_lock);
+}
+
+bool is_uci_ok() {
+	bool val;
+	pthread_mutex_lock(&uci_ok_lock);
+	val = uci_ok;
+	pthread_mutex_unlock(&uci_ok_lock);
+	return val;
+}
+
+void set_uci_ready(bool val) {
+	pthread_mutex_lock(&uci_ready_lock);
+	uci_ready = val;
+	pthread_mutex_unlock(&uci_ready_lock);
+}
+
+bool is_uci_ready() {
+	bool val;
+	pthread_mutex_lock(&uci_ready_lock);
+	val = uci_ready;
+	pthread_mutex_unlock(&uci_ready_lock);
+	return val;
+}
+
+void set_analysing(bool val) {
+	pthread_mutex_lock(&analysing_lock);
+	analysing = val;
+	pthread_mutex_unlock(&analysing_lock);
+}
+
+bool is_analysing() {
+	bool val;
+	pthread_mutex_lock(&analysing_lock);
+	val = analysing;
+	pthread_mutex_unlock(&analysing_lock);
+	return val;
+}
+
+void set_stop_requested(bool val) {
+	pthread_mutex_lock(&stop_requested_lock);
+	stop_requested = val;
+	pthread_mutex_unlock(&stop_requested_lock);
+}
+
+bool is_stop_requested() {
+	bool val;
+	pthread_mutex_lock(&stop_requested_lock);
+	val = stop_requested;
+	pthread_mutex_unlock(&stop_requested_lock);
+	return val;
+}
+
 void write_to_uci(char *message) {
+	pthread_mutex_lock(&uci_writer_lock);
 	if (write(uci_in, message, strlen(message)) == -1) {
 		perror(NULL);
 	}
+	pthread_mutex_unlock(&uci_writer_lock);
 	debug("Wrote to UCI: %s", message);
 }
 
 void wait_for_engine(void) {
 	struct timeval start, now, diff;
 
-	uci_ready = false;
+	set_uci_ready(false);
 	write_to_uci("isready\n");
 
 	gettimeofday(&start, NULL);
-	while(!uci_ready) {
-		usleep(1000);
+	while (!is_uci_ready()) {
+		usleep(10000);
 		gettimeofday(&now, NULL);
 		timersub(&now, &start, &diff);
 		if (diff.tv_sec > 3) {
-			fprintf(stderr, "Ooops, UCI Engine crashed?!\n");
+			debug("Ooops, UCI Engine did not reply to 'isready' within 3 seconds, process crashed?!\n");
+			break;
+		}
+	}
+}
+
+void stop_and_wait(void) {
+	struct timeval start, now, diff;
+
+	set_stop_requested(true);
+	write_to_uci("stop\n");
+
+	gettimeofday(&start, NULL);
+	while (is_stop_requested()) {
+		usleep(10000);
+		gettimeofday(&now, NULL);
+		timersub(&now, &start, &diff);
+		if (diff.tv_sec > 3) {
+			printf("Ooops, UCI Engine did not stop in 3 seconds will attempt to carry on anyway...\n");
+			set_analysing(false);
+			set_stop_requested(false);
 			break;
 		}
 	}
@@ -116,13 +209,13 @@ int spawn_uci_engine(void) {
 
 	pthread_create(&uci_read_thread, NULL, parse_uci_function, (void *) (&i));
 	write_to_uci("uci\n");
-	while (!uci_ok) {
+	while (!is_uci_ok()) {
 		usleep(500);
 	}
 	printf("UCI OK!\n");
 
-	write_to_uci("setoption name Threads value 3\n");
-	write_to_uci("setoption name Hash value 512\n");
+	write_to_uci("setoption name Threads value 8\n");
+	write_to_uci("setoption name Hash value 4096\n");
 	write_to_uci("setoption name Ponder value true\n");
 //	write_to_uci("setoption name Skill Level value 5\n");
 	wait_for_engine();
@@ -134,8 +227,8 @@ void start_new_uci_game(int time, UCI_MODE mode) {
 
 	uci_mode = mode;
 
-	if (pondering || analysing) {
-		write_to_uci("stop\n");
+	if (is_analysing()) {
+		stop_and_wait();
 	}
 	wait_for_engine();
 
@@ -143,7 +236,7 @@ void start_new_uci_game(int time, UCI_MODE mode) {
 	memcpy(all_moves, "position startpos moves", 24);
 	ply_num = 1;
 	to_play = 0;
-	pondering = false;
+	set_analysing(false);
 
 	write_to_uci("ucinewgame\n");
 	wait_for_engine();
@@ -156,6 +249,7 @@ void start_new_uci_game(int time, UCI_MODE mode) {
 			start_game("You", engine_name, time, 0, relation, false);
 			// If engine is white, kick it now
 			sprintf(go, "position startpos\ngo wtime %ld btime %ld\n", get_remaining_time(main_clock, 0), get_remaining_time(main_clock, 1));
+			set_analysing(true);
 			write_to_uci(go);
 			break;
 		case ENGINE_BLACK:
@@ -165,7 +259,7 @@ void start_new_uci_game(int time, UCI_MODE mode) {
 		case ENGINE_ANALYSIS:
 			sprintf(go, "position startpos\ngo infinite\n");
 			write_to_uci(go);
-			analysing = true;
+			set_analysing(true);
 			break;
 		default:
 			break;
@@ -208,8 +302,8 @@ void user_move_to_uci(char *move) {
 	char moves[8192];
 	sprintf(moves, "%s\n", all_moves);
 
-	if (pondering || uci_mode == ENGINE_ANALYSIS) {
-		write_to_uci("stop\n");
+	if (is_analysing()) {
+		stop_and_wait();
 	}
 	wait_for_engine();
 
@@ -217,12 +311,11 @@ void user_move_to_uci(char *move) {
 	char go[256];
 	if (uci_mode == ENGINE_ANALYSIS) {
 		sprintf(go, "go infinite\n");
-		analysing = true;
 	} else {
 		sprintf(go, "go wtime %ld btime %ld\n", get_remaining_time(main_clock, 0), get_remaining_time(main_clock, 1));
 	}
-	debug("sending go %s\n", go);
 	write_to_uci(go);
+	set_analysing(true);
 }
 
 void parse_option(char *optionText) {
@@ -246,15 +339,10 @@ void parse_move(char *moveText) {
 	 For example: a Knight to f3 move LAN is Ng1-f3 but we get g1f3
 	 Also, promotions are indicated like such: a7a8q*/
 
-	if (pondering) {
-		debug("Skip pondering best move: %s\n", moveText);
-		pondering = false;
-		return;
-	}
-
-	if (uci_mode == ENGINE_ANALYSIS) {
-		debug("Skip analysis best move: %s\n", moveText);
-		pondering = false;
+	if (is_analysing() && is_stop_requested()) {
+		debug("Skip final best move after stop: %s %d %d\n");
+		set_analysing(false);
+		set_stop_requested(false);
 		return;
 	}
 
@@ -289,15 +377,10 @@ void parse_move_with_ponder(char *moveText) {
 	 For example, for a Knight to f3 move, LAN would be Ng1-f3
 	 Instead we get g1f3 */
 
-	if (pondering) {
-		debug("Skip pondering best move: %s\n", moveText);
-		pondering = false;
-		return;
-	}
-
-	if (uci_mode == ENGINE_ANALYSIS) {
-		debug("Skip analysis best move: %s\n", moveText);
-		pondering = false;
+	if (is_stop_requested() && is_analysing()) {
+		debug("Skip final best move after stop\n");
+		set_analysing(false);
+		set_stop_requested(false);
 		return;
 	}
 
@@ -331,14 +414,15 @@ void parse_move_with_ponder(char *moveText) {
 	sprintf(moves, "%s %s\n", all_moves, ponderMove);
 	write_to_uci(moves);
 	write_to_uci("go ponder\n");
-	pondering = true;
+	set_analysing(1);
 }
 
 void parse_info(char *info) {
-	debug("GOT INFO %s\n", info);
 
-	static int parser_index = 0;
-	parser_index++;
+	if (is_stop_requested() && is_analysing()) {
+//		debug("Skip info while stopping\n");
+		return;
+	}
 
 	regmatch_t pmatch[3];
 	int status;
@@ -351,11 +435,12 @@ void parse_info(char *info) {
 	status = regexec(&info_score_cp_matcher, info, 3, pmatch, 0);
 	if (!status) {
 		extract_match(info, pmatch[1], score_value);
-		if (pmatch[2].rm_so > -1 && pmatch[2].rm_eo > -1) {
-			char score_bound[16];
-			extract_match(info, pmatch[2], score_bound);
-			debug("Score is %s\n", score_bound + 1);
-		}
+		// Uncomment the following to extract upper or lower bound info
+//		if (pmatch[2].rm_so > -1 && pmatch[2].rm_eo > -1) {
+//			char score_bound[16];
+//			extract_match(info, pmatch[2], score_bound);
+//			debug("Score is %s\n", score_bound + 1);
+//		}
 	} else {
 		status = regexec(&info_score_mate_matcher, info, 2, pmatch, 0);
 		if (!status) {
@@ -415,18 +500,17 @@ void parse_info(char *info) {
 
 		extract_match(info, pmatch[1], best_line);
 		best_line_to_san(best_line, best_line_san);
-		debug("Best line in SAN: '%s'\n", best_line_san);
+//		debug("Best line in SAN: '%s'\n", best_line_san);
 
 		size_t best_line_len = strlen(best_line);
 		if (best_line_len > shown_best_line_len || strncmp(best_line, shown_best_line, best_line_len) != 0) {
-			debug("New best line: '%s' '%s'\n", best_line, shown_best_line);
+//			debug("New best line: '%s' '%s'\n", best_line, shown_best_line);
 			memcpy(shown_best_line, best_line, BUFSIZ);
 			shown_best_line_len = best_line_len;
 			set_analysis_best_line(best_line_san);
 		} else {
-			debug("best line NOT new: '%s' '%s'\n", best_line, shown_best_line);
+//			debug("best line NOT new: '%s' '%s'\n", best_line, shown_best_line);
 		}
-
 	}
 
 	char depthString[32];
@@ -455,6 +539,7 @@ void parse_info(char *info) {
 		snprintf(npsString, 32, "%d kN/s", npsInt / 1000);
 		set_analysis_nodes_per_second(npsString);
 	}
+
 }
 
 void best_line_to_san(char *line, char *san) {
@@ -562,13 +647,16 @@ void parse_uci_buffer(void) {
 	int i = 0;
 	while (i > -1) {
 		i = uci_scanner_lex();
+//		if (is_stop_requested()) {
+//			printf("While STOP_REQUESTED read from engine: %d: '%s'\n", is_stop_requested(), uci_scanner_text);
+//		}
 		switch (i) {
 			case UCI_OK: {
-				uci_ok = true;
+				set_uci_ok(true);
 				break;
 			}
 			case UCI_READY: {
-				uci_ready = true;
+				set_uci_ready(true);
 				break;
 			}
 			case UCI_ID_NAME: {
@@ -610,7 +698,7 @@ void parse_uci_buffer(void) {
 void *parse_uci_function(void *ignored) {
 	fprintf(stdout, "[parse UCI thread] - Starting UCI parser\n");
 
-	while (g_atomic_int_get(&running_flag)) {
+	while(is_running_flag()) {
 		parse_uci_buffer();
 	}
 

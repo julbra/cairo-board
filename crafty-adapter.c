@@ -107,7 +107,7 @@ void parse_crafty_buffer(void) {
 
 void *parse_crafty_function(void *ptr) {
 
-	while(g_atomic_int_get(&running_flag)) {
+	while(is_running_flag()) {
 		parse_crafty_buffer();
 	}
 
