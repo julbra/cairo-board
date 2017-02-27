@@ -21,35 +21,34 @@ void test_random_animation(void) {
 }
 
 gboolean test_random_flip(gpointer trash) {
-	usleep(rand()%(10000));
-	if (rand()%2) {
-		g_signal_emit_by_name(board, "flip_board");
-	}
+
 //	auto_move(&black_set[PAWN5], 4, 4, 0, AUTO_SOURCE);
 	int i;
-		char w_name[28];
-		char b_name[28];
-		memset(w_name, 0, 28);
-		memset(b_name, 0, 28);
+	char w_name[28];
+	char b_name[28];
+	memset(w_name, 0, 28);
+	memset(b_name, 0, 28);
 
-		for (i=0; i<10+(rand()%18); i++) {
-			if (i!= 0 && !(rand()%6)) {
-				w_name[i] = ' ';
-			}
-			else {
-				w_name[i] = 'a'+(rand()%26);
-			}
-			if (i!= 0 && !(rand()%6)) {
-				b_name[i] = ' ';
-			}
-			else {
-				b_name[i] = 'a'+(rand()%26);
-			}
+	for (i = 0; i < 10 + (rand() % 18); i++) {
+		if (i != 0 && !(rand() % 6)) {
+			w_name[i] = ' ';
+		} else {
+			w_name[i] = 'a' + (rand() % 26);
 		}
-	start_game(w_name, b_name, 60, 0, (rand() % 2) ? 1 : -1, false);
+		if (i != 0 && !(rand() % 6)) {
+			b_name[i] = ' ';
+		} else {
+			b_name[i] = 'a' + (rand() % 26);
+		}
+	}
+//	start_game(w_name, b_name, 60, 0, (rand() % 2) ? 1 : -1, false);
 //	auto_move(&white_set[PAWN5], 4, 3, 0, MANUAL_SOURCE);
 //	set_last_move("e4");
 //	g_signal_emit_by_name(board, "got_move");
+
+	usleep((__useconds_t) (rand() % (1000000)));
+	debug("Random flipping!\n");
+	g_signal_emit_by_name(board, "flip-board");
 
 	return TRUE;
 }
@@ -58,8 +57,7 @@ void test_crazy_flip(void) {
 	struct timeval tv; // C requires "struct timval" instead of just "timeval"
 	gettimeofday(&tv, NULL);
 	srand(tv.tv_usec);
-
-	g_timeout_add(1000/2, test_random_flip, NULL);
+	g_timeout_add(2000, test_random_flip, NULL);
 }
 
 static gboolean random_channel_insert(gpointer trash) {

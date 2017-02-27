@@ -26,6 +26,7 @@
 #include "uci-adapter.h"
 #include "channels.h"
 #include "analysis_panel.h"
+#include "test.h"
 
 /* How much data we read from ICS at once
  * Try smaller values to test the stitching mechanism */
@@ -382,6 +383,7 @@ bool is_more_events_flag() {
 }
 
 void set_board_flipped(bool val) {
+	debug("-------------------------- Set board flip called! %i\n", val);
 	pthread_mutex_lock(&board_flipped_lock);
 	board_flipped = val;
 	pthread_mutex_unlock(&board_flipped_lock);
@@ -440,13 +442,13 @@ void piece_to_xy(chess_piece *piece, int *xy ,int wi, int hi) {
 }
 /******** </XY to IJ mapping helpers> ***********/
 
-extern cairo_surface_t *piecesSurf[12];
+extern cairo_surface_t *piece_surfaces[12];
 
 void assign_surfaces() {
 	int i;
-	for (i=0; i<16; i++) {
-		main_game->white_set[i].surf = piecesSurf[main_game->white_set[i].type];
-		main_game->black_set[i].surf = piecesSurf[main_game->black_set[i].type];
+	for (i = 0; i < 16; i++) {
+		main_game->white_set[i].surf = piece_surfaces[main_game->white_set[i].type];
+		main_game->black_set[i].surf = piece_surfaces[main_game->black_set[i].type];
 	}
 }
 
@@ -467,11 +469,13 @@ static gboolean on_board_draw(GtkWidget *pWidget, cairo_t *cdr) {
 }
 
 void flip_board(int wi, int hi) {
+	debug("Flipping board 1: %i\n", is_board_flipped());
 	pthread_mutex_lock(&board_flipped_lock);
 	board_flipped = !board_flipped;
 	pthread_mutex_unlock(&board_flipped_lock);
 	draw_board_surface(wi, hi);
 	draw_pieces_surface(wi, hi);
+	debug("Flipping board 2: %i\n", is_board_flipped());
 }
 
 int char_to_type(int whose_turn, char c) {
@@ -2587,6 +2591,7 @@ void start_game(char *w_name, char *b_name, int seconds, int increment, int rela
 
 	reset_game();
 	reset_moves_list_view(FALSE);
+
 	reset_board();
 
 	/* set window title with players' names */
@@ -3424,7 +3429,8 @@ void parse_ics_buffer(void) {
 				gdk_threads_enter();
 				draw_pieces_surface(old_wi, old_hi);
 				init_dragging_background(old_wi, old_hi);
-				init_highlight_surface(old_wi, old_hi);
+				init_highlight_under_surface(old_wi, old_hi);
+				init_highlight_over_surface(old_wi, old_hi);
 				gtk_widget_queue_draw(GTK_WIDGET(board));
 				gdk_threads_leave();
 				break;
@@ -3858,58 +3864,58 @@ char *get_eco_short(const char* fen_key) {
 int main (int argc, char **argv) {
 
 	int c;
-	static struct option long_options[] =
-	{
-		{"debug", 	no_argument, &debug_flag, TRUE},
-		{"d", 		no_argument, &debug_flag, TRUE},
-		{"first", 	no_argument, &test_first_player, TRUE},
-		{"login1",	required_argument, 0, ICS_TEST_HANDLE1},
-		{"login2",	required_argument, 0, ICS_TEST_HANDLE2},
-		{"ics",		no_argument, &ics_mode, TRUE},
-		{"crafty",		no_argument, &crafty_mode, TRUE},
-		{"firstguest",		no_argument, &crafty_first_guest, TRUE},
-		{"fig",		no_argument, &use_fig, TRUE},
-		{"icshost",	required_argument, 0, ICS_HOST_ARG},
-		{"icsport",	required_argument, 0, ICS_PORT_ARG},
-		{"lr",		required_argument, 0, LIGHT_RED_ARG},
-		{"lg",		required_argument, 0, LIGHT_GREEN_ARG},
-		{"lb",		required_argument, 0, LIGHT_BLUE_ARG},
-		{"dr",		required_argument, 0, DARK_RED_ARG},
-		{"dg",		required_argument, 0, DARK_GREEN_ARG},
-		{"db",		required_argument, 0, DARK_BLUE_ARG},
-		{"load",	required_argument, 0, LOAD_FILE_ARG},
-		{"gamenum",	required_argument, 0, LOAD_GAME_NUM_ARG},
-		{"delay",	required_argument, 0, AUTO_PLAY_DELAY_ARG},
-		{0, 0, 0, 0}
+	static struct option long_options[] = {
+			{"debug",      no_argument,       &debug_flag,         TRUE},
+			{"d",          no_argument,       &debug_flag,         TRUE},
+			{"first",      no_argument,       &test_first_player,  TRUE},
+			{"login1",     required_argument, 0,                   ICS_TEST_HANDLE1},
+			{"login2",     required_argument, 0,                   ICS_TEST_HANDLE2},
+			{"ics",        no_argument,       &ics_mode,           TRUE},
+			{"crafty",     no_argument,       &crafty_mode,        TRUE},
+			{"firstguest", no_argument,       &crafty_first_guest, TRUE},
+			{"fig",        no_argument,       &use_fig,            TRUE},
+			{"icshost",    required_argument, 0,                   ICS_HOST_ARG},
+			{"icsport",    required_argument, 0,                   ICS_PORT_ARG},
+			{"lr",         required_argument, 0,                   LIGHT_RED_ARG},
+			{"lg",         required_argument, 0,                   LIGHT_GREEN_ARG},
+			{"lb",         required_argument, 0,                   LIGHT_BLUE_ARG},
+			{"dr",         required_argument, 0,                   DARK_RED_ARG},
+			{"dg",         required_argument, 0,                   DARK_GREEN_ARG},
+			{"db",         required_argument, 0,                   DARK_BLUE_ARG},
+			{"load",       required_argument, 0,                   LOAD_FILE_ARG},
+			{"gamenum",    required_argument, 0,                   LOAD_GAME_NUM_ARG},
+			{"delay",      required_argument, 0,                   AUTO_PLAY_DELAY_ARG},
+			{0,            0,                 0,                   0}
 	};
 
 	opterr = 1;
 	optind = 1;
 	for(;;) {
-		/* getopt_long stores the option index here. */
+		// getopt_long stores the option index here
 		int option_index = 0;
 
 		c = getopt_long_only (argc, argv, "", long_options, &option_index);
 
-		/* Detect the end of the options. */
-		if (c == -1)
+		// Detect the end of the options
+		if (c == -1) {
 			break;
+		}
 
 		switch (c) {
 			case ICS_HOST_ARG:
-				ics_host_specified = TRUE;
+				ics_host_specified = true;
 				strncpy(ics_host, optarg, sizeof(ics_host));
 				break;
 			case ICS_TEST_HANDLE1:
-				ics_handle1_specified = TRUE;
+				ics_handle1_specified = true;
 				strncpy(ics_handle1, optarg, sizeof(ics_handle1));
 				break;
 			case ICS_TEST_HANDLE2:
-				ics_handle2_specified = TRUE;
+				ics_handle2_specified = true;
 				strncpy(ics_handle2, optarg, sizeof(ics_handle2));
 				break;
 			case ICS_PORT_ARG:
-				ics_port_specified = TRUE;
+				ics_port_specified = true;
 				ics_port = (unsigned short) atoi(optarg);
 				break;
 			case LIGHT_RED_ARG:
@@ -3931,11 +3937,11 @@ int main (int argc, char **argv) {
 				db = (double) atoi(optarg)/255.0;
 				break;
 			case LOAD_FILE_ARG:
-				load_file_specified = TRUE;
+				load_file_specified = true;
 				strncpy(file_to_load, optarg, sizeof(file_to_load));
 				break;
 			case LOAD_GAME_NUM_ARG:
-				game_to_load = atoi(optarg);
+				game_to_load = (unsigned int) atoi(optarg);
 				break;
 			case AUTO_PLAY_DELAY_ARG:
 				auto_play_delay = atoi(optarg);
@@ -4313,7 +4319,6 @@ int main (int argc, char **argv) {
 //	test_crazy_flip();
 //	test_random_channel_insert();
 //	test_random_title();
-//	test_random_flip();
 //	start_new_uci_game();
 	///////////////////////
 
