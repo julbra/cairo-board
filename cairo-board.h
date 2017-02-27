@@ -254,8 +254,6 @@ extern double lr, lg, lb;
 extern int needs_update;
 extern int needs_scale;
 
-extern gboolean flipped;
-
 extern int mouse_clicked[2];
 extern int old_wi, old_hi;
 extern double w_ratio;
@@ -285,6 +283,8 @@ void set_moveit_flag(bool);
 bool is_running_flag();
 bool is_more_events_flag();
 void set_more_events_flag(bool);
+void set_board_flipped(bool val);
+bool is_board_flipped();
 
 extern chess_piece *to_promote;
 

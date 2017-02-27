@@ -1,17 +1,16 @@
 #include <stdlib.h>
 #include <gtk/gtk.h>
-
 #include <librsvg/rsvg.h>
-
 #include <sys/time.h>
-
 #include <execinfo.h>
-
 #include <unistd.h>
 #include <math.h>
-
 #include <string.h>
-
+#include <locale.h>
+#include <errno.h>
+#include <pthread.h>
+#include <getopt.h>
+#include <cairo-ft.h>
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
@@ -22,41 +21,11 @@
 #include "drawing-backend.h"
 #include "san_scanner.h"
 #include "ics_scanner.h"
-#include "clocks.h"
 #include "clock-widget.h"
-#include "test.h"
 #include "crafty-adapter.h"
 #include "uci-adapter.h"
 #include "channels.h"
 #include "analysis_panel.h"
-
-#include <locale.h>
-
-// semaphore stuff
-#include <semaphore.h>
-
-#include <sys/types.h>
-#include <sys/ipc.h>
-#include <sys/shm.h>
-#include <sys/sem.h>
-
-// network stuff
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <errno.h>
-
-// threading stuff
-#include <pthread.h>
-
-// getopt stuff
-#include <getopt.h>
-
-// wchar stuff
-#include <wchar.h>
-#include <cairo-ft.h>
-
-#define PRODUCT "cairo-board"
 
 /* How much data we read from ICS at once
  * Try smaller values to test the stitching mechanism */
@@ -191,24 +160,20 @@ static GtkWidget* go_forward_button;
 
 static GtkWidget *clock_widget;
 
-gboolean flipped = 0;
-
 static int last_move_x, last_move_y;
 static int last_release_x, last_release_y;
 static int dragging_prev_x = 0;
 static int dragging_prev_y = 0;
+static bool board_flipped = 0;
+
+static int playing = 0;
+static guint de_scale_timer = 0;
+static guint auto_play_timer = 0;
+static guint clock_refresher = 0;
 
 int old_wi, old_hi;
 double w_ratio = 1.0;
 double h_ratio = 1.0;
-
-
-
-static int playing = 0;
-
-static guint de_scale_timer = 0;
-static guint auto_play_timer = 0;
-static guint clock_refresher = 0;
 
 // FreeType
 FT_Library library;
@@ -305,6 +270,7 @@ pthread_mutex_t dragging_prev_xy_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t moveit_flag_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t running_flag_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t more_events_flag_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t board_flipped_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void cleanup_mutexes(void) {
 	pthread_mutex_destroy(&mutex_last_move);
@@ -314,6 +280,7 @@ void cleanup_mutexes(void) {
 	pthread_mutex_destroy(&moveit_flag_lock);
 	pthread_mutex_destroy(&running_flag_lock);
 	pthread_mutex_destroy(&more_events_flag_lock);
+	pthread_mutex_destroy(&board_flipped_lock);
 }
 
 char last_move[MOVE_BUFF_SIZE];
@@ -414,6 +381,20 @@ bool is_more_events_flag() {
 	return val;
 }
 
+void set_board_flipped(bool val) {
+	pthread_mutex_lock(&board_flipped_lock);
+	board_flipped = val;
+	pthread_mutex_unlock(&board_flipped_lock);
+}
+
+bool is_board_flipped() {
+	bool val;
+	pthread_mutex_lock(&board_flipped_lock);
+	val = board_flipped;
+	pthread_mutex_unlock(&board_flipped_lock);
+	return val;
+}
+
 /************************ </MULTITHREAD STUFF> *****************************/
 
 
@@ -429,6 +410,7 @@ void create_signals(void) {
 
 /******** <XY to IJ mapping helpers> ***********/
 void xy_to_loc(int x, int y, int *pos, int wi, int hi) {
+	bool flipped = is_board_flipped();
 	int a = (int) 8*x/wi;
 	int b = (int) 8*y/hi;
 	pos[0] = (flipped ? 7 - a : a) ;
@@ -444,6 +426,7 @@ chess_square *xy_to_square(chess_game *game, int x, int y, int wi, int hi) {
 
 /* Converts column,row to x,y coordinates */
 void ij_to_xy(int i, int j, int *xy, int wi, int hi) {
+	bool flipped = is_board_flipped();
 	xy[0] = (wi * ((flipped ? 7 - i : i) + .5f)) / 8;
 	xy[1] = (hi * ((flipped ? 7 - j : j) + .5f)) / 8;
 }
@@ -484,7 +467,9 @@ static gboolean on_board_draw(GtkWidget *pWidget, cairo_t *cdr) {
 }
 
 void flip_board(int wi, int hi) {
-	flipped = !flipped;
+	pthread_mutex_lock(&board_flipped_lock);
+	board_flipped = !board_flipped;
+	pthread_mutex_unlock(&board_flipped_lock);
 	draw_board_surface(wi, hi);
 	draw_pieces_surface(wi, hi);
 }
@@ -1169,10 +1154,8 @@ static gboolean on_get_uci_move(GtkWidget *pWidget) {
 	return true;
 }
 
-static gboolean on_flip_board (GtkWidget *pWidget) {
-
-	handle_flip_board(pWidget);
-
+static gboolean on_flip_board(GtkWidget *pWidget) {
+	handle_flip_board(pWidget, true);
 	return TRUE;
 }
 

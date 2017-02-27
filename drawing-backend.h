@@ -22,7 +22,7 @@ void handle_button_release(void);
 void handle_left_button_press(GtkWidget *pWidget, int wi, int hi, int x, int y);
 void handle_right_button_press(GtkWidget *pWidget, int wi, int hi);
 void handle_middle_button_press(GtkWidget *pWidget, int wi, int hi);
-void handle_flip_board(GtkWidget *pWidget);
+void handle_flip_board(GtkWidget *pWidget, bool lock_threads);
 void init_dragging_background(int wi, int hi);
 void init_highlight_surface(int wi, int hi);
 void draw_board_surface(int wi, int hi);

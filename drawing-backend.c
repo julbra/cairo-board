@@ -90,8 +90,11 @@ void apply_surface_at(cairo_t *cdc, cairo_surface_t *surf, double x, double y, d
 void draw_board_surface(int width, int height) {
 
 	int j,k;
-	double tx = width/8.0;
-	double ty = height/8.0;
+	double tx = width / 8.0;
+	double ty = height / 8.0;
+
+	bool flipped = is_board_flipped();
+	printf("Board flipped? %d\n", flipped);
 
 	// Create a "memory-buffer" surface to draw on
 	cairo_surface_destroy(layer_0);
@@ -1764,22 +1767,7 @@ void handle_left_button_press(GtkWidget *pWidget, int wi, int hi, int x, int y) 
 }
 
 void handle_right_button_press(GtkWidget *pWidget, int wi, int hi) {
-	// Logical flip and repaint pieces and board layers
-	flip_board(old_wi, old_hi);
-
-	// Reconstruct cache layer
-	cairo_t *cache_cr = cairo_create(cache_layer);
-	paint_layers(cache_cr);
-	cairo_destroy(cache_cr);
-
-	// Update displayed board
-	cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(pWidget));
-	cairo_set_source_surface(cdr, cache_layer, 0, 0);
-	cairo_set_operator(cdr, CAIRO_OPERATOR_SOURCE);
-	cairo_paint(cdr);
-
-	init_dragging_background(old_wi, old_hi);
-	cairo_destroy(cdr);
+	handle_flip_board(pWidget, false);
 }
 
 void handle_middle_button_press(GtkWidget *pWidget, int wi, int hi) {
@@ -1801,9 +1789,10 @@ void handle_middle_button_press(GtkWidget *pWidget, int wi, int hi) {
 	//g_timeout_add(300, auto_play_one_move, pWidget);
 }
 
-void handle_flip_board(GtkWidget *pWidget) {
-
-	gdk_threads_enter();
+void handle_flip_board(GtkWidget *pWidget, bool lock_threads) {
+	if (lock_threads) {
+		gdk_threads_enter();
+	}
 
 	// Logical flip and repaint pieces layer
 	flip_board(old_wi, old_hi);
@@ -1812,9 +1801,6 @@ void handle_flip_board(GtkWidget *pWidget) {
 	cairo_t *cache_cr = cairo_create(cache_layer);
 	paint_layers(cache_cr);
 	cairo_destroy(cache_cr);
-
-	// This is needed because we're in a custom signal handler
-
 
 	// Update displayed board
 	cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(pWidget));
@@ -1826,11 +1812,9 @@ void handle_flip_board(GtkWidget *pWidget) {
 
 	init_dragging_background(old_wi, old_hi);
 
-	gdk_threads_leave();
-
-
-	// Kludge to wake-up the window
-	//g_main_context_wakeup(NULL);
+	if (lock_threads) {
+		gdk_threads_leave();
+	}
 }
 
 void *process_moves(void *ptr) {
@@ -2291,7 +2275,7 @@ void choose_promote_handler(void *GtkWidget, gpointer value) {
 
 void reset_board(void) {
 	// Need to reassign surfaces in case of promotions during previous game
-	flipped = 0;
+	set_board_flipped(false);
 	mouse_clicked[0] = -1;
 	mouse_clicked[1] = -1;
 	lm_source_col = -1;
