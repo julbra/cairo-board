@@ -81,7 +81,7 @@ gboolean use_fig = FALSE;
 gboolean show_last_move = FALSE;
 gboolean always_promote_to_queen = FALSE;
 gboolean highlight_moves = FALSE;
-gboolean highlight_last_move = FALSE;
+bool highlight_last_move = FALSE;
 
 gboolean test_first_player = FALSE;
 
@@ -163,8 +163,8 @@ static GtkWidget *clock_widget;
 
 static int last_move_x, last_move_y;
 static int last_release_x, last_release_y;
-static int dragging_prev_x = 0;
-static int dragging_prev_y = 0;
+static double dragging_prev_x = 0;
+static double dragging_prev_y = 0;
 static bool board_flipped = 0;
 
 static int playing = 0;
@@ -322,14 +322,14 @@ void set_last_release_xy(int x, int y) {
 	pthread_mutex_unlock(&last_release_xy_lock);
 }
 
-void get_dragging_prev_xy(int *x, int *y) {
+void get_dragging_prev_xy(double *x, double *y) {
 	pthread_mutex_lock(&dragging_prev_xy_lock);
 	*x = dragging_prev_x;
 	*y = dragging_prev_y;
 	pthread_mutex_unlock(&dragging_prev_xy_lock);
 }
 
-void set_dragging_prev_xy(int x, int y) {
+void set_dragging_prev_xy(double x, double y) {
 	pthread_mutex_lock(&dragging_prev_xy_lock);
 	dragging_prev_x = x;
 	dragging_prev_y = y;
@@ -423,17 +423,17 @@ chess_square *xy_to_square(chess_game *game, int x, int y, int wi, int hi) {
 }
 
 /* Converts column,row to x,y coordinates */
-void ij_to_xy(int i, int j, int *xy, int wi, int hi) {
+void ij_to_xy(int i, int j, double *xy, int wi, int hi) {
 	bool flipped = is_board_flipped();
 	xy[0] = (wi * ((flipped ? 7 - i : i) + .5f)) / 8;
 	xy[1] = (hi * ((flipped ? 7 - j : j) + .5f)) / 8;
 }
 
-void loc_to_xy(int column, int row, int *xy, int wi, int hi) {
+void loc_to_xy(int column, int row, double *xy, int wi, int hi) {
 	ij_to_xy(column, 7-row, xy, wi, hi);
 }
 
-void piece_to_xy(chess_piece *piece, int *xy ,int wi, int hi) {
+void piece_to_xy(chess_piece *piece, double *xy ,int wi, int hi) {
 	loc_to_xy(piece->pos.column, piece->pos.row, xy, wi, hi);
 }
 /******** </XY to IJ mapping helpers> ***********/
@@ -2683,9 +2683,9 @@ void popup_accept_decline_box(const char *title, const char *message, gboolean l
 
 	gtk_message_dialog_format_secondary_text(GTK_MESSAGE_DIALOG(dialog), "%s", message);
 	GtkWidget *accept_button = gtk_dialog_add_button(GTK_DIALOG(dialog), "Accept", GTK_RESPONSE_ACCEPT);
-	gtk_button_set_image(GTK_BUTTON(accept_button), gtk_image_new_from_stock(GTK_STOCK_APPLY, GTK_ICON_SIZE_BUTTON));
+	gtk_button_set_image(GTK_BUTTON(accept_button), gtk_image_new_from_icon_name("gtk-apply", GTK_ICON_SIZE_BUTTON));
 	GtkWidget *decline_button = gtk_dialog_add_button(GTK_DIALOG(dialog), "Decline", GTK_RESPONSE_REJECT);
-	gtk_button_set_image(GTK_BUTTON(decline_button), gtk_image_new_from_stock(GTK_STOCK_CANCEL, GTK_ICON_SIZE_BUTTON));
+	gtk_button_set_image(GTK_BUTTON(decline_button), gtk_image_new_from_icon_name("gtk-cancel", GTK_ICON_SIZE_BUTTON));
 	/* Send accept or decline to ics or ignore when the user responds to it */
 	g_signal_connect_swapped (dialog, "response",
 			G_CALLBACK (handle_accept_decline_response),
@@ -2812,9 +2812,10 @@ GtkWidget *create_login_box(void) {
 
 
 	GtkWidget *login_button = gtk_dialog_add_button(GTK_DIALOG(login_dialog), "Login", GTK_RESPONSE_ACCEPT);
-	gtk_button_set_image(GTK_BUTTON(login_button), gtk_image_new_from_stock(GTK_STOCK_APPLY, GTK_ICON_SIZE_BUTTON));
+	gtk_button_set_image(GTK_BUTTON(login_button), gtk_image_new_from_icon_name("gtk-apply", GTK_ICON_SIZE_MENU));
+
 	GtkWidget *decline_button = gtk_dialog_add_button(GTK_DIALOG(login_dialog), "Cancel", GTK_RESPONSE_REJECT);
-	gtk_button_set_image(GTK_BUTTON(decline_button), gtk_image_new_from_stock(GTK_STOCK_CANCEL, GTK_ICON_SIZE_BUTTON));
+	gtk_button_set_image(GTK_BUTTON(decline_button), gtk_image_new_from_icon_name("gtk-cancel", GTK_ICON_SIZE_MENU));
 
 	GtkWidget *content_area = gtk_dialog_get_content_area(GTK_DIALOG (login_dialog));
 	GtkWidget *login_label = gtk_label_new("login:");

@@ -21,7 +21,7 @@
 
 /* Prototypes */
 static void clean_last_drag_step(cairo_t *cdc, double wi, double hi);
-static void plot_coords(int start[2], int mid[2], int end[2], int points_to_plot, int **plots, int *nPlots);
+static void plot_coords(double start[2], double mid[2], double end[2], int points_to_plot, double **plots, int *nPlots);
 static void free_anim_data(struct anim_data *anim);
 static void highlight_square(cairo_t *dc, int col, int row, double r, double g, double b, double a, int wi, int hi);
 static void update_dragging_background(chess_piece *piece, int wi, int hi);
@@ -244,7 +244,7 @@ void draw_pieces_surface(int width, int height) {
 	pieces_layer = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
 	dc = cairo_create(pieces_layer);
 
-	int xy[2];
+	double xy[2];
 	for (i = 0; i < 16; i++) {
 		if (!main_game->white_set[i].dead) {
 			piece_to_xy(&main_game->white_set[i], xy, width, height);
@@ -265,7 +265,7 @@ void draw_pieces_surface(int width, int height) {
 void update_pieces_surface_by_loc(int width, int height, int old_col, int old_row, int new_col, int new_row) {
 
 	cairo_t* dc;
-	int xy[2];
+	double xy[2];
 
 	// size of a square
 	double ww = width / 8.0f;
@@ -303,7 +303,7 @@ void update_pieces_surface_by_loc(int width, int height, int old_col, int old_ro
 // This must be called after a real move
 void update_pieces_surface(int width, int height, int old_col, int old_row, chess_piece *piece) {
 	cairo_t* dc;
-	int xy[2];
+	double xy[2];
 
 	// size of a square
 	double ww = width/8.0f;
@@ -346,7 +346,7 @@ void restore_piece_to_surface(int width, int height, chess_piece *piece) {
 
 	// Add new piece to surface
 	if (piece != NULL) {
-		int xy[2];
+		double xy[2];
 		cairo_t *dc = cairo_create(pieces_layer);
 		loc_to_xy(piece->pos.column, piece->pos.row, xy, width, height);
 		cairo_rectangle(dc, floor(xy[0] - width / 16.0f), floor(xy[1] - height / 16.0f), ceil(ww), ceil(hh));
@@ -360,20 +360,20 @@ void restore_piece_to_surface(int width, int height, chess_piece *piece) {
 
 void paint_layers(cairo_t *cdc) {
 	// Board
-	cairo_set_operator (cdc, CAIRO_OPERATOR_SOURCE);
-	cairo_set_source_surface (cdc, board_layer, 0.0f, 0.0f);
+	cairo_set_operator(cdc, CAIRO_OPERATOR_SOURCE);
+	cairo_set_source_surface(cdc, board_layer, 0.0f, 0.0f);
 	cairo_paint(cdc);
 
 	// Under light
-	cairo_set_operator (cdc, CAIRO_OPERATOR_OVER);
-	cairo_set_source_surface (cdc, highlight_under_layer, 0.0f, 0.0f);
+	cairo_set_operator(cdc, CAIRO_OPERATOR_OVER);
+	cairo_set_source_surface(cdc, highlight_under_layer, 0.0f, 0.0f);
 
 	// Pieces
-	cairo_set_source_surface (cdc, pieces_layer, 0.0f, 0.0f);
+	cairo_set_source_surface(cdc, pieces_layer, 0.0f, 0.0f);
 	cairo_paint(cdc);
 
 	// Over light
-	cairo_set_source_surface (cdc, highlight_over_layer, 0.0f, 0.0f);
+	cairo_set_source_surface(cdc, highlight_over_layer, 0.0f, 0.0f);
 	cairo_paint(cdc);
 }
 
@@ -423,7 +423,7 @@ void draw_full_update(cairo_t *cdr, int wi, int hi) {
 	paint_layers(cache_cr);
 	if (mouse_dragged_piece != NULL && is_moveit_flag()) {
 		debug("Dragged while resetting!\n");
-		int dragged_x, dragged_y;
+		double dragged_x, dragged_y;
 		get_dragging_prev_xy(&dragged_x, &dragged_y);
 		cairo_set_source_surface (cache_cr, mouse_dragged_piece->surf, dragged_x-wi/16.0f, dragged_y-hi/16.0f);
 		cairo_set_operator(cache_cr, CAIRO_OPERATOR_OVER);
@@ -469,7 +469,7 @@ void draw_cheap_repaint(cairo_t *cdr, int wi, int hi) {
 
 	if (mouse_dragged_piece != NULL && is_moveit_flag()) {
 		debug("Dragged while resetting!\n");
-		int dragged_x, dragged_y;
+		double dragged_x, dragged_y;
 		get_dragging_prev_xy(&dragged_x, &dragged_y);
 		cairo_set_source_surface (cache_cr, mouse_dragged_piece->surf, dragged_x-wi/16.0f, dragged_y-hi/16.0f);
 		cairo_set_operator(cache_cr, CAIRO_OPERATOR_OVER);
@@ -485,7 +485,7 @@ void draw_cheap_repaint(cairo_t *cdr, int wi, int hi) {
 
 /* convenience method, internal only */
 static void preSelect(int on_off, cairo_t* dc, int i, int j, int wi, int hi) {
-	int xy[2];
+	double xy[2];
 	double ww = wi/8.0f;
 	//double hh = hi/8.0f;
 	loc_to_xy(i, j, xy, wi, hi);
@@ -567,7 +567,7 @@ void de_highlight_square(cairo_t *dc, int col, int row, int wi, int hi) {
 	}
 	double line_width = 4*half_line_width;
 
-	int xy[2];
+	double xy[2];
 	loc_to_xy(col, row, xy, wi, hi);
 	cairo_rectangle(dc, floor(xy[0]-wi/16.0f), floor(xy[1]-hi/16.0f), ceil(wi/8.0f+1), ceil(hi/8.0f+1));
 	cairo_rectangle(dc, ceil(xy[0]-wi/16.0f+line_width+1), ceil(xy[1]-hi/16.0f+line_width+1), floor(wi/8.0f-2*line_width-2), floor(hi/8.0f-2*line_width-2));
@@ -587,7 +587,7 @@ void de_highlight_square(cairo_t *dc, int col, int row, int wi, int hi) {
 
 void clean_highlight_surface(int col, int row, int wi, int hi) {
 
-	int xy[2];
+	double xy[2];
 	loc_to_xy(col, row, xy, wi, hi);
 	cairo_t *highlight = cairo_create(highlight_over_layer);
 	cairo_rectangle(highlight, floor(xy[0]-wi/16.0f), floor(xy[1]-hi/16.0f), ceil(wi/8.0f+1), ceil(hi/8.0f+1));
@@ -599,16 +599,16 @@ void clean_highlight_surface(int col, int row, int wi, int hi) {
 }
 
 void apply_highlighted_square_over(cairo_t *dc, int col, int row, int wi, int hi) {
-	double half_line_width = ((double)wi)/(8.0f*45.0f);
+	double half_line_width = ((double) wi) / (8.0f * 45.0f);
 	if (half_line_width < 1.0f) {
 		half_line_width = 1.0f;
 	}
-	double line_width = 4*half_line_width;
-	int xy[2];
+	double line_width = 4 * half_line_width;
+	double xy[2];
 	loc_to_xy(col, row, xy, wi, hi);
 
 	cairo_save(dc);
-	cairo_rectangle(dc, floor(xy[0]-wi/16.0f), floor(xy[1]-hi/16.0f), ceil(wi/8.0f+1), ceil(hi/8.0f+1));
+	cairo_rectangle(dc, floor(xy[0] - wi / 16.0f), floor(xy[1] - hi / 16.0f), ceil(wi / 8.0f + 1), ceil(hi / 8.0f + 1));
 	cairo_rectangle(dc, ceil(xy[0]-wi/16.0f+line_width+1), ceil(xy[1]-hi/16.0f+line_width+1), floor(wi/8.0f-2*line_width-2), floor(hi/8.0f-2*line_width-2));
 	cairo_clip(dc);
 	cairo_set_source_surface(dc, highlight_over_layer, 0, 0);
@@ -616,15 +616,14 @@ void apply_highlighted_square_over(cairo_t *dc, int col, int row, int wi, int hi
 	cairo_restore(dc);
 }
 
-
 static gboolean animate_one_step(gpointer data) {
 
 	if (!is_running_flag()) {
 		return FALSE;
 	}
 
-	int xx, yy;
-	int prev_x, prev_y;
+	double xx, yy;
+	double prev_x, prev_y;
 
 	struct anim_data *anim = (struct anim_data *)data;
 
@@ -685,7 +684,7 @@ static gboolean animate_one_step(gpointer data) {
 			if (anim->killed_by == KILLED_BY_OTHER_ANIMATION_TAKING ||
 					anim->killed_by == KILLED_BY_OTHER_ANIMATION_SAME_PIECE) {
 				debug("Animation was %s!\n",(anim->killed_by == KILLED_BY_OTHER_ANIMATION_TAKING?"KILLED_BY_OTHER_ANIMATION_TAKING":"KILLED_BY_OTHER_ANIMATION_SAME_PIECE"));
-				int killed_xy[2];
+				double killed_xy[2];
 				cairo_restore(dragging_dc);
 				loc_to_xy(anim->new_col, anim->new_row, killed_xy, wi, hi);
 				cairo_rectangle(dragging_dc, floor(killed_xy[0]-wi/16), floor(killed_xy[1]-hi/16), ceil(ww), ceil(hh));
@@ -711,7 +710,7 @@ static gboolean animate_one_step(gpointer data) {
 
 			// If a piece is being dragged and overlaps with the animation, repaint the dragged piece above to cache layer
 			if (mouse_dragged_piece != NULL && is_moveit_flag()) {
-				int dragged_x, dragged_y;
+				double dragged_x, dragged_y;
 				get_dragging_prev_xy(&dragged_x, &dragged_y);
 				//FIXME: better lock access to mouse_dragged_piece (this could segfault otherwise)
 				cairo_set_source_surface (cache_dc, mouse_dragged_piece->surf, dragged_x-wi/16.0f, dragged_y-hi/16.0f);
@@ -784,7 +783,7 @@ static gboolean animate_one_step(gpointer data) {
 
 	// If a piece is being dragged and overlaps with the animation, repaint the dragged piece above to cache layer
 	if (mouse_dragged_piece != NULL && is_moveit_flag()) {
-		int dragged_x, dragged_y;
+		double dragged_x, dragged_y;
 		get_dragging_prev_xy(&dragged_x, &dragged_y);
 		//FIXME: better lock access to mouse_dragged_piece (this could segfault otherwise)
 		cairo_set_source_surface (cache_dc, mouse_dragged_piece->surf, dragged_x-wi/16.0f, dragged_y-hi/16.0f);
@@ -846,7 +845,7 @@ static gboolean animate_one_step(gpointer data) {
 		// repaint the dragged piece above to cache layer
 		if (mouse_dragged_piece != NULL && is_moveit_flag()) {
 			cairo_fill_preserve(cache_dc);
-			int dragged_x, dragged_y;
+			double dragged_x, dragged_y;
 			get_dragging_prev_xy(&dragged_x, &dragged_y);
 			//FIXME: better lock access to mouse_dragged_piece (this could segfault otherwise)
 			cairo_set_source_surface (cache_dc, mouse_dragged_piece->surf, dragged_x-wi/16.0f, dragged_y-hi/16.0f);
@@ -860,7 +859,7 @@ static gboolean animate_one_step(gpointer data) {
 		int or = -1;
 		int nc = -1;
 		int nr = -1;
-		int rook_xy[2];
+		double rook_xy[2];
 		if (anim->move_result > 0 && anim->move_result & CASTLE) {
 			switch (anim->move_result & MOVE_DETAIL_MASK) {
 				case W_CASTLE_LEFT:
@@ -903,7 +902,7 @@ static gboolean animate_one_step(gpointer data) {
 			// repaint the dragged piece above to cache layer
 			if (mouse_dragged_piece != NULL && is_moveit_flag()) {
 				cairo_fill_preserve(cache_dc);
-				int dragged_x, dragged_y;
+				double dragged_x, dragged_y;
 				get_dragging_prev_xy(&dragged_x, &dragged_y);
 				//FIXME: better lock access to mouse_dragged_piece (this could segfault otherwise)
 				cairo_set_source_surface (cache_dc, mouse_dragged_piece->surf, dragged_x-wi/16.0f, dragged_y-hi/16.0f);
@@ -928,7 +927,7 @@ static gboolean animate_one_step(gpointer data) {
 			// repaint the dragged piece above to cache layer
 			if (mouse_dragged_piece != NULL && is_moveit_flag()) {
 				cairo_fill_preserve(cache_dc);
-				int dragged_x, dragged_y;
+				double dragged_x, dragged_y;
 				get_dragging_prev_xy(&dragged_x, &dragged_y);
 				//FIXME: better lock access to mouse_dragged_piece (this could segfault otherwise)
 				cairo_set_source_surface (cache_dc, mouse_dragged_piece->surf, dragged_x-wi/16.0f, dragged_y-hi/16.0f);
@@ -942,7 +941,7 @@ static gboolean animate_one_step(gpointer data) {
 		}
 
 		// handle en-passant
-		int pawn_xy[2];
+		double pawn_xy[2];
 		if (anim->move_result > 0 && anim->move_result & EN_PASSANT) {
 			loc_to_xy(anim->new_col, anim->new_row + (anim->piece->colour ? 1 : -1), pawn_xy, wi, hi);
 			// repaint square where eaten pawn was
@@ -982,7 +981,7 @@ static gboolean animate_one_step(gpointer data) {
 				de_highlight_square(cache_dc, lm_dest_col, lm_dest_row, wi, hi);
 
 				// Special clipping
-				int xy[2];
+				double xy[2];
 				loc_to_xy(lm_source_col, lm_source_row, xy, wi, hi);
 				cairo_rectangle(cdr, floor(xy[0]-wi/16.0f), floor(xy[1]-hi/16.0f), ceil(wi/8.0f+1), ceil(hi/8.0f+1));
 				loc_to_xy(lm_dest_col, lm_dest_row, xy, wi, hi);
@@ -1002,6 +1001,7 @@ static gboolean animate_one_step(gpointer data) {
 			cairo_destroy(high_cr);
 
 			// update cache surface (used for scaling)
+			// FIXME: this breaks the cache layer
 			apply_highlighted_square_over(cache_dc, lm_source_col, lm_source_row, wi, hi);
 			apply_highlighted_square_over(cache_dc, lm_dest_col, lm_dest_row, wi, hi);
 
@@ -1012,7 +1012,7 @@ static gboolean animate_one_step(gpointer data) {
 			cairo_destroy(drag_cr);
 
 			// Special clipping
-			int xy[2];
+			double xy[2];
 			loc_to_xy(lm_source_col, lm_source_row, xy, wi, hi);
 			cairo_rectangle(cdr, floor(xy[0]-wi/16.0f), floor(xy[1]-hi/16.0f), ceil(wi/8.0f+1), ceil(hi/8.0f+1));
 			loc_to_xy(lm_dest_col, lm_dest_row, xy, wi, hi);
@@ -1047,8 +1047,8 @@ static gboolean animate_one_step(gpointer data) {
 		cairo_paint(cdr);
 
 		// debug : uncomment the following to highlight repainted areas
-		//cairo_set_source_rgba (cdr, 0.0f, 1.0f, 0.0f, .75f);
-		//cairo_paint(cdr);
+//		cairo_set_source_rgba (cdr, 0.0f, 1.0f, 0.0f, .75f);
+//		cairo_paint(cdr);
 
 		cairo_destroy(cdr);
 
@@ -1104,7 +1104,7 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 		double ww = wi/8.0f;
 		double hh = hi/8.0f;
 
-		int dragged_x, dragged_y;
+		double dragged_x, dragged_y;
 		get_dragging_prev_xy(&dragged_x, &dragged_y);
 
 		// clip cr to repaint only needed square
@@ -1155,8 +1155,9 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 			if (move_result & PROMOTE) {
 				sprintf(uci_mv, "%c%c%c%c%c\n",
 				        'a' + old_col, '1' + old_row, 'a' + new_col, '1' + new_row,
-				        (char) (type_to_char(piece->type) + 32));
-				debug("auto_move promote! int %d -> SAN %c -> UCI %c\n", piece->type, type_to_char(piece->type), (char) (type_to_char(piece->type) + 32));
+				        (char) (type_to_char(main_game->promo_type) + 32));
+				debug("auto_move promote! int %d -> SAN %c -> UCI %c\n", main_game->promo_type,
+				      type_to_char(main_game->promo_type), (char) (type_to_char(main_game->promo_type) + 32));
 				send_to_uci(uci_mv);
 			} else {
 				sprintf(uci_mv, "%c%c%c%c\n",
@@ -1173,13 +1174,13 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 			update_eco_tag(lock_threads);
 		}
 
-		int n_xy[2];
-		int o_xy[2];
+		double n_xy[2];
+		double o_xy[2];
 		loc_to_xy(old_col, old_row, o_xy, wi, hi);
 		loc_to_xy(new_col, new_row, n_xy, wi, hi);
 
 		double points_to_plot = sqrt( pow(abs(n_xy[0]-o_xy[0]), 2) + pow(abs(n_xy[1]-o_xy[1]), 2));
-		points_to_plot *= 5.0f*16.0f/(wi+hi);
+		points_to_plot *= 5.0f * 16.0f / (wi + hi);
 		//points_to_plot *= 10.0f*5.0f*16.0f/(wi+hi);
 		//printf("POINTS TO PLOT == %f, wi %d, hi %d\n", points_to_plot, wi, hi);
 		if (points_to_plot < 12) {
@@ -1192,7 +1193,7 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 			points_to_plot = 22;
 		}
 
-		int mid[2];
+		double mid[2];
 		if (piece->type != W_KNIGHT && piece->type != B_KNIGHT) {
 			mid[0] = (n_xy[0]+o_xy[0])/2.0;
 			mid[1] = (n_xy[1]+o_xy[1])/2.0;
@@ -1214,7 +1215,7 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 //		points_to_plot *= 2.0f;
 		//points_to_plot /= 3.0f;
 
-		int **anim_steps;
+		double **anim_steps;
 		// this will be freed when we free the anim structure!
 
 		anim_steps = malloc(ANIM_SIZE*sizeof(int*));
@@ -1290,23 +1291,22 @@ static void update_dragging_background(chess_piece *piece, int wi, int hi) {
 
 	cairo_t *drag_dc;
 
-	double ww = wi/8.0f;
-	double hh = hi/8.0f;
-	int xy[2];
+	double ww = wi / 8.0f;
+	double hh = hi / 8.0f;
 
+	double xy[2];
 	piece_to_xy(piece, xy, wi, hi);
 
 	drag_dc = cairo_create(dragging_background);
 
 	/* Repaint square from which piece originated with layer0 (the board)
 	 * which means we remove the dragged piece */
-	cairo_rectangle(drag_dc, xy[0]-wi/16.0f, xy[1]-hi/16.0f, ww, hh);
-	cairo_set_source_surface (drag_dc, board_layer, 0.0f, 0.0f);
+	cairo_rectangle(drag_dc, xy[0] - wi / 16.0f, xy[1] - hi / 16.0f, ww, hh);
+	cairo_set_source_surface(drag_dc, board_layer, 0.0f, 0.0f);
 	cairo_fill_preserve(drag_dc);
-	cairo_set_source_surface (drag_dc, highlight_over_layer, 0.0f, 0.0f);
+	cairo_set_source_surface(drag_dc, highlight_over_layer, 0.0f, 0.0f);
 	cairo_fill(drag_dc);
-	cairo_destroy (drag_dc);
-
+	cairo_destroy(drag_dc);
 }
 
 static void restore_dragging_background(chess_piece *piece, int move_result, int wi, int hi) {
@@ -1315,8 +1315,8 @@ static void restore_dragging_background(chess_piece *piece, int move_result, int
 
 	double ww = wi/8.0f;
 	double hh = hi/8.0f;
-	int xy[2];
 
+	double xy[2];
 	piece_to_xy(piece, xy, wi, hi);
 
 	drag_dc = cairo_create(dragging_background);
@@ -1346,7 +1346,7 @@ static void restore_dragging_background(chess_piece *piece, int move_result, int
 	// handle castle
 	if (move_result > 0 && move_result & CASTLE) { // need to clean out old rooks pos
 		int oc = -1, or = -1, nc = -1, nr = -1;
-		int rook_xy[2];
+		double rook_xy[2];
 		switch (move_result & MOVE_DETAIL_MASK) {
 		case W_CASTLE_LEFT:
 			oc = 0;
@@ -1397,7 +1397,7 @@ static void restore_dragging_background(chess_piece *piece, int move_result, int
 	}
 
 	// handle en-passant
-	int pawn_xy[2];
+	double pawn_xy[2];
 	if (move_result > 0 && move_result & EN_PASSANT) {
 		// repaint square where eaten pawn was
 		loc_to_xy(piece->pos.column, piece->pos.row +(main_game->whose_turn ? - 1 : 1), pawn_xy, wi, hi);
@@ -1421,7 +1421,7 @@ static void clean_last_drag_step(cairo_t *cdc, double wi, double hi) {
 	double ww = wi/8.0f;
 	double hh = hi/8.0f;
 
-	int dragged_x, dragged_y;
+	double dragged_x, dragged_y;
 	get_dragging_prev_xy(&dragged_x, &dragged_y);
 
 	cairo_save(cdc);
@@ -1528,7 +1528,7 @@ void handle_button_release(void) {
 		ij[1] = mouse_dragged_piece->pos.row;
 
 
-		int xy[2];
+		double xy[2];
 		double ww = wi/8.0f;
 		double hh = hi/8.0f;
 		loc_to_xy(ij[0], ij[1], xy, wi, hi);
@@ -1554,7 +1554,7 @@ void handle_button_release(void) {
 		int or = -1;
 		int nc = -1;
 		int nr = -1;
-		int rook_xy[2];
+		double rook_xy[2];
 		if (move_result > 0 && move_result & CASTLE) {
 			switch (move_result & MOVE_DETAIL_MASK) {
 			case W_CASTLE_LEFT:
@@ -1605,7 +1605,7 @@ void handle_button_release(void) {
 			cairo_fill(cache_dc);
 		}
 
-		int pawn_xy[2];
+		double pawn_xy[2];
 		if (move_result > 0 && move_result & EN_PASSANT) {
 			loc_to_xy(ij[0], ij[1] + (mouse_dragged_piece->colour ? 1 : -1), pawn_xy, wi, hi);
 			// repaint square where eaten pawn was
@@ -1622,12 +1622,12 @@ void handle_button_release(void) {
 
 		cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
 
-		int dragged_x, dragged_y;
+		double dragged_x, dragged_y;
 		get_dragging_prev_xy(&dragged_x, &dragged_y);
 
 		// clip cr to repaint only needed squares
 		cairo_rectangle(cdr, dragged_x - wi / 16.0f, dragged_y - hi / 16.0f, ww, hh);
-		cairo_rectangle(cdr, floor(xy[0]-wi/16.0f), floor(xy[1]-hi/16.0f), ceil(ww), ceil(hh));
+		cairo_rectangle(cdr, floor(xy[0] - wi / 16.0f), floor(xy[1] - hi / 16.0f), ceil(ww + 1), ceil(hh + 1));
 
 		// Add special clipping squares in case of castling
 		if (move_result > 0 && move_result & CASTLE) {
@@ -1766,7 +1766,7 @@ void handle_left_button_press(GtkWidget *pWidget, int wi, int hi, int x, int y) 
 		kill_piece_from_surface(wi, hi, mouse_dragged_piece->pos.column, mouse_dragged_piece->pos.row);
 		update_dragging_background(mouse_dragged_piece, wi, hi);
 
-		int xy[2];
+		double xy[2];
 		piece_to_xy(mouse_dragged_piece, xy, wi, hi);
 		set_dragging_prev_xy(xy[0], xy[1]);
 
@@ -1831,7 +1831,7 @@ void handle_flip_board(GtkWidget *pWidget, bool lock_threads) {
 }
 
 void *process_moves(void *ptr) {
-	int dragged_x, dragged_y;
+	double dragged_x, dragged_y;
 	while(is_running_flag()) {
 
 		if (is_moveit_flag() && is_more_events_flag()) {
@@ -1876,7 +1876,6 @@ void *process_moves(void *ptr) {
 				mouse_dragged_piece = NULL;
 
 				gdk_threads_leave();
-
 				continue;
 			}
 
@@ -1891,37 +1890,35 @@ void *process_moves(void *ptr) {
 
 			// Paint dragging Background to cache layer
 			cairo_t *cache_dc = cairo_create(cache_layer);
-			cairo_set_source_surface (cache_dc, dragging_background, 0.0f, 0.0f);
+			cairo_set_source_surface(cache_dc, dragging_background, 0.0f, 0.0f);
 			cairo_paint(cache_dc);
 
 			// Paint piece at new position to cache layer
-			cairo_set_source_surface (cache_dc, mouse_dragged_piece->surf, new_x-wi/16.0f, new_y-hi/16.0f);
+			cairo_set_source_surface(cache_dc, mouse_dragged_piece->surf, new_x - wi / 16.0f, new_y - hi / 16.0f);
 			cairo_set_operator(cache_dc, CAIRO_OPERATOR_OVER);
 			cairo_paint(cache_dc);
 
 			/* destroy cache_dc*/
 			cairo_destroy(cache_dc);
 
+			// Efficient clip
 			cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
 			cairo_rectangle(cdr, floor(new_x-wi/16.0f), floor(new_y-hi/16.0f), ceil(ww), ceil(hh));
-
 			cairo_rectangle(cdr, floor(dragged_x-wi/16.0f), floor(dragged_y-hi/16.0f), ceil(ww), ceil(hh));
 			cairo_clip(cdr);
 
 			// Apply cache surface to visible canvas
-			cairo_set_operator (cdr, CAIRO_OPERATOR_OVER);
-			cairo_set_source_surface (cdr, cache_layer, 0.0f, 0.0f);
+			cairo_set_operator(cdr, CAIRO_OPERATOR_OVER);
+			cairo_set_source_surface(cdr, cache_layer, 0.0f, 0.0f);
 			cairo_paint(cdr);
 
 			// debug: uncomment to highlight repainted areas
-//			{
-//				cairo_set_source_rgba (cdr, 1.0f, 0.0f, 0.0f, .4f);
-//				cairo_rectangle(cdr, dragged_x - wi / 16.0f, dragged_y - hi / 16.0f, ww, hh);
-//				cairo_fill(cdr);
-//				cairo_set_source_rgba (cdr, 0.0f, 1.0f, 0.0f, .4f);
-//				cairo_rectangle(cdr, new_x-wi/16.0f, new_y-hi/16.0f, ww, hh);
-//				cairo_fill(cdr);
-//			}
+//			cairo_set_source_rgba(cdr, 1.0f, 0.0f, 0.0f, .4f);
+//			cairo_rectangle(cdr, dragged_x - wi / 16.0f, dragged_y - hi / 16.0f, ww, hh);
+//			cairo_fill(cdr);
+//			cairo_set_source_rgba(cdr, 0.0f, 1.0f, 0.0f, .4f);
+//			cairo_rectangle(cdr, new_x - wi / 16.0f, new_y - hi / 16.0f, ww, hh);
+//			cairo_fill(cdr);
 
 			cairo_destroy(cdr);
 
@@ -1939,7 +1936,7 @@ void *process_moves(void *ptr) {
 
 /* Generate an array of xy coordinates to animate a move from start->mid->end. */
 // FIXME: review this
-static void plot_coords(int start[2], int mid[2], int end[2], int points_to_plot, int **plots, int *nPlots) {
+static void plot_coords(double start[2], double mid[2], double end[2], int points_to_plot, double **plots, int *nPlots) {
 	//int denom;
 	double denom;
 	int n, count;
@@ -2042,7 +2039,7 @@ static void highlight_square(cairo_t *dc, int col, int row, double r, double g, 
 	}
 	double line_width = 4*half_line_width;
 
-	int xy[2];
+	double xy[2];
 	loc_to_xy(col, row, xy, wi, hi);
 
 	double x,y,w,h;
@@ -2145,51 +2142,49 @@ static void highlight_square(cairo_t *dc, int col, int row, double r, double g, 
 	cairo_stroke(dc);
 
 	// use this instead for plain rectangle
-//	cairo_rectangle(dc, xy[0]-wi/16.0f+half_line_width, xy[1]-hi/16.0f+half_line_width, wi/8.0f-line_width, hi/8.0f-line_width);
+//	cairo_rectangle(dc, xy[0] - wi / 16.0f, xy[1] - hi / 16.0f,
+//	                wi / 8.0f, hi / 8.0f);
 //	cairo_set_source_rgba(dc, r, g, b, a);
-//	cairo_set_line_width (dc, line_width);
-//	cairo_stroke(dc);
+//	cairo_fill(dc);
 }
 
 static void logical_promote(int last_promote) {
-	debug("Logical Promote\n");
 	toggle_piece(main_game, to_promote);
 
 	switch (last_promote) {
-			case W_QUEEN:
-			case B_QUEEN:
-				debug("You chose Queen\n");
-				to_promote->type = ( to_promote->colour ? B_QUEEN : W_QUEEN);
-				break;
-			case W_ROOK:
-			case B_ROOK:
-				debug("You chose Rook\n");
-				to_promote->type = ( to_promote->colour ? B_ROOK : W_ROOK);
-				break;
-			case W_BISHOP:
-			case B_BISHOP:
-				debug("You chose Bishop\n");
-				to_promote->type = ( to_promote->colour ? B_BISHOP : W_BISHOP);
-				break;
-			case W_KNIGHT:
-			case B_KNIGHT:
-				debug("You chose Knight\n");
-				to_promote->type = ( to_promote->colour ? B_KNIGHT : W_KNIGHT);
-				break;
-			case -1:
-				if (to_promote->type == W_PAWN || to_promote->type == B_PAWN) {
-						last_promote = W_QUEEN;
-						to_promote->type = ( to_promote->colour ? B_QUEEN : W_QUEEN);
-						to_promote->surf = piece_surfaces[(to_promote->colour ? B_QUEEN : W_QUEEN)];
-					}
-				break;
-			default:
-				fprintf(stderr, "%d invalid promotion choice!\n", last_promote);
-				break;
-		}
+		case W_QUEEN:
+		case B_QUEEN:
+			debug("Logical Promote to Queen\n");
+			to_promote->type = to_promote->colour ? B_QUEEN : W_QUEEN;
+			break;
+		case W_ROOK:
+		case B_ROOK:
+			debug("Logical Promote to Rook\n");
+			to_promote->type = to_promote->colour ? B_ROOK : W_ROOK;
+			break;
+		case W_BISHOP:
+		case B_BISHOP:
+			debug("Logical Promote to Bishop\n");
+			to_promote->type = to_promote->colour ? B_BISHOP : W_BISHOP;
+			break;
+		case W_KNIGHT:
+		case B_KNIGHT:
+			debug("Logical Promote to Knight\n");
+			to_promote->type = to_promote->colour ? B_KNIGHT : W_KNIGHT;
+			break;
+		case -1:
+			if (to_promote->type == W_PAWN || to_promote->type == B_PAWN) {
+				to_promote->type = (to_promote->colour ? B_QUEEN : W_QUEEN);
+				to_promote->surf = piece_surfaces[(to_promote->colour ? B_QUEEN : W_QUEEN)];
+			}
+			break;
+		default:
+			fprintf(stderr, "%d invalid promotion choice!\n", last_promote);
+			break;
+	}
 
-		// add promoted pawn from hash
-		toggle_piece(main_game, to_promote);
+	// Toggle promoted pawn from zobrist hash
+	toggle_piece(main_game, to_promote);
 }
 
 void choose_promote(int last_promote, bool only_surfaces, int ocol, int orow, int ncol, int nrow, bool lock_threads) {
@@ -2258,7 +2253,7 @@ void choose_promote(int last_promote, bool only_surfaces, int ocol, int orow, in
 	restore_dragging_background(to_promote, PIECE_TAKEN, old_wi, old_hi);
 
 	// repaint that square for new piece to appear
-	int xy[2];
+	double xy[2];
 	loc_to_xy(ncol, nrow, xy, old_wi, old_hi);
 	if ( ! GTK_IS_WIDGET(board) ) {
 		// killed? tough
@@ -2381,7 +2376,7 @@ gboolean test_animate_random_step(gpointer data) {
 
 		// If a piece is being dragged and overlaps with the animation, repaint the dragged piece above to cache layer
 		if (mouse_dragged_piece != NULL && is_moveit_flag()) {
-			int dragged_x, dragged_y;
+			double dragged_x, dragged_y;
 			get_dragging_prev_xy(&dragged_x, &dragged_y);
 			//FIXME: better lock access to mouse_dragged_piece (this could segfault otherwise)
 			cairo_set_source_surface(cache_dc, mouse_dragged_piece->surf, dragged_x - wi / 16.0f, dragged_y - hi / 16.0f);

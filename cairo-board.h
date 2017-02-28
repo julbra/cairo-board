@@ -148,7 +148,7 @@ enum {
 
 struct anim_data {
 	chess_piece *piece;
-	int **plots;
+	double **plots;
 	int n_plots;
 	int step_index;
 	int old_col;
@@ -277,8 +277,8 @@ extern plys_list *main_list;
 
 void get_last_move_xy(int *x, int*y);
 void get_last_release_xy(int *x, int*y);
-void get_dragging_prev_xy(int *x, int*y);
-void set_dragging_prev_xy(int, int);
+void get_dragging_prev_xy(double *x, double*y);
+void set_dragging_prev_xy(double, double);
 bool is_moveit_flag();
 void set_moveit_flag(bool);
 bool is_running_flag();
@@ -291,7 +291,7 @@ extern chess_piece *to_promote;
 
 extern gboolean highlight_moves;
 extern gboolean has_chosen;
-extern gboolean highlight_last_move;
+extern bool highlight_last_move;
 
 extern chess_clock *main_clock;
 chess_game *main_game;
@@ -299,8 +299,8 @@ chess_game *main_game;
 /* exported helpers */
 int colorise_type(int tt, int colour);
 void assign_surfaces();
-void piece_to_xy(chess_piece *piece, int *xy ,int wi, int hi);
-void loc_to_xy(int column, int row, int *xy, int wi, int hi);
+void piece_to_xy(chess_piece *piece, double *xy ,int wi, int hi);
+void loc_to_xy(int column, int row, double *xy, int wi, int hi);
 int char_to_type(int whose_turn, char c);
 char type_to_char(int);
 char type_to_fen_char(int type);
