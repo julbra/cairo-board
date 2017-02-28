@@ -772,8 +772,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 						exit(1);
 						break;
 				}
-			}
-			else {
+			} else {
 
 				int offset = 0;
 
@@ -795,21 +794,30 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 
 					int i, j;
 					for (i = 0; i < 16; i++) {
-						if (!set[i].dead && set[i].type == piece->type && &set[i] != piece) {
+						chess_piece competitor = set[i];
+						if (!competitor.dead && competitor.type == piece->type &&
+						    (competitor.pos.row != piece->pos.row || competitor.pos.column != piece->pos.column)) {
+							if (piece->type == B_KING || piece->type == W_KING) {
+								for (i = 0; i < 16; i++) {
+									debug("Piece[%d]: %c %c%c\n", i, type_to_char(set[i].type), set[i].pos.column + 'a', set[i].pos.row + '1');
+								}
+								fprintf(stderr, "Disambiguating for king?! %d %p %p\n", (&competitor != piece), &competitor, piece);
+								debug("The Piece: %c %c%d\n", type_to_char(piece->type), piece->pos.column + 'a', piece->pos.row + 1);
+							}
 							/* found a piece from same set with same type
 							 * we now check whether it can go to the same dest */
 							//debug("found potential competitor\n");
 							int possible_moves[64][2];
-							int count = get_possible_moves(game, &set[i], possible_moves, 0);
+							int count = get_possible_moves(game, &competitor, possible_moves, 0);
 							for (j = 0; j < count; j++) {
 								//debug("considering move: %c%c (%d/%d)\n", 'a'+possible_moves[j][0], '1'+possible_moves[j][1],j+1, count);
 								if (possible_moves[j][0] == col && possible_moves[j][1] == row) {
 									//debug("found actual competitor\n");
-									if (set[i].pos.column != piece->pos.column) {
-										//debug("will disambiguate by col\n");
+									if (competitor.pos.column != piece->pos.column) {
+//										debug("will disambiguate by col\n ");
 										disambiguator_need |= 1;
 									} else {
-										//debug("will disambiguate by row\n");
+//										debug("will disambiguate by row\n");
 										disambiguator_need |= 2;
 									}
 									//debug("breaking\n");
@@ -1419,11 +1427,17 @@ void send_to_ics(char *s) {
 	}
 }
 
+static bool uci_game_started = false;
 void send_to_uci(char *s) {
 	debug("Send user move to UCI %s", s);
 	size_t len = strlen(s);
 	s[len - 1] = '\0';
-	user_move_to_uci(s);
+	// TODO: make it work in manual mode
+//	if (!uci_game_started) {
+//		uci_game_started = true;
+//		start_new_uci_game(0, ENGINE_ANALYSIS);
+//	}
+	user_move_to_uci(s, true);
 }
 
 /* move must be a NULL terminated string */
@@ -1788,6 +1802,7 @@ gboolean auto_play_one_uci_move(gpointer data) {
 gboolean delayed_start_uci_game(gpointer data) {
 //	start_new_uci_game(60, ENGINE_WHITE);
 	start_new_uci_game(60, ENGINE_ANALYSIS);
+	start_uci_analysis();
 	return FALSE;
 }
 
@@ -2451,7 +2466,20 @@ int scan_append_ply(char *ply) {
 		int resolved = resolve_move(main_game, type, currentMoveString, resolved_move);
 		if (resolved) {
 			char san_move[SAN_MOVE_SIZE];
-			move_piece(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE_NO_ANIM, san_move, main_game, true);
+			int move_result = move_piece(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE_NO_ANIM, san_move, main_game, true);
+
+			char uci_move[6];
+			uci_move[0] = (char) (resolved_move[0] + 'a');
+			uci_move[1] = (char) (resolved_move[1] + '1');
+			uci_move[2] = (char) (resolved_move[2] + 'a');
+			uci_move[3] = (char) (resolved_move[3] + '1');
+			if (move_result & PROMOTE) {
+				uci_move[4] = (char) (type_to_char(main_game->promo_type) + + 32);
+			} else {
+				uci_move[4] = '\0';
+			}
+			user_move_to_uci(uci_move, false);
+
 			update_eco_tag(true);
 			if (is_king_checked(main_game, main_game->whose_turn)) {
 				if (is_check_mate(main_game)) {
@@ -3311,6 +3339,7 @@ void parse_ics_buffer(void) {
 						if (!strcmp(bn, my_handle)) relation = -1;
 						start_game(white_name, black_name, init_time * 60, increment, relation, true);
 						start_new_uci_game(init_time * 60, ENGINE_ANALYSIS);
+						start_uci_analysis();
 						requested_start = 0;
 						if (crafty_mode) {
 							write_to_crafty("new\n");
@@ -3392,7 +3421,8 @@ void parse_ics_buffer(void) {
 				memset(name2, 0, 256);
 				sprintf(name1, "%s (%s)", w_name, w_rating);
 				sprintf(name2, "%s (%s)", b_name, b_rating);
-				start_game(name1, name2, 60*init_time, increment, 0, true);
+				start_game(name1, name2, init_time * 60, increment, 0, true);
+				start_new_uci_game(init_time * 60, ENGINE_ANALYSIS);
 				requested_times = 1;
 				char request_moves[16];
 				snprintf(request_moves, 16, "moves %ld\n", game_num);
@@ -3433,6 +3463,7 @@ void parse_ics_buffer(void) {
 				init_highlight_over_surface(old_wi, old_hi);
 				gtk_widget_queue_draw(GTK_WIDGET(board));
 				gdk_threads_leave();
+				start_uci_analysis();
 				break;
 			case GAME_RESUME: {
 				debug("Found GAME_RESUME message: '%s'\n", ics_scanner_text);

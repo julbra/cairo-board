@@ -47,6 +47,8 @@ char shown_best_line[BUFSIZ] = "";
 size_t shown_best_line_len = 0;
 static UCI_MODE uci_mode;
 
+const char START_SEQUENCE[] = "position startpos moves";
+
 static int uci_scanner__scan_bytes(const char *, int length);
 static void * parse_uci_function(void *pVoid);
 static void wait_for_engine(void);
@@ -214,7 +216,7 @@ int spawn_uci_engine(void) {
 	}
 	printf("UCI OK!\n");
 
-	write_to_uci("setoption name Threads value 1\n");
+	write_to_uci("setoption name Threads value 2\n");
 	write_to_uci("setoption name Hash value 4096\n");
 	write_to_uci("setoption name Ponder value true\n");
 //	write_to_uci("setoption name Skill Level value 5\n");
@@ -232,8 +234,9 @@ void start_new_uci_game(int time, UCI_MODE mode) {
 	}
 	wait_for_engine();
 
-	memset(all_moves, 4 * 8192, sizeof(char));
-	memcpy(all_moves, "position startpos moves", 24);
+	memset(all_moves, 0, 4 * 8192);
+	memcpy(all_moves, START_SEQUENCE, 24);
+	debug("All moves set to: '%s'\n", all_moves);
 	ply_num = 1;
 	to_play = 0;
 	set_analysing(false);
@@ -257,9 +260,9 @@ void start_new_uci_game(int time, UCI_MODE mode) {
 			start_game("You", engine_name, time, 0, relation, false);
 			break;
 		case ENGINE_ANALYSIS:
-			sprintf(go, "position startpos\ngo infinite\n");
-			write_to_uci(go);
-			set_analysing(true);
+//			sprintf(go, "position startpos\ngo infinite\n");
+//			write_to_uci(go);
+//			set_analysing(true);
 			break;
 		default:
 			break;
@@ -293,29 +296,39 @@ void append_move(char *new_move, bool lock_threads) {
 	ply_num++;
 }
 
-void user_move_to_uci(char *move) {
+void start_uci_analysis() {
+	char moves[8192];
+	if (ply_num == 1) {
+		sprintf(moves, "%s\n", "position startpos");
+	} else {
+		sprintf(moves, "%s\n", all_moves);
+	}
+	if (is_analysing()) {
+		stop_and_wait();
+	}
+	wait_for_engine();
+	write_to_uci(moves);
+
+	char go[256];
+	if (uci_mode == ENGINE_ANALYSIS) {
+		sprintf(go, "go infinite\n");
+	} else {
+		sprintf(go, "go wtime %ld btime %ld\n", get_remaining_time(main_clock, 0),
+		        get_remaining_time(main_clock, 1));
+	}
+	write_to_uci(go);
+	set_analysing(true);
+}
+
+void user_move_to_uci(char *move, bool analyse) {
 	debug("User move to UCI! '%s'\n", move);
 
 	// Append move
 	append_move(move, false);
 
-	char moves[8192];
-	sprintf(moves, "%s\n", all_moves);
-
-	if (is_analysing()) {
-		stop_and_wait();
+	if (analyse) {
+		start_uci_analysis();
 	}
-	wait_for_engine();
-
-	write_to_uci(moves);
-	char go[256];
-	if (uci_mode == ENGINE_ANALYSIS) {
-		sprintf(go, "go infinite\n");
-	} else {
-		sprintf(go, "go wtime %ld btime %ld\n", get_remaining_time(main_clock, 0), get_remaining_time(main_clock, 1));
-	}
-	write_to_uci(go);
-	set_analysing(true);
 }
 
 void parse_option(char *optionText) {
@@ -576,7 +589,17 @@ void best_line_to_san(char *line, char *san) {
 
 		chess_piece *piece = trans_game->squares[source_col][source_row].piece;
 		if (piece == NULL) {
-			debug("best_line_to_san Ooops no piece here!\n");
+			debug("best_line_to_san Ooops no piece here! %c%d\n", source_col + 'a', source_row + 1);
+			for (int i = 0; i < 8; i++) {
+				for (int j = 0; j < 8; j++) {
+					if (trans_game->squares[i][j].piece != NULL) {
+						chess_piece *p = trans_game->squares[i][j].piece;
+						debug("best_line_to_san Pieces [%c%d]: %c %c%c\n", i + 'a', j + 1, type_to_char(p->type),
+						      p->pos.column + 'a', p->pos.row + '1');
+					}
+				}
+			}
+//			exit(1);
 			return;
 		}
 

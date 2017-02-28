@@ -60,30 +60,82 @@ int is_fifty_move_counter_expired(chess_game *game) {
 	return game->fifty_move_counter <= 0;
 }
 
+//chess_piece *find_piece(chess_piece set[16], int col, int row) {
+//	for (int i = 0; i < 16; i++) {
+//		if (set[i].pos.column == col && set[i].pos.row == row) {
+//			return &(set[i]);
+//		}
+//	}
+//	debug("clone_game NO found piece!\n");
+//	return NULL;
+//}
+
 void clone_game(chess_game *src_game, chess_game *trans_game) {
 	int i,j;
-	int w_count = 0;
-	int b_count = 0;
+
+	// Sanity check positions
+//	for (i = 0; i < 8; i++) {
+//		for (j = 0; j < 8; j++) {
+//			chess_piece *p = src_game->squares[i][j].piece;
+//			if (p != NULL && (p->pos.column != i || p->pos.row != j)) {
+//				debug("Aha!!!!!!!!!!!!!!!!!!!!\n");
+//			}
+//		}
+//	}
 
 	for (i = 0; i < 8; i++) {
 		for (j = 0; j < 8; j++) {
-			if (src_game->squares[i][j].piece != NULL) {
-				if (src_game->squares[i][j].piece->colour) {
-					trans_game->black_set[b_count] = *(src_game->squares[i][j].piece);
-					trans_game->squares[i][j].piece = &trans_game->black_set[b_count];
-					b_count++;
-				} else {
-					trans_game->white_set[w_count] = *(src_game->squares[i][j].piece);
-					trans_game->squares[i][j].piece = &trans_game->white_set[w_count];
-					w_count++;
-				}
-			}
-			else {
-				trans_game->squares[i][j].piece = NULL;
-			}
-
+			trans_game->squares[i][j].piece = NULL;
 		}
 	}
+
+	for (i = 0; i < 16; i++) {
+		trans_game->black_set[i] = src_game->black_set[i];
+		trans_game->white_set[i] = src_game->white_set[i];
+
+		chess_piece *bp = &(trans_game->black_set[i]);
+		if (!bp->dead) {
+			trans_game->squares[bp->pos.column][bp->pos.row].piece = bp;
+		}
+		chess_piece *wp = &(trans_game->white_set[i]);
+		if (!wp->dead) {
+			trans_game->squares[wp->pos.column][wp->pos.row].piece = wp;
+		}
+	}
+
+//	int w_count = 0;
+//	int b_count = 0;
+//	for (i = 0; i < 8; i++) {
+//		for (j = 0; j < 8; j++) {
+//			if (src_game->squares[i][j].piece != NULL) {
+//				if (src_game->squares[i][j].piece->colour) {
+////					trans_game->squares[i][j].piece = find_piece(trans_game->black_set, i, j);
+//					trans_game->black_set[b_count] = *(src_game->squares[i][j].piece);
+//					trans_game->squares[i][j].piece = &trans_game->black_set[b_count];
+//					b_count++;
+//				} else {
+////					trans_game->squares[i][j].piece = find_piece(trans_game->white_set, i, j);
+//					trans_game->white_set[w_count] = *(src_game->squares[i][j].piece);
+//					trans_game->squares[i][j].piece = &trans_game->white_set[w_count];
+//					w_count++;
+//				}
+//			} else {
+//				trans_game->squares[i][j].piece = NULL;
+//			}
+//		}
+//	}
+
+//	for (i = 0; i < 8; i++) {
+//		for (j = 0; j < 8; j++) {
+//			chess_piece *p1 = trans_game->squares[i][j].piece;
+//			if (p1 != NULL) {
+//				chess_piece *p2 = find_piece((p1->colour ? trans_game->black_set : trans_game->white_set), i, j);
+//				if (p1 != p2) {
+//					debug("clone_game bug? %p %p\n", p1, p2);
+//				}
+//			}
+//		}
+//	}
 
 	trans_game->whose_turn = src_game->whose_turn;
 	trans_game->current_move_number = src_game->current_move_number;

@@ -1154,8 +1154,8 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 			char uci_mv[MOVE_BUFF_SIZE];
 			if (move_result & PROMOTE) {
 				sprintf(uci_mv, "%c%c%c%c%c\n",
-				        'a' + p_old_col, '1' + p_old_row, 'a' + new_col, '1' + new_row,
-				        (char) (type_to_char(mouse_dragged_piece->type) + 32));
+				        'a' + old_col, '1' + old_row, 'a' + new_col, '1' + new_row,
+				        (char) (type_to_char(piece->type) + 32));
 				send_to_uci(uci_mv);
 			} else {
 				sprintf(uci_mv, "%c%c%c%c\n",
