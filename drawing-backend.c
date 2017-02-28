@@ -1156,6 +1156,7 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 				sprintf(uci_mv, "%c%c%c%c%c\n",
 				        'a' + old_col, '1' + old_row, 'a' + new_col, '1' + new_row,
 				        (char) (type_to_char(piece->type) + 32));
+				debug("auto_move promote! int %d -> SAN %c -> UCI %c\n", piece->type, type_to_char(piece->type), (char) (type_to_char(piece->type) + 32));
 				send_to_uci(uci_mv);
 			} else {
 				sprintf(uci_mv, "%c%c%c%c\n",
@@ -1983,7 +1984,7 @@ static void plot_coords(int start[2], int mid[2], int end[2], int points_to_plot
 /* This must be called to free up the malloc'ed memory */
 static void free_anim_data(struct anim_data *anim) {
 	int i;
-	for (i=0; i<ANIM_SIZE; i++) {
+	for (i = 0; i < ANIM_SIZE; i++) {
 		free(anim->plots[i]);
 	}
 	free(anim->plots);

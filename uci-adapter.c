@@ -7,6 +7,7 @@
 #include "analysis_panel.h"
 #include "uci-adapter.h"
 #include "uci_scanner.h"
+#include "cairo-board.h"
 
 static int uci_in;
 static int uci_out;
@@ -125,7 +126,7 @@ void write_to_uci(char *message) {
 		perror(NULL);
 	}
 	pthread_mutex_unlock(&uci_writer_lock);
-	debug("Wrote to UCI: %s", message);
+	debug("Wrote to UCI: '%s'\n", message);
 }
 
 void wait_for_engine(void) {
@@ -216,7 +217,7 @@ int spawn_uci_engine(void) {
 	}
 	printf("UCI OK!\n");
 
-	write_to_uci("setoption name Threads value 2\n");
+	write_to_uci("setoption name Threads value 15\n");
 	write_to_uci("setoption name Hash value 4096\n");
 	write_to_uci("setoption name Ponder value true\n");
 //	write_to_uci("setoption name Skill Level value 5\n");
@@ -285,7 +286,7 @@ void append_move(char *new_move, bool lock_threads) {
 	to_play = to_play ? 0 : 1;
 
 	debug("append_move: all_moves '%s'\n", all_moves);
-	if (!ics_mode) {
+	if (!ics_mode && !load_file_specified) {
 		if (ply_num == 1) {
 			start_one_clock(main_clock, to_play);
 		} else if (ply_num > 1) {
@@ -353,7 +354,7 @@ void parse_move(char *moveText) {
 	 Also, promotions are indicated like such: a7a8q*/
 
 	if (is_analysing() && is_stop_requested()) {
-		debug("Skip final best move after stop: %s %d %d\n");
+		debug("Skip final best move after stop\n");
 		set_analysing(false);
 		set_stop_requested(false);
 		return;
@@ -560,6 +561,15 @@ void best_line_to_san(char *line, char *san) {
 	chess_game *trans_game = game_new();
 	clone_game(main_game, trans_game);
 
+	// Debug
+	char *prev_fen_1 = calloc(128, sizeof(char));
+	char *prev_fen_2 = calloc(128, sizeof(char));
+	char *prev_fen_3 = calloc(128, sizeof(char));
+
+	generate_fen(prev_fen_1, trans_game->squares, trans_game->castle_state, trans_game->en_passant, trans_game->whose_turn);
+	generate_fen(prev_fen_2, trans_game->squares, trans_game->castle_state, trans_game->en_passant, trans_game->whose_turn);
+	generate_fen(prev_fen_3, trans_game->squares, trans_game->castle_state, trans_game->en_passant, trans_game->whose_turn);
+
 	if (trans_game->whose_turn) {
 		char move_num[16];
 		sprintf(move_num, "%d...", trans_game->current_move_number);
@@ -590,15 +600,18 @@ void best_line_to_san(char *line, char *san) {
 		chess_piece *piece = trans_game->squares[source_col][source_row].piece;
 		if (piece == NULL) {
 			debug("best_line_to_san Ooops no piece here! %c%d\n", source_col + 'a', source_row + 1);
-			for (int i = 0; i < 8; i++) {
-				for (int j = 0; j < 8; j++) {
-					if (trans_game->squares[i][j].piece != NULL) {
-						chess_piece *p = trans_game->squares[i][j].piece;
-						debug("best_line_to_san Pieces [%c%d]: %c %c%c\n", i + 'a', j + 1, type_to_char(p->type),
-						      p->pos.column + 'a', p->pos.row + '1');
-					}
-				}
-			}
+			debug("FEN 3: %s\n", prev_fen_3);
+			debug("FEN 2: %s\n", prev_fen_2);
+			debug("FEN 1: %s\n", prev_fen_1);
+//			for (int i = 0; i < 8; i++) {
+//				for (int j = 0; j < 8; j++) {
+//					if (trans_game->squares[i][j].piece != NULL) {
+//						chess_piece *p = trans_game->squares[i][j].piece;
+//						debug("best_line_to_san Pieces [%c%d]: %c %c%c\n", i + 'a', j + 1, type_to_char(p->type),
+//						      p->pos.column + 'a', p->pos.row + '1');
+//					}
+//				}
+//			}
 //			exit(1);
 			return;
 		}
@@ -625,6 +638,9 @@ void best_line_to_san(char *line, char *san) {
 					san_move[strlen(san_move)] = '+';
 				}
 			}
+			memcpy(prev_fen_1, prev_fen_2, 128);
+			memcpy(prev_fen_2, prev_fen_3, 128);
+			generate_fen(prev_fen_1, trans_game->squares, trans_game->castle_state, trans_game->en_passant, trans_game->whose_turn);
 
 			// Append move
 			char pchar = san_move[0];

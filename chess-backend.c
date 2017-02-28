@@ -1316,7 +1316,7 @@ void generate_fen(char fen_string[128], chess_square sq[8][8], int castle_state[
 	int rank;
 	int file;
 
-	/* piece placement */
+	// piece placement
 	int empty;
 	int offset = 0;
 	for (rank = 7; rank >= 0; rank--) {
@@ -1324,7 +1324,7 @@ void generate_fen(char fen_string[128], chess_square sq[8][8], int castle_state[
 		for (file = 0; file < 8; file++) {
 			if (sq[file][rank].piece) {
 				if (empty) {
-					fen_string[offset++] = '0'+empty;
+					fen_string[offset++] = (char) ('0' + empty);
 					empty = 0;
 				}
 				fen_string[offset++] = type_to_fen_char(sq[file][rank].piece->type);
@@ -1334,18 +1334,18 @@ void generate_fen(char fen_string[128], chess_square sq[8][8], int castle_state[
 			}
 		}
 		if (empty) {
-			fen_string[offset++] = '0'+empty;
+			fen_string[offset++] = (char) ('0' + empty);
 		}
 		fen_string[offset++] = '/';
 	}
 	fen_string[--offset] = ' ';
 	offset++;
 
-	/* active color*/
-	fen_string[offset++] = (whose_turn?'b':'w');
+	// active color
+	fen_string[offset++] = (char) (whose_turn ? 'b' : 'w');
 	fen_string[offset++] = ' ';
 
-	/*castling rights*/
+	// castling rights
 	int is_castle = 0;
 	if (castle_state[0][1]) {
 		is_castle++;
@@ -1368,20 +1368,20 @@ void generate_fen(char fen_string[128], chess_square sq[8][8], int castle_state[
 	}
 	fen_string[offset++] = ' ';
 
-	/* en-passant square */
+	// en-passant square
 	int is_enpassant = 0;
 	for (file = 0; file < 8; file++) {
 		if (en_passant[file]) {
 			is_enpassant++;
-			fen_string[offset++] = 'a'+file;
-			fen_string[offset++] = (whose_turn?'3':'6');
+			fen_string[offset++] = (char) ('a' + file);
+			fen_string[offset++] = (char) (whose_turn ? '3' : '6');
 		}
 	}
 	if (!is_enpassant) {
 		fen_string[offset++] = '-';
 	}
-	/* NULL terminate it */
-	fen_string[offset++] = 0;
+	// NULL terminate it
+	fen_string[offset] = 0;
 }
 
 void generate_full_fen(char fen_string[128], chess_square sq[8][8], int castle_state[2][2], int en_passant[8], int whose_turn, int fifty_move_counter, int full_move_number) {

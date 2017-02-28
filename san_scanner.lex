@@ -155,6 +155,7 @@ piecechar	[RBNQKP]
 	char *end = strrchr(yytext, '"');
 	size_t length = (end-begin)/sizeof(char);
 	strncpy(main_game->white_name, begin, length);
+	main_game->white_name[length] = '\0';
 	// skip tags for now
 	return 2;
 }
@@ -165,6 +166,7 @@ piecechar	[RBNQKP]
 	char *end = strrchr(yytext, '"');
 	size_t length = (end-begin)/sizeof(char);
 	strncpy(main_game->black_name, begin, length);
+	main_game->black_name[length] = '\0';
 	// skip tags for now
 	return 2;
 }

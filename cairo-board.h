@@ -246,6 +246,7 @@ extern gboolean debug_flag;
 extern gboolean use_fig;
 extern gboolean crafty_mode;
 extern gboolean ics_mode;
+extern bool load_file_specified;
 
 extern double svg_w, svg_h;
 extern double dr,dg, db;

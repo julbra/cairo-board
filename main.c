@@ -205,10 +205,6 @@ char last_eco_description[128];
 long my_game = 0;
 int init_time;
 int increment;
-char white_name[256];
-char black_name[256];
-char white_rating[128];
-char black_rating[128];
 static char current_players[2][128];
 static char current_ratings[2][128];
 int game_started = 0;
@@ -1568,7 +1564,7 @@ void load_game(const char* file_path, int game_num) {
 				inside_tags = FALSE;
 				if (found_my_game) {
 					gdk_threads_enter();
-					set_header_label(white_name, black_name, white_rating, black_rating);
+					set_header_label(main_game->white_name, main_game->black_name, main_game->white_rating, main_game->black_rating);
 					gdk_threads_leave();
 					if (main_list != NULL) {
 						plys_list_free(main_list);
@@ -1638,8 +1634,8 @@ gboolean auto_play_one_move(gpointer data) {
 			debug("In if waiting\n");
 			waiting = 0;
 			reset_game();
-			memset(white_name, 0, sizeof(white_name));
-			memset(black_name, 0, sizeof(black_name));
+			memset(main_game->white_name, 0, 256);
+			memset(main_game->black_name, 0, 256);
 		}
 		if (playing) {
 			debug("In if playing\n");
@@ -1668,8 +1664,9 @@ gboolean auto_play_one_move(gpointer data) {
 	if (i != -1) {
 		if (! playing) {
 			playing = 1;
-			start_game(white_name, black_name, 0, 0, -2, true);
-			if (!strncmp("Kasparov, Gary", black_name, 16)) {
+			start_game(main_game->white_name, main_game->black_name, 0, 0, -2, true);
+			start_new_uci_game(0, ENGINE_ANALYSIS);
+			if (!strncmp("Kasparov, Gary", main_game->black_name, 16)) {
 				g_signal_emit_by_name(board, "flip-board");
 			}
 			//start_one_clock(main_clock, 0);
@@ -3317,27 +3314,27 @@ void parse_ics_buffer(void) {
 
 					my_game = game_num;
 
-					memset(white_name, 0, sizeof(white_name));
-					memset(black_name, 0, sizeof(black_name));
+					memset(main_game->white_name, 0, sizeof(main_game->white_name));
+					memset(main_game->black_name, 0, sizeof(main_game->black_name));
 
 					/* determine who's who to assign ratings and build complete strings */
 					if (!strcmp(wn, current_players[0])) {
-						sprintf(white_name, "%s (%s)", current_players[0], current_ratings[0]);
+						sprintf(main_game->white_name, "%s (%s)", current_players[0], current_ratings[0]);
 						if (!strcmp(bn, current_players[1])) {
-							sprintf(black_name, "%s (%s)", current_players[1], current_ratings[1]);
+							sprintf(main_game->black_name, "%s (%s)", current_players[1], current_ratings[1]);
 						}
 					}
 					else if (!strcmp(wn, current_players[1])) {
-						sprintf(white_name, "%s (%s)", current_players[1], current_ratings[1]);
+						sprintf(main_game->white_name, "%s (%s)", current_players[1], current_ratings[1]);
 						if (!strcmp(bn, current_players[0])) {
-							sprintf(black_name, "%s (%s)", current_players[0], current_ratings[0]);
+							sprintf(main_game->black_name, "%s (%s)", current_players[0], current_ratings[0]);
 						}
 					}
 					if (requested_start) {
 						// determine relation
 						int relation = 1;
 						if (!strcmp(bn, my_handle)) relation = -1;
-						start_game(white_name, black_name, init_time * 60, increment, relation, true);
+						start_game(main_game->white_name, main_game->black_name, init_time * 60, increment, relation, true);
 						start_new_uci_game(init_time * 60, ENGINE_ANALYSIS);
 						start_uci_analysis();
 						requested_start = 0;
@@ -3479,22 +3476,22 @@ void parse_ics_buffer(void) {
 				/////
 				/* determine who's who to assign ratings and build complete strings */
 				if (!strcmp(wn, current_players[0])) {
-					sprintf(white_name, "%s (%s)", current_players[0], current_ratings[0]);
+					sprintf(main_game->white_name, "%s (%s)", current_players[0], current_ratings[0]);
 					if (!strcmp(bn, current_players[1])) {
-						sprintf(black_name, "%s (%s)", current_players[1], current_ratings[1]);
+						sprintf(main_game->black_name, "%s (%s)", current_players[1], current_ratings[1]);
 					}
 				}
 				else if (!strcmp(wn, current_players[1])) {
-					sprintf(white_name, "%s (%s)", current_players[1], current_ratings[1]);
+					sprintf(main_game->white_name, "%s (%s)", current_players[1], current_ratings[1]);
 					if (!strcmp(bn, current_players[0])) {
-						sprintf(black_name, "%s (%s)", current_players[0], current_ratings[0]);
+						sprintf(main_game->black_name, "%s (%s)", current_players[0], current_ratings[0]);
 					}
 				}
 				if (requested_start) {
 					// determine relation
 					int relation = 1;
 					if (!strcmp(bn, my_handle)) relation = -1;
-					start_game(white_name, black_name, init_time*60, increment, relation, true);
+					start_game(main_game->white_name, main_game->black_name, init_time*60, increment, relation, true);
 					requested_start = 0;
 				}
 				/////
