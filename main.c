@@ -3304,7 +3304,6 @@ void parse_ics_buffer(void) {
 				char *bi = strchr(ics_scanner_text, 'g') + 2;
 				char *ei = strrchr(ics_scanner_text, '\'');
 				memcpy(following_player, bi, ei - bi);
-				printf("FOLLOWING player %s\n", following_player);
 				break;
 			}
 			case GAME_START: {
@@ -3314,7 +3313,6 @@ void parse_ics_buffer(void) {
 				long game_num;
 				if (parse_start_message(ics_scanner_text, &game_num, wn, bn) == 3) {
 					debug("Successfully parsed start message: game number and white/black name\n");
-
 
 					/* decide whether I am interested in this message
 					 * NB: this should always be the case */
@@ -3431,7 +3429,6 @@ void parse_ics_buffer(void) {
 				sprintf(name2, "%s (%s)", b_name, b_rating);
 				start_game(name1, name2, init_time * 60, increment, 0, true);
 				start_new_uci_game(init_time * 60, ENGINE_ANALYSIS);
-				printf("b_name %s w_name %s following_player %s : %d %d\n", b_name, w_name, following_player, strcmp(b_name, following_player), strcmp(w_name, following_player));
 				if (!strcmp(b_name, following_player) && !is_board_flipped() || !strcmp(w_name, following_player) && is_board_flipped()) {
 					g_signal_emit_by_name(board, "flip-board");
 				}

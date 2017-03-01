@@ -481,6 +481,7 @@ void parse_info(char *info) {
 		if (score_is_mate) {
 			if (score_int == 0) {
 				snprintf(scoreString, 16, to_play ? "1-0" : "0-1");
+				set_analysis_best_line("");
 			} else {
 				evaluation = score_int > 0 ? "+ -" : "- +";
 				snprintf(scoreString, 16, "%d", score_int);
@@ -522,7 +523,7 @@ void parse_info(char *info) {
 			memcpy(shown_best_line, best_line, BUFSIZ);
 			shown_best_line_len = best_line_len;
 			set_analysis_best_line(best_line_san);
-		} else {
+//		} else {
 //			debug("best line NOT new: '%s' '%s'\n", best_line, shown_best_line);
 		}
 	}
