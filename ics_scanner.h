@@ -48,6 +48,7 @@ enum _ics_match_type {
 	MY_CHANNELS_LINE,
 	CHANNEL_REMOVED,
 	CHANNEL_ADDED,
+	FOLLOWING
 };
 
 #endif

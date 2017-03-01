@@ -98,7 +98,7 @@ char default_ics_handle2[] = "cairoboardtwo";
 char my_handle[128];
 char my_login[128];
 char my_password[128];
-
+char following_player[32];
 
 unsigned short ics_port;
 unsigned short default_ics_port = 5000;
@@ -3130,6 +3130,7 @@ void parse_ics_buffer(void) {
 			case CREATE_MESSAGE:
 			case GAME_START:
 			case GAME_END:
+			case FOLLOWING:
 			default:
 				strcat(post_buff, ics_scanner_text);
 				break;
@@ -3297,6 +3298,15 @@ void parse_ics_buffer(void) {
 				}
 				break;
 			}
+			case FOLLOWING: {
+				// You will now be following VMM's games.
+				memset(following_player, 0, sizeof(following_player));
+				char *bi = strchr(ics_scanner_text, 'g') + 2;
+				char *ei = strrchr(ics_scanner_text, '\'');
+				memcpy(following_player, bi, ei - bi);
+				printf("FOLLOWING player %s\n", following_player);
+				break;
+			}
 			case GAME_START: {
 				char wn[128], bn[128];
 				memset(wn, 0, 128);
@@ -3421,6 +3431,10 @@ void parse_ics_buffer(void) {
 				sprintf(name2, "%s (%s)", b_name, b_rating);
 				start_game(name1, name2, init_time * 60, increment, 0, true);
 				start_new_uci_game(init_time * 60, ENGINE_ANALYSIS);
+				printf("b_name %s w_name %s following_player %s : %d %d\n", b_name, w_name, following_player, strcmp(b_name, following_player), strcmp(w_name, following_player));
+				if (!strcmp(b_name, following_player) && !is_board_flipped() || !strcmp(w_name, following_player) && is_board_flipped()) {
+					g_signal_emit_by_name(board, "flip-board");
+				}
 				requested_times = 1;
 				char request_moves[16];
 				snprintf(request_moves, 16, "moves %ld\n", game_num);

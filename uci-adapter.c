@@ -480,7 +480,7 @@ void parse_info(char *info) {
 		char *evaluation;
 		if (score_is_mate) {
 			if (score_int == 0) {
-				snprintf(scoreString, 16, "-");
+				snprintf(scoreString, 16, to_play ? "1-0" : "0-1");
 			} else {
 				evaluation = score_int > 0 ? "+ -" : "- +";
 				snprintf(scoreString, 16, "%d", score_int);

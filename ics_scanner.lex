@@ -119,6 +119,10 @@ Challenge: GuestJRBS (----) [black] GuestSBNL (----) unrated blitz 5 0.
 	return OBSERVE_START;
 }
 
+^"You will now be following "[a-zA-Z0-9]+"'s games." {
+    return FOLLOWING;
+}
+
 ^"Game "[0-9]+": "[A-Za-z]+" ("[ ]*[0-9+-]+") "[A-Za-z]+" ("[ ]*[0-9+-]+") ".* {
 /*
 Game 127: ImAGoon (1910) FDog (2025) rated standard 15 0
