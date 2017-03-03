@@ -579,7 +579,9 @@ void insert_text_channel_view(int channel_num, char *username, char *message, gb
 
 	GtkTextIter mark_it;
 	gtk_text_buffer_get_iter_at_mark(channel->text_view_buffer, &mark_it, end_mark);
-	gtk_text_buffer_insert_with_tags_by_name(channel->text_view_buffer, &mark_it, final_username, -1, "blue_fg", NULL);
+	GtkTextTag *handle_tag = gtk_text_buffer_create_tag(channel->text_view_buffer, NULL, "foreground-rgba", &chat_handle_colour, NULL);
+	gtk_text_buffer_insert_with_tags(channel->text_view_buffer, &mark_it, final_username, -1, handle_tag, NULL);
+
 	gtk_text_buffer_get_iter_at_mark(channel->text_view_buffer, &mark_it, end_mark);
 	gtk_text_buffer_insert(channel->text_view_buffer, &mark_it, final_message, -1);
 

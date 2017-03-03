@@ -225,6 +225,7 @@ double db = 99.0/255.0;
 double lr = 240.0/255.0;
 double lg = 217.0/255.0;
 double lb = 181.0/255.0;
+GdkRGBA chat_handle_colour;
 
 double highlight_selected_r;
 double highlight_selected_g;
@@ -2789,9 +2790,7 @@ void try_login(void) {
 		gtk_box_pack_start(GTK_BOX(content_area), info_label, FALSE, FALSE, 5);
 		gtk_widget_show(info_label);
 	}
-	char *markup = g_markup_printf_escaped("<span weight=\"bold\" foreground=\"blue\">%s</span>", "Logging in...");
-	gtk_label_set_markup(GTK_LABEL(info_label), markup);
-	g_free(markup);
+	gtk_label_set_text(GTK_LABEL(info_label), "Logging in...");
 
 	send_to_ics(my_login);
 	toggle_login_box(FALSE);
@@ -3906,6 +3905,26 @@ char *get_eco_short(const char* fen_key) {
 	return g_hash_table_lookup(eco_short, fen_key);
 }
 
+static void get_theme_colours(GtkWidget *widget) {
+	GdkRGBA fg_color;
+	GdkRGBA bg_color;
+	GtkStyleContext *context = gtk_widget_get_style_context(widget);
+
+	if (context != NULL) {
+		gtk_style_context_lookup_color(context, "theme_bg_color", &bg_color);
+		gtk_style_context_lookup_color(context, "theme_fg_color", &fg_color);
+		chat_handle_colour.red = (fg_color.red + bg_color.red) / 2.0;
+		chat_handle_colour.green = (fg_color.green + bg_color.green) / 2.0;
+		chat_handle_colour.blue = (fg_color.blue + bg_color.blue) / 1.85;
+		chat_handle_colour.alpha = 1.0;
+	} else {
+		chat_handle_colour.red = 0.5;
+		chat_handle_colour.green = 0.5;
+		chat_handle_colour.blue = 0.5;
+		chat_handle_colour.alpha = 1.0;
+	}
+}
+
 int main (int argc, char **argv) {
 
 	int c;
@@ -4077,6 +4096,7 @@ int main (int argc, char **argv) {
 	main_game = game_new();
 
 	main_window = gtk_window_new(GTK_WINDOW_TOPLEVEL);
+	g_signal_connect(main_window, "map-event", G_CALLBACK(get_theme_colours), NULL);
 
 	// CSS
 	GtkCssProvider *provider = gtk_css_provider_new();

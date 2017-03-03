@@ -252,6 +252,7 @@ extern double svg_w, svg_h;
 extern double dr,dg, db;
 extern double lr, lg, lb;
 extern double highlight_selected_r, highlight_selected_g, highlight_selected_b, highlight_selected_a;
+extern GdkRGBA chat_handle_colour;
 
 extern int needs_update;
 extern int needs_scale;
