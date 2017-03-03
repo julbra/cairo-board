@@ -23,6 +23,7 @@
 static void clean_last_drag_step(cairo_t *cdc, double wi, double hi);
 static void plot_coords(double start[2], double mid[2], double end[2], int points_to_plot, double **plots, int *nPlots);
 static void free_anim_data(struct anim_data *anim);
+static void clip_to_square(cairo_t *dc, int col, int row, int wi, int hi);
 static void highlight_square(cairo_t *dc, int col, int row, double r, double g, double b, double a, int wi, int hi);
 static void update_dragging_background(chess_piece *piece, int wi, int hi);
 static void restore_dragging_background(chess_piece *piece, int move_result, int wi, int hi);
@@ -40,6 +41,7 @@ enum layer_id {
 
 cairo_surface_t *board_layer = NULL;
 cairo_surface_t *highlight_under_layer = NULL;
+cairo_surface_t *coordinates_layer = NULL;
 cairo_surface_t *pieces_layer = NULL;
 cairo_surface_t *highlight_over_layer = NULL;
 
@@ -102,6 +104,10 @@ void draw_board_surface(int width, int height) {
 	board_layer = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
 	cairo_t *cr = cairo_create(board_layer);
 
+	cairo_surface_destroy(coordinates_layer);
+	coordinates_layer = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
+	cairo_t *coordinates_cr = cairo_create(coordinates_layer);
+
 	cairo_pattern_t *dark_square_pattern = cairo_pattern_create_rgb(dr, dg, db);
 	cairo_pattern_t *light_square_pattern = cairo_pattern_create_rgb(lr, lg, lb);
 
@@ -153,7 +159,7 @@ void draw_board_surface(int width, int height) {
 		}
 	}
 
-	// Draw Grid
+	// Draw smoothing lines between squares
 	cairo_set_operator(cr, CAIRO_OPERATOR_OVER);
 	cairo_set_source_rgb(cr, (dr + lr) / 2.0f, (dg + lg) / 2.0f, (db + lb) / 2.0f);
 	cairo_set_line_width(cr, 1.0f);
@@ -173,7 +179,7 @@ void draw_board_surface(int width, int height) {
 	// Draw coordinates
 	PangoFontDescription *desc;
 	PangoLayout *layout;
-	layout = pango_cairo_create_layout(cr);
+	layout = pango_cairo_create_layout(coordinates_cr);
 	char font_str[32];
 	float font_size = (float) (10 * tx / 100.0f);
 	sprintf(font_str, "%s %.1f", FONT_FACE, font_size);
@@ -189,36 +195,37 @@ void draw_board_surface(int width, int height) {
 	// Column names
 	light = true;
 	for (j = 0; j <= 8; j++) {
-		cairo_save(cr);
-		cairo_set_source(cr, light ? light_square_pattern : dark_square_pattern);
+		cairo_save(coordinates_cr);
+		cairo_set_source(coordinates_cr, light ? light_square_pattern : dark_square_pattern);
 		coord[0] = (char) (flipped ? 'h' - j : 'a' + j);
 		pango_layout_set_text(layout, coord, 1);
 		int pix_width;
 		int pix_height;
 		pango_layout_get_pixel_size(layout, &pix_width, &pix_height);
-		cairo_translate(cr, (j * tx) + padding, height - pix_height - padding);
-		pango_cairo_show_layout(cr, layout);
-		cairo_restore(cr);
+		cairo_translate(coordinates_cr, (j * tx) + padding, height - pix_height - padding);
+		pango_cairo_show_layout(coordinates_cr, layout);
+		cairo_restore(coordinates_cr);
 		light = !light;
 	}
 
 	// Rank numbers
 	light = true;
 	for (j = 0; j <= 8; j++) {
-		cairo_save(cr);
-		cairo_set_source(cr, light ? light_square_pattern : dark_square_pattern);
+		cairo_save(coordinates_cr);
+		cairo_set_source(coordinates_cr, light ? light_square_pattern : dark_square_pattern);
 		coord[0] = (char) (flipped ? '1' + j : '8' - j);
 		pango_layout_set_text(layout, coord, 1);
 		int pix_width;
 		int pix_height;
 		pango_layout_get_pixel_size(layout, &pix_width, &pix_height);
-		cairo_translate(cr, width - pix_width - padding, (j * tx) + padding);
-		pango_cairo_show_layout(cr, layout);
-		cairo_restore(cr);
+		cairo_translate(coordinates_cr, width - pix_width - padding, (j * tx) + padding);
+		pango_cairo_show_layout(coordinates_cr, layout);
+		cairo_restore(coordinates_cr);
 		light = !light;
 	}
 
 	cairo_destroy(cr);
+	cairo_destroy(coordinates_cr);
 	cairo_pattern_destroy(dark_square_pattern);
 	cairo_pattern_destroy(light_square_pattern);
 	cairo_pattern_destroy(dark_gradient_pattern);
@@ -364,9 +371,15 @@ void paint_layers(cairo_t *cdc) {
 	cairo_set_source_surface(cdc, board_layer, 0.0f, 0.0f);
 	cairo_paint(cdc);
 
-	// Under light
 	cairo_set_operator(cdc, CAIRO_OPERATOR_OVER);
+
+	// Under light
 	cairo_set_source_surface(cdc, highlight_under_layer, 0.0f, 0.0f);
+	cairo_paint(cdc);
+
+	// Coordinates
+	cairo_set_source_surface(cdc, coordinates_layer, 0.0f, 0.0f);
+	cairo_paint(cdc);
 
 	// Pieces
 	cairo_set_source_surface(cdc, pieces_layer, 0.0f, 0.0f);
@@ -396,9 +409,8 @@ void draw_full_update(cairo_t *cdr, int wi, int hi) {
 	init_highlight_under_surface(wi, hi);
 	init_highlight_over_surface(wi, hi);
 	if (mouse_clicked[0] >= 0) {
-		//debug("Rebuilding highlight %d,%d\n", mouse_clicked[0], mouse_clicked[1]);
-		cairo_t *high_cr = cairo_create(highlight_over_layer);
-		highlight_square(high_cr, mouse_clicked[0], mouse_clicked[1], 1, 1, 0, 1, wi, hi);
+		cairo_t *high_cr = cairo_create(highlight_under_layer);
+		highlight_square(high_cr, mouse_clicked[0], mouse_clicked[1], highlight_selected_r, highlight_selected_g, highlight_selected_b, highlight_selected_a, wi, hi);
 		cairo_destroy(high_cr);
 	}
 
@@ -560,37 +572,37 @@ void highlightPotentialMoves(GtkWidget *pWidget, chess_piece *piece, int wi, int
 }
 
 void de_highlight_square(cairo_t *dc, int col, int row, int wi, int hi) {
-
-	double half_line_width = ((double)wi)/(8.0f*45.0f);
-	if (half_line_width < 1.0f) {
-		half_line_width = 1.0f;
-	}
-	double line_width = 4*half_line_width;
-
 	double xy[2];
-	loc_to_xy(col, row, xy, wi, hi);
-	cairo_rectangle(dc, floor(xy[0]-wi/16.0f), floor(xy[1]-hi/16.0f), ceil(wi/8.0f+1), ceil(hi/8.0f+1));
-	cairo_rectangle(dc, ceil(xy[0]-wi/16.0f+line_width+1), ceil(xy[1]-hi/16.0f+line_width+1), floor(wi/8.0f-2*line_width-2), floor(hi/8.0f-2*line_width-2));
-	cairo_set_source_surface(dc, board_layer, 0, 0);
-	cairo_set_fill_rule(dc, CAIRO_FILL_RULE_EVEN_ODD);
-	cairo_fill_preserve(dc);
+	double square_width = wi / 8.0f;
+	double square_height = hi / 8.0f;
+	double half_width = square_width / 2.0f;
+	double half_height = square_height / 2.0f;
 
-	cairo_set_source_surface(dc, pieces_layer, 0, 0);
-	cairo_fill(dc);
-//	cairo_fill_preserve(dc);
+	loc_to_xy(col, row, xy, wi, hi);
+	cairo_rectangle(dc, xy[0] - half_width - 1, xy[1] - half_height, square_width + 2, square_height + 2);
+
+	cairo_save(dc);
+	cairo_clip(dc);
+	paint_layers(dc);
+
+	cairo_restore(dc);
 
 	// debug
 //	cairo_set_source_rgba(dc, 1, 0, 0, .3);
 //	cairo_fill(dc);
-
 }
 
 void clean_highlight_surface(int col, int row, int wi, int hi) {
-
 	double xy[2];
+	double square_width = wi / 8.0f;
+	double square_height = hi / 8.0f;
+	double half_width = square_width / 2.0f;
+	double half_height = square_height / 2.0f;
+
 	loc_to_xy(col, row, xy, wi, hi);
-	cairo_t *highlight = cairo_create(highlight_over_layer);
-	cairo_rectangle(highlight, floor(xy[0]-wi/16.0f), floor(xy[1]-hi/16.0f), ceil(wi/8.0f+1), ceil(hi/8.0f+1));
+
+	cairo_t *highlight = cairo_create(highlight_under_layer);
+	cairo_rectangle(highlight, xy[0] - half_width - 1, xy[1] - half_height, square_width + 2, square_height + 2);
 	cairo_set_source_rgba(highlight, 0, 0, 0, 0);
 	cairo_set_operator(highlight, CAIRO_OPERATOR_SOURCE);
 	cairo_clip(highlight);
@@ -1299,10 +1311,15 @@ static void update_dragging_background(chess_piece *piece, int wi, int hi) {
 
 	drag_dc = cairo_create(dragging_background);
 
-	/* Repaint square from which piece originated with layer0 (the board)
-	 * which means we remove the dragged piece */
+	// Repaint square from which piece originated without the pieces layer, thus removing the dragged piece
 	cairo_rectangle(drag_dc, xy[0] - wi / 16.0f, xy[1] - hi / 16.0f, ww, hh);
+	cairo_set_operator (drag_dc, CAIRO_OPERATOR_SOURCE);
 	cairo_set_source_surface(drag_dc, board_layer, 0.0f, 0.0f);
+	cairo_fill_preserve(drag_dc);
+	cairo_set_operator (drag_dc, CAIRO_OPERATOR_OVER);
+	cairo_set_source_surface(drag_dc, highlight_under_layer, 0.0f, 0.0f);
+	cairo_fill_preserve(drag_dc);
+	cairo_set_source_surface(drag_dc, coordinates_layer, 0.0f, 0.0f);
 	cairo_fill_preserve(drag_dc);
 	cairo_set_source_surface(drag_dc, highlight_over_layer, 0.0f, 0.0f);
 	cairo_fill(drag_dc);
@@ -1321,27 +1338,8 @@ static void restore_dragging_background(chess_piece *piece, int move_result, int
 
 	drag_dc = cairo_create(dragging_background);
 
-	/* Repaint square to where piece landed */
-	cairo_rectangle(drag_dc, floor(xy[0]-wi/16.0f), floor(xy[1]-hi/16.0f), ceil(ww), ceil(hh));
-	if (move_result > 0 && move_result & PIECE_TAKEN) { // need to clean out dead piece so repaint whole square from scratch
-		cairo_set_source_surface(drag_dc, board_layer, 0.0f, 0.0f);
-		cairo_set_operator (drag_dc, CAIRO_OPERATOR_SOURCE);
-		cairo_fill_preserve(drag_dc);
-
-		// debug
-//		cairo_set_source_rgba (drag_dc, 1, 0, 0, .5f);
-//		cairo_set_operator (drag_dc, CAIRO_OPERATOR_OVER);
-//		cairo_fill_preserve(drag_dc);
-	}
-
-	cairo_set_source_surface (drag_dc, pieces_layer, 0.0f, 0.0f);
-	cairo_set_operator (drag_dc, CAIRO_OPERATOR_OVER);
-	cairo_fill_preserve(drag_dc);
-
-	cairo_set_source_surface (drag_dc, highlight_over_layer, 0.0f, 0.0f);
-//	cairo_fill_preserve(drag_dc);
-//	cairo_set_source_rgba (drag_dc, 1, 0, 0, .5f);
-	cairo_fill(drag_dc);
+	// Repaint square to where piece landed
+	cairo_rectangle(drag_dc, floor(xy[0] - wi / 16.0f), floor(xy[1] - hi / 16.0f), ceil(ww), ceil(hh));
 
 	// handle castle
 	if (move_result > 0 && move_result & CASTLE) { // need to clean out old rooks pos
@@ -1378,38 +1376,23 @@ static void restore_dragging_background(chess_piece *piece, int move_result, int
 
 		// repaint rook source square
 		loc_to_xy(oc, or, rook_xy, wi, hi);
-		cairo_rectangle(drag_dc, floor(rook_xy[0]-wi/16.0f), floor(rook_xy[1]-hi/16.0f), ceil(ww), ceil(hh));
-		cairo_set_operator (drag_dc, CAIRO_OPERATOR_SOURCE);
-		cairo_set_source_surface(drag_dc, board_layer, 0.0f, 0.0f);
-		cairo_fill(drag_dc);
+		cairo_rectangle(drag_dc, floor(rook_xy[0] - wi / 16.0f), floor(rook_xy[1] - hi / 16.0f), ceil(ww), ceil(hh));
 
 		// repaint rook destination square
 		loc_to_xy(nc, nr, rook_xy, wi, hi);
-		cairo_rectangle(drag_dc, floor(rook_xy[0]-wi/16.0f), floor(rook_xy[1]-hi/16.0f), ceil(ww), ceil(hh));
-		cairo_set_source_surface(drag_dc, board_layer, 0.0f, 0.0f);
-		cairo_set_operator (drag_dc, CAIRO_OPERATOR_SOURCE);
-		cairo_fill_preserve(drag_dc);
-		cairo_set_source_surface(drag_dc, pieces_layer, 0.0f, 0.0f);
-		cairo_set_operator (drag_dc, CAIRO_OPERATOR_OVER);
-		cairo_fill_preserve(drag_dc);
-		cairo_set_source_surface(drag_dc, highlight_over_layer, 0.0f, 0.0f);
-		cairo_fill(drag_dc);
+		cairo_rectangle(drag_dc, floor(rook_xy[0] - wi / 16.0f), floor(rook_xy[1] - hi / 16.0f), ceil(ww), ceil(hh));
 	}
 
 	// handle en-passant
 	double pawn_xy[2];
 	if (move_result > 0 && move_result & EN_PASSANT) {
 		// repaint square where eaten pawn was
-		loc_to_xy(piece->pos.column, piece->pos.row +(main_game->whose_turn ? - 1 : 1), pawn_xy, wi, hi);
-		cairo_rectangle(drag_dc, pawn_xy[0]-wi/16.0f, pawn_xy[1]-hi/16.0f, ww, hh);
-		cairo_set_operator (drag_dc, CAIRO_OPERATOR_SOURCE);
-		cairo_set_source_surface(drag_dc, board_layer, 0.0f, 0.0f);
-		cairo_fill_preserve(drag_dc);
-		cairo_set_operator (drag_dc, CAIRO_OPERATOR_OVER);
-		cairo_set_source_surface(drag_dc, highlight_over_layer, 0.0f, 0.0f);
-		cairo_fill(drag_dc);
+		loc_to_xy(piece->pos.column, piece->pos.row + (main_game->whose_turn ? -1 : 1), pawn_xy, wi, hi);
+		cairo_rectangle(drag_dc, pawn_xy[0] - wi / 16.0f, pawn_xy[1] - hi / 16.0f, ww, hh);
 	}
 
+	cairo_clip(drag_dc);
+	paint_layers(drag_dc);
 	cairo_destroy (drag_dc);
 
 }
@@ -1418,8 +1401,8 @@ static void restore_dragging_background(chess_piece *piece, int move_result, int
 // NB: allow one pixel around square in case of rounding
 // This is only a convenience method and is not thread safe
 static void clean_last_drag_step(cairo_t *cdc, double wi, double hi) {
-	double ww = wi/8.0f;
-	double hh = hi/8.0f;
+	double ww = wi / 8.0f;
+	double hh = hi / 8.0f;
 
 	double dragged_x, dragged_y;
 	get_dragging_prev_xy(&dragged_x, &dragged_y);
@@ -1427,14 +1410,16 @@ static void clean_last_drag_step(cairo_t *cdc, double wi, double hi) {
 	cairo_save(cdc);
 	cairo_rectangle(cdc, dragged_x - 1 - wi / 16.0f, dragged_y - 1 - hi / 16.0f, ww + 2, hh + 2);
 	cairo_clip(cdc);
-	cairo_set_source_surface(cdc, board_layer, 0.0f, 0.0f);
-	cairo_set_operator (cdc, CAIRO_OPERATOR_SOURCE);
-	cairo_paint(cdc);
-	cairo_set_source_surface(cdc, pieces_layer, 0.0f, 0.0f);
-	cairo_set_operator (cdc, CAIRO_OPERATOR_OVER);
-	cairo_paint(cdc);
-	cairo_set_source_surface(cdc, highlight_over_layer, 0.0f, 0.0f);
-	cairo_paint(cdc);
+//	cairo_set_source_surface(cdc, board_layer, 0.0f, 0.0f);
+//	cairo_set_operator (cdc, CAIRO_OPERATOR_SOURCE);
+//	cairo_paint(cdc);
+//	cairo_set_source_surface(cdc, pieces_layer, 0.0f, 0.0f);
+//	cairo_set_operator (cdc, CAIRO_OPERATOR_OVER);
+//	cairo_paint(cdc);
+//	cairo_set_source_surface(cdc, highlight_over_layer, 0.0f, 0.0f);
+//	cairo_paint(cdc);
+
+	paint_layers(cdc);
 	cairo_restore(cdc);
 }
 
@@ -1539,15 +1524,11 @@ void handle_button_release(void) {
 		clean_last_drag_step(cache_dc, wi, hi);
 
 		// repaint destination square
+		cairo_save(cache_dc);
 		cairo_rectangle(cache_dc, floor(xy[0]-wi/16.0f), floor(xy[1]-hi/16.0f), ceil(ww), ceil(hh));
-		cairo_set_source_surface(cache_dc, board_layer, 0.0f, 0.0f);
-		cairo_set_operator (cache_dc, CAIRO_OPERATOR_SOURCE);
-		cairo_fill_preserve(cache_dc);
-		cairo_set_source_surface(cache_dc, pieces_layer, 0.0f, 0.0f);
-		cairo_set_operator (cache_dc, CAIRO_OPERATOR_OVER);
-		cairo_fill_preserve(cache_dc);
-		cairo_set_source_surface(cache_dc, highlight_over_layer, 0.0f, 0.0f);
-		cairo_fill(cache_dc);
+		cairo_clip(cache_dc);
+		paint_layers(cache_dc);
+		cairo_restore(cache_dc);
 
 		// if was castle move, handle rook
 		int oc = -1;
@@ -1651,8 +1632,8 @@ void handle_button_release(void) {
 		cairo_paint(cdr);
 
 		// debug : uncomment the following to highlight repainted areas
-		//cairo_set_source_rgba (cdr, 0.0f, 1.0f, 0.0f, .75f);
-		//cairo_paint(cdr);
+//		cairo_set_source_rgba (cdr, 0.0f, 1.0f, 0.0f, .25f);
+//		cairo_paint(cdr);
 
 		cairo_destroy(cdr);
 
@@ -1684,18 +1665,20 @@ void handle_button_release(void) {
 			// (if user clicked on same piece again she wants to toggle it off)
 			if (mouse_clicked[0] != ij[0] || mouse_clicked[1] != ij[1]) {
 
+				// paint to highlight_under_layer
+				cairo_t *high_cr = cairo_create(highlight_under_layer);
+				highlight_square(high_cr, ij[0], ij[1], highlight_selected_r, highlight_selected_g, highlight_selected_b, highlight_selected_a, wi, hi);
+				cairo_destroy(high_cr);
+
 				// paint to main
 				cairo_t *main_cr = gdk_cairo_create(gtk_widget_get_window(board));
-				highlight_square(main_cr, ij[0], ij[1], 1, 1, 0, 1, wi, hi);
+				clip_to_square(main_cr, ij[0], ij[1], wi, hi);
+				paint_layers(main_cr);
 				cairo_destroy(main_cr);
-
-				// paint to highlight layer
-				cairo_t *high_cr = cairo_create(highlight_over_layer);
-				highlight_square(high_cr, ij[0], ij[1], 1, 1, 0, 1, wi, hi);
-				cairo_destroy(high_cr);
 
 				// update cache surface (used for scaling)
 				cairo_t *cache_cr = cairo_create(cache_layer);
+				clip_to_square(cache_cr, ij[0], ij[1], wi, hi);
 				paint_layers(cache_cr);
 				cairo_destroy(cache_cr);
 
@@ -1724,15 +1707,14 @@ void handle_button_release(void) {
 }
 
 void handle_left_button_press(GtkWidget *pWidget, int wi, int hi, int x, int y) {
-	/* clean out any previous highlight */
-	if (mouse_clicked[0] >=0) {
+	// clean out any previous highlight
+	if (mouse_clicked[0] >= 0) {
+		// clean out old highlight surface
+		clean_highlight_surface(mouse_clicked[0], mouse_clicked[1], wi, hi);
+
 		cairo_t *board_cr = gdk_cairo_create(gtk_widget_get_window(pWidget));
 		de_highlight_square(board_cr, mouse_clicked[0], mouse_clicked[1], wi, hi);
 		cairo_destroy(board_cr);
-
-		/* clean out old highlight surface */
-//		init_highlight_over_surface(wi, hi);
-		clean_highlight_surface(mouse_clicked[0], mouse_clicked[1], wi, hi);
 	}
 
 	chess_square* square = xy_to_square(main_game, x, y, wi, hi);
@@ -2028,124 +2010,139 @@ static void create_trapeze_path(cairo_t *dc, double x, double y, double w, doubl
 	cairo_close_path(dc);
 }
 
+static void clip_to_square(cairo_t *dc, int col, int row, int wi, int hi) {
+	double xy[2];
+	loc_to_xy(col, row, xy, wi, hi);
+	double square_width = wi / 8.0f;
+	double square_height = hi / 8.0f;
+	double half_width = square_width / 2.0f;
+	double half_height = square_height / 2.0f;
+
+	// use this instead for plain rectangle
+	cairo_rectangle(dc, xy[0] - half_width, xy[1] - half_height, square_width, square_height);
+	cairo_clip(dc);
+}
 
 /* Highlight a square insets e.g. to mark a selection */
 static void highlight_square(cairo_t *dc, int col, int row, double r, double g, double b, double a, int wi, int hi) {
 
-	// Calculate the gradient half width
-	double half_line_width = ((double)wi)/(8.0f*45.0f);
-	if (half_line_width < 1.0f) {
-		half_line_width = 1.0f;
-	}
-	double line_width = 4*half_line_width;
-
 	double xy[2];
 	loc_to_xy(col, row, xy, wi, hi);
-
-	double x,y,w,h;
-	x = xy[0]-wi/16.0f;
-	y = xy[1]-hi/16.0f;
-	w = wi/8.0f;
-	h = hi/8.0f;
-
-	// Build gradients
-	cairo_pattern_t *linpat;
-
-	// Top Edge
-	linpat = cairo_pattern_create_linear (x, y, x, y+line_width);
-	cairo_pattern_add_color_stop_rgba(linpat, 0.00,  r, g, b, 1);
-	cairo_pattern_add_color_stop_rgba(linpat, 0.33,  r, g, b, 1);
-	cairo_pattern_add_color_stop_rgba(linpat, 1.00,  r, g, b, 0);
-
-	create_trapeze_path(dc, x, y, w, h, line_width, TOP);
-	cairo_set_source(dc, linpat);
-	cairo_fill(dc);
-
-	// Right Edge
-	linpat = cairo_pattern_create_linear (x+w, y, x+w-line_width, y);
-	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
-	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
-	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
-
-	create_trapeze_path(dc, x, y, w, h, line_width, RIGHT);
-	cairo_set_source (dc, linpat);
-	cairo_fill (dc);
-
-	// Bottom Edge
-	linpat = cairo_pattern_create_linear (x+w, y+h, x+w, y+h-line_width);
-	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
-	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
-	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
-
-	create_trapeze_path(dc, x, y, w, h, line_width, BOTTOM);
-	cairo_set_source (dc, linpat);
-	cairo_fill (dc);
-
-	// Left Edge
-	linpat = cairo_pattern_create_linear (x, y+h, x+line_width, y+h);
-	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
-	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
-	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
-
-	create_trapeze_path(dc, x, y, w, h, line_width, LEFT);
-	cairo_set_source (dc, linpat);
-	cairo_fill (dc);
-
-	// Now fill in the gaps in case of display rounding
-
-	// Top Left
-	linpat = cairo_pattern_create_linear (x, y, x+line_width,y+line_width);
-	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
-	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
-	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
-
-	cairo_move_to(dc, x+1, y+1);
-	cairo_rel_line_to(dc, line_width-3, line_width-3);
-	cairo_set_line_width(dc, 1);
-	cairo_set_source(dc, linpat);
-	cairo_stroke(dc);
-
-	// Top Right
-	linpat = cairo_pattern_create_linear (x+w, y, x+w-line_width, y+line_width);
-	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
-	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
-	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
-
-	cairo_move_to(dc, x+w-1, y+1);
-	cairo_rel_line_to(dc, -line_width+3, line_width-3);
-	cairo_set_line_width(dc, 1);
-	cairo_set_source(dc, linpat);
-	cairo_stroke(dc);
-
-	// Bottom Right
-	linpat = cairo_pattern_create_linear (x+w, y+h, x+w-line_width, y+h-line_width);
-	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
-	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
-	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
-
-	cairo_move_to(dc, x+w-1, y+h-1);
-	cairo_rel_line_to(dc, -line_width+3, -line_width+3);
-	cairo_set_line_width(dc, 1);
-	cairo_set_source(dc, linpat);
-	cairo_stroke(dc);
-
-	// Bottom Left
-	linpat = cairo_pattern_create_linear (x, y+h, x+line_width, y+h-line_width);
-	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
-	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
-	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
-
-	cairo_move_to(dc, x+1, y+h-1);
-	cairo_rel_line_to(dc, line_width-3, -line_width+3);
-	cairo_set_line_width(dc, 1);
-	cairo_set_source(dc, linpat);
-	cairo_stroke(dc);
+	double square_width = wi / 8.0f;
+	double square_height = hi / 8.0f;
+	double half_width = square_width / 2.0f;
+	double half_height = square_height / 2.0f;
 
 	// use this instead for plain rectangle
-//	cairo_rectangle(dc, xy[0] - wi / 16.0f, xy[1] - hi / 16.0f,
-//	                wi / 8.0f, hi / 8.0f);
-//	cairo_set_source_rgba(dc, r, g, b, a);
+	cairo_rectangle(dc, xy[0] - half_width, xy[1] - half_height, square_width, square_height);
+	cairo_set_source_rgba(dc, r, g, b, a);
+	cairo_fill(dc);
+
+//	// Calculate the gradient half width
+//	double half_line_width = ((double)wi)/(8.0f*45.0f);
+//	if (half_line_width < 1.0f) {
+//		half_line_width = 1.0f;
+//	}
+//
+//	double line_width = 4*half_line_width;
+//	double x,y,w,h;
+//	x = xy[0]-wi/16.0f;
+//	y = xy[1]-hi/16.0f;
+//	w = wi/8.0f;
+//	h = hi/8.0f;
+//
+//	// Build gradients
+//	cairo_pattern_t *linpat;
+//
+//	// Top Edge
+//	linpat = cairo_pattern_create_linear (x, y, x, y+line_width);
+//	cairo_pattern_add_color_stop_rgba(linpat, 0.00,  r, g, b, 1);
+//	cairo_pattern_add_color_stop_rgba(linpat, 0.33,  r, g, b, 1);
+//	cairo_pattern_add_color_stop_rgba(linpat, 1.00,  r, g, b, 0);
+//
+//	create_trapeze_path(dc, x, y, w, h, line_width, TOP);
+//	cairo_set_source(dc, linpat);
 //	cairo_fill(dc);
+//
+//	// Right Edge
+//	linpat = cairo_pattern_create_linear (x+w, y, x+w-line_width, y);
+//	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
+//	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
+//	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
+//
+//	create_trapeze_path(dc, x, y, w, h, line_width, RIGHT);
+//	cairo_set_source (dc, linpat);
+//	cairo_fill (dc);
+//
+//	// Bottom Edge
+//	linpat = cairo_pattern_create_linear (x+w, y+h, x+w, y+h-line_width);
+//	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
+//	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
+//	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
+//
+//	create_trapeze_path(dc, x, y, w, h, line_width, BOTTOM);
+//	cairo_set_source (dc, linpat);
+//	cairo_fill (dc);
+//
+//	// Left Edge
+//	linpat = cairo_pattern_create_linear (x, y+h, x+line_width, y+h);
+//	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
+//	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
+//	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
+//
+//	create_trapeze_path(dc, x, y, w, h, line_width, LEFT);
+//	cairo_set_source (dc, linpat);
+//	cairo_fill (dc);
+//
+//	// Now fill in the gaps in case of display rounding
+//
+//	// Top Left
+//	linpat = cairo_pattern_create_linear (x, y, x+line_width,y+line_width);
+//	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
+//	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
+//	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
+//
+//	cairo_move_to(dc, x+1, y+1);
+//	cairo_rel_line_to(dc, line_width-3, line_width-3);
+//	cairo_set_line_width(dc, 1);
+//	cairo_set_source(dc, linpat);
+//	cairo_stroke(dc);
+//
+//	// Top Right
+//	linpat = cairo_pattern_create_linear (x+w, y, x+w-line_width, y+line_width);
+//	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
+//	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
+//	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
+//
+//	cairo_move_to(dc, x+w-1, y+1);
+//	cairo_rel_line_to(dc, -line_width+3, line_width-3);
+//	cairo_set_line_width(dc, 1);
+//	cairo_set_source(dc, linpat);
+//	cairo_stroke(dc);
+//
+//	// Bottom Right
+//	linpat = cairo_pattern_create_linear (x+w, y+h, x+w-line_width, y+h-line_width);
+//	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
+//	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
+//	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
+//
+//	cairo_move_to(dc, x+w-1, y+h-1);
+//	cairo_rel_line_to(dc, -line_width+3, -line_width+3);
+//	cairo_set_line_width(dc, 1);
+//	cairo_set_source(dc, linpat);
+//	cairo_stroke(dc);
+//
+//	// Bottom Left
+//	linpat = cairo_pattern_create_linear (x, y+h, x+line_width, y+h-line_width);
+//	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
+//	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
+//	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
+//
+//	cairo_move_to(dc, x+1, y+h-1);
+//	cairo_rel_line_to(dc, line_width-3, -line_width+3);
+//	cairo_set_line_width(dc, 1);
+//	cairo_set_source(dc, linpat);
+//	cairo_stroke(dc);
 }
 
 static void logical_promote(int last_promote) {
@@ -2426,5 +2423,3 @@ gboolean test_animate_random_step(gpointer data) {
 
 	return TRUE;
 }
-
-

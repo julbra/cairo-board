@@ -226,6 +226,11 @@ double lr = 240.0/255.0;
 double lg = 217.0/255.0;
 double lb = 181.0/255.0;
 
+double highlight_selected_r;
+double highlight_selected_g;
+double highlight_selected_b;
+double highlight_selected_a = 0.5;
+
 /* Prototypes */
 char *get_eco_long(const char *fen_key);
 char *get_eco_short(const char *fen_key);
@@ -3992,6 +3997,11 @@ int main (int argc, char **argv) {
 
 		}
 	}
+
+	highlight_selected_r = (dr + lr) / 3.0;
+	highlight_selected_g = 1;
+	highlight_selected_b = (db + lb) / 3.0;
+	highlight_selected_a = 0.3;
 
 	debug("Debug info enabled\n");
 	if (ics_mode) {
