@@ -3473,7 +3473,7 @@ void parse_ics_buffer(void) {
 				draw_pieces_surface(old_wi, old_hi);
 				init_dragging_background(old_wi, old_hi);
 				init_highlight_under_surface(old_wi, old_hi);
-				init_highlight_over_surface(old_wi, old_hi);
+//				init_highlight_over_surface(old_wi, old_hi);
 				gtk_widget_queue_draw(GTK_WIDGET(board));
 				gdk_threads_leave();
 				start_uci_analysis();
