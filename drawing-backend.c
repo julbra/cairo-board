@@ -1230,6 +1230,9 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 		cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
 
 		// Clean up all highlights after a successful move
+		if (lock_threads) {
+			gdk_threads_enter();
+		}
 		init_highlight_under_surface(wi, hi);
 //		init_highlight_over_surface(wi, hi);
 
@@ -1268,6 +1271,9 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 		cairo_set_operator(cdr, CAIRO_OPERATOR_SOURCE);
 		cairo_paint(cdr);
 		cairo_destroy(cdr);
+		if (lock_threads) {
+			gdk_threads_leave();
+		}
 
 		// Start animation
 		double n_xy[2];
@@ -1281,30 +1287,26 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 		//printf("POINTS TO PLOT == %f, wi %d, hi %d\n", points_to_plot, wi, hi);
 		if (points_to_plot < 12) {
 			points_to_plot = 12;
-		}
-		else if (points_to_plot < 16) {
+		} else if (points_to_plot < 16) {
 			points_to_plot = 16;
-		}
-		else if (points_to_plot > 22) {
+		} else if (points_to_plot > 22) {
 			points_to_plot = 22;
 		}
 
 		double mid[2];
 		if (piece->type != W_KNIGHT && piece->type != B_KNIGHT) {
-			mid[0] = (n_xy[0]+o_xy[0])/2.0;
-			mid[1] = (n_xy[1]+o_xy[1])/2.0;
-		}
-		else {
+			mid[0] = (n_xy[0] + o_xy[0]) / 2.0;
+			mid[1] = (n_xy[1] + o_xy[1]) / 2.0;
+		} else {
 			points_to_plot = 14;
-			if (abs(n_xy[0]-o_xy[0]) > abs(n_xy[1]-o_xy[1])) {
+			if (abs(n_xy[0] - o_xy[0]) > abs(n_xy[1] - o_xy[1])) {
 				// long step along X axis
-				mid[0] = n_xy[0] + ( n_xy[0] > o_xy[0] ? -1 : 1) * wi/8.0;
+				mid[0] = n_xy[0] + (n_xy[0] > o_xy[0] ? -1 : 1) * wi / 8.0;
 				mid[1] = o_xy[1];
-			}
-			else {
+			} else {
 				// long step along Y axis
 				mid[0] = o_xy[0];
-				mid[1] = n_xy[1] + (n_xy[1] > o_xy[1] ? -1 : 1) * hi/8.0;
+				mid[1] = n_xy[1] + (n_xy[1] > o_xy[1] ? -1 : 1) * hi / 8.0;
 			}
 		}
 
@@ -1362,7 +1364,13 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 		return TRUE;
 	}
 
+	if (lock_threads) {
+		gdk_threads_enter();
+	}
 	restore_dragging_background(piece, -1, wi, hi );
+	if (lock_threads) {
+		gdk_threads_leave();
+	}
 
 	return FALSE;
 }
