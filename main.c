@@ -1077,7 +1077,6 @@ void check_ending_clause(chess_game *game) {
 			last_san_move[strlen(last_san_move)] = '#';
 			printf("Checkmate! %s wins\n", (game->whose_turn ? "White" : "Black"));
 		} else {
-			printf("------------------------ King is checked!\n");
 			last_san_move[strlen(last_san_move)] = '+';
 		}
 	} else if (is_stale_mate(game)) {
