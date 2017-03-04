@@ -15,9 +15,9 @@ int get_square_colour(int col, int row);
 
 int get_possible_moves(chess_game *game, chess_piece *, int[64][2], int);
 
-int is_piece_under_attack_raw(chess_game *game, chess_piece *piece);
+bool is_piece_under_attack_raw(chess_game *game, chess_piece *piece);
 
-int is_king_checked(chess_game *game, int colour);
+bool is_king_checked(chess_game *game, int colour);
 
 int is_check_mate(chess_game *game);
 
