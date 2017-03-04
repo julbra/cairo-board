@@ -215,6 +215,7 @@ int game_mode = MANUAL_PLAY;
 chess_piece *mouse_clicked_piece = NULL;
 chess_piece *mouse_dragged_piece = NULL;
 chess_piece *auto_selected_piece = NULL;
+chess_piece *king_in_check_piece = NULL;
 
 int needs_update;
 int needs_scale;
@@ -231,6 +232,10 @@ double highlight_selected_r;
 double highlight_selected_g;
 double highlight_selected_b;
 double highlight_selected_a = 0.5;
+double check_warn_r = 1.0;
+double check_warn_g = 0.1;
+double check_warn_b = 0.1;
+double check_warn_a = 1.0;
 
 /* Prototypes */
 char *get_eco_long(const char *fen_key);
@@ -710,37 +715,6 @@ bool can_i_move_piece(chess_piece *piece) {
 	return false;
 }
 
-void update_eco_tag(gboolean should_lock_threads) {
-	char *fen = calloc(128, sizeof(char));
-    char *eco = calloc(128, sizeof(char));
-
-	generate_fen_no_enpassant(fen, main_game->squares, main_game->castle_state, main_game->whose_turn);
-	//debug("%s\n", fen);
-	char *eco_code = get_eco_short(fen);
-	char *eco_desc = get_eco_long(fen);
-	if (eco_code) {
-		strncpy(last_eco_code, eco_code, 16);
-	}
-	if (eco_desc) {
-		strncpy(last_eco_description, eco_desc, 128);
-	}
-
-
-	snprintf(eco, 128, "[%s] %s", last_eco_code, last_eco_description);
-	//debug("%s\n", fen);
-	if (should_lock_threads) {
-		gdk_threads_enter();
-	}
-	gtk_label_set_text(GTK_LABEL(opening_code_label), eco);
-	gtk_widget_set_tooltip_text(opening_code_label, eco);
-	if (should_lock_threads) {
-		gdk_threads_leave();
-	}
-
-    free(fen);
-	free(eco);
-}
-
 int move_piece(chess_piece *piece, int col, int row, int check_legality, int move_source, char san_move[SAN_MOVE_SIZE], chess_game *game, bool lock_threads) {
 
 	// Determine whether proposed move is legal
@@ -869,8 +843,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 		// Reset the 50 move counter if piece was a pawn or a piece was taken
 		if (piece->type == W_PAWN || piece->type == B_PAWN) {
 			reset_fifty_counter = 1;
-		}
-		else if (piece_taken) {
+		} else if (piece_taken) {
 			reset_fifty_counter = 1;
 		}
 
@@ -1067,12 +1040,44 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 	}
 }
 
+void update_eco_tag(gboolean should_lock_threads) {
+	char *fen = calloc(128, sizeof(char));
+    char *eco = calloc(128, sizeof(char));
+
+	generate_fen_no_enpassant(fen, main_game->squares, main_game->castle_state, main_game->whose_turn);
+	//debug("%s\n", fen);
+	char *eco_code = get_eco_short(fen);
+	char *eco_desc = get_eco_long(fen);
+	if (eco_code) {
+		strncpy(last_eco_code, eco_code, 16);
+	}
+	if (eco_desc) {
+		strncpy(last_eco_description, eco_desc, 128);
+	}
+
+
+	snprintf(eco, 128, "[%s] %s", last_eco_code, last_eco_description);
+	//debug("%s\n", fen);
+	if (should_lock_threads) {
+		gdk_threads_enter();
+	}
+	gtk_label_set_text(GTK_LABEL(opening_code_label), eco);
+	gtk_widget_set_tooltip_text(opening_code_label, eco);
+	if (should_lock_threads) {
+		gdk_threads_leave();
+	}
+
+    free(fen);
+	free(eco);
+}
+
 void check_ending_clause(chess_game *game) {
 	if (is_king_checked(game, game->whose_turn)) {
 		if (is_check_mate(game)) {
 			last_san_move[strlen(last_san_move)] = '#';
 			printf("Checkmate! %s wins\n", (game->whose_turn ? "White" : "Black"));
 		} else {
+			printf("------------------------ King is checked!\n");
 			last_san_move[strlen(last_san_move)] = '+';
 		}
 	} else if (is_stale_mate(game)) {
@@ -1300,9 +1305,9 @@ static int load_piecesSvg() {
 }
 
 static int init_pieces(chess_game *game) {
-	int i,j;
+	unsigned int i, j;
 
-	for (i=0; i<8; i++) {
+	for (i = 0; i < 8; i++) {
 		game->white_set[i].type = W_PAWN;
 		game->white_set[i].pos.row = 1;
 		game->white_set[i].pos.column = i;
@@ -1313,14 +1318,14 @@ static int init_pieces(chess_game *game) {
 		game->black_set[i].pos.column = i;
 		game->squares[i][6].piece = &game->black_set[i];
 	}
-	for (i=8; i<16; i++) {
+	for (i = 8; i < 16; i++) {
 		game->white_set[i].pos.row = 0;
-		game->white_set[i].pos.column = i-8;
-		game->squares[i-8][0].piece = &game->white_set[i];
+		game->white_set[i].pos.column = i - 8;
+		game->squares[i - 8][0].piece = &game->white_set[i];
 
 		game->black_set[i].pos.row = 7;
-		game->black_set[i].pos.column = i-8;
-		game->squares[i-8][7].piece = &game->black_set[i];
+		game->black_set[i].pos.column = i - 8;
+		game->squares[i - 8][7].piece = &game->black_set[i];
 	}
 
 	game->white_set[ROOK1].type = W_ROOK;
@@ -1353,7 +1358,6 @@ static int init_pieces(chess_game *game) {
 			game->squares[i][j].piece = NULL;
 		}
 	}
-
 
 	init_en_passant(game);
 	init_castle_state(game);

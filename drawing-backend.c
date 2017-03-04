@@ -25,6 +25,7 @@ static void plot_coords(double start[2], double mid[2], double end[2], int point
 static void free_anim_data(struct anim_data *anim);
 static void clip_to_square(cairo_t *dc, int col, int row, int wi, int hi);
 static void highlight_square(cairo_t *dc, int col, int row, double r, double g, double b, double a, int wi, int hi);
+static void highlight_check_square(cairo_t *dc, int col, int row, double r, double g, double b, double a, int wi, int hi);
 static void update_dragging_background(chess_piece *piece, int wi, int hi);
 static void restore_dragging_background(chess_piece *piece, int move_result, int wi, int hi);
 static void logical_promote(int last_promote);
@@ -81,7 +82,7 @@ void update_pieces_surfaces(int wi, int hi) {
 		rsvg_handle_render_cairo (piecesSvg[i], dc);
 		cairo_destroy(dc);
 	}
-	assign_surfaces(main_game);
+	assign_surfaces();
 }
 
 /* Internal convenience method */
@@ -270,20 +271,18 @@ void draw_pieces_surface(int width, int height) {
 }
 
 void update_pieces_surface_by_loc(int width, int height, int old_col, int old_row, int new_col, int new_row) {
-
-	cairo_t* dc;
 	double xy[2];
+	double sq_width = width / 8.0f;
+	double sq_height = height / 8.0f;
+	double half_sq_width = width / 16.0f;
+	double half_sq_height = height / 16.0f;
 
-	// size of a square
-	double ww = width / 8.0f;
-	double hh = height / 8.0f;
-
-	dc = cairo_create(pieces_layer);
+	cairo_t *dc = cairo_create(pieces_layer);
 	cairo_save(dc);
 
 	// Clean out old piece from surface
 	loc_to_xy(old_col, old_row, xy, width, height);
-	cairo_rectangle(dc, floor(xy[0]-width/16.0f), floor(xy[1]-height/16.0f), ceil(ww), ceil(hh));
+	cairo_rectangle(dc, floor(xy[0] - half_sq_width), floor(xy[1] - half_sq_height), ceil(sq_width), ceil(sq_height));
 	cairo_clip(dc);
 	cairo_set_source_rgba(dc, 0.0f, 0.0f, 0.0f, 0.0f);
 	cairo_set_operator(dc, CAIRO_OPERATOR_SOURCE);
@@ -298,30 +297,28 @@ void update_pieces_surface_by_loc(int width, int height, int old_col, int old_ro
 	}
 	if (piece != NULL) {
 		loc_to_xy(piece->pos.column, piece->pos.row, xy, width, height);
-		cairo_rectangle(dc, floor(xy[0]-width/16.0f), floor(xy[1]-height/16.0f), ceil(ww), ceil(hh));
+		cairo_rectangle(dc, floor(xy[0] - half_sq_width), floor(xy[1] - half_sq_height), ceil(sq_width), ceil(sq_height));
 		cairo_clip(dc);
 		cairo_set_operator(dc, CAIRO_OPERATOR_SOURCE);
-		apply_surface_at(dc, piece->surf, xy[0]-width/16.0f, xy[1]-height/16.0f, width/8.0f, height/8.0f);
+		apply_surface_at(dc, piece->surf, xy[0] - half_sq_width, xy[1] - half_sq_height, sq_width, sq_height);
 	}
 	cairo_destroy(dc);
-
 }
 
 // This must be called after a real move
 void update_pieces_surface(int width, int height, int old_col, int old_row, chess_piece *piece) {
-	cairo_t* dc;
 	double xy[2];
+	double sq_width = width / 8.0f;
+	double sq_height = height / 8.0f;
+	double half_sq_width = width / 16.0f;
+	double half_sq_height = height / 16.0f;
 
-	// size of a square
-	double ww = width/8.0f;
-	double hh = height/8.0f;
-
-	dc = cairo_create(pieces_layer);
+	cairo_t *dc = cairo_create(pieces_layer);
 	cairo_save(dc);
 
 	// Clean out old piece from surface
 	loc_to_xy(old_col, old_row, xy, width, height);
-	cairo_rectangle(dc, floor(xy[0]-width/16.0f), floor(xy[1]-height/16.0f), ceil(ww), ceil(hh));
+	cairo_rectangle(dc, floor(xy[0] - half_sq_width), floor(xy[1] - half_sq_height), ceil(sq_width), ceil(sq_height));
 	cairo_clip(dc);
 	cairo_set_source_rgba(dc, 0.0f, 0.0f, 0.0f, 0.0f);
 	cairo_set_operator(dc, CAIRO_OPERATOR_SOURCE);
@@ -332,11 +329,33 @@ void update_pieces_surface(int width, int height, int old_col, int old_row, ches
 	// Add new piece to surface
 	if (piece != NULL) {
 		loc_to_xy(piece->pos.column, piece->pos.row, xy, width, height);
-		cairo_rectangle(dc, floor(xy[0]-width/16.0f), floor(xy[1]-height/16.0f), ceil(ww), ceil(hh));
+		cairo_rectangle(dc, floor(xy[0] - half_sq_width), floor(xy[1] - half_sq_height), ceil(sq_width), ceil(sq_height));
 		cairo_clip(dc);
 		cairo_set_operator(dc, CAIRO_OPERATOR_SOURCE);
-		apply_surface_at(dc, piece->surf, xy[0]-width/16.0f, xy[1]-height/16.0f, width/8.0f, height/8.0f);
+		apply_surface_at(dc, piece->surf, xy[0] - width / 16.0f, xy[1] - height / 16.0f, width / 8.0f, height / 8.0f);
 	}
+	cairo_destroy(dc);
+}
+
+void piece_to_ghost(chess_piece *piece, int wi, int hi) {
+	double xy[2];
+	double sq_width = wi / 8.0f;
+	double sq_height = hi / 8.0f;
+	double half_sq_width = wi / 16.0f;
+	double half_sq_height = hi / 16.0f;
+
+	cairo_t *dc = cairo_create(pieces_layer);
+
+	// Clean out old piece from surface
+	loc_to_xy(piece->pos.column, piece->pos.row, xy, wi, hi);
+	cairo_rectangle(dc, floor(xy[0] - half_sq_width), floor(xy[1] - half_sq_height), ceil(sq_width), ceil(sq_height));
+	cairo_clip(dc);
+	cairo_set_operator(dc, CAIRO_OPERATOR_SOURCE);
+	cairo_set_source_rgba(dc, 0.0f, 0.0f, 0.0f, 0.0f);
+	cairo_paint(dc);
+	// Add piece ghost to surface
+	cairo_set_source_surface(dc, piece->surf, xy[0] - half_sq_width, xy[1] - half_sq_height);
+	cairo_paint_with_alpha(dc, 0.5);
 	cairo_destroy(dc);
 }
 
@@ -408,9 +427,14 @@ void draw_full_update(cairo_t *cdr, int wi, int hi) {
 	// Re-highlight highlighted square if any
 	init_highlight_under_surface(wi, hi);
 	init_highlight_over_surface(wi, hi);
-	if (mouse_clicked[0] >= 0) {
+	if (mouse_clicked[0] >= 0 || king_in_check_piece != NULL) {
 		cairo_t *high_cr = cairo_create(highlight_under_layer);
-		highlight_square(high_cr, mouse_clicked[0], mouse_clicked[1], highlight_selected_r, highlight_selected_g, highlight_selected_b, highlight_selected_a, wi, hi);
+		if (mouse_clicked[0] >= 0) {
+			highlight_square(high_cr, mouse_clicked[0], mouse_clicked[1], highlight_selected_r, highlight_selected_g, highlight_selected_b, highlight_selected_a, wi, hi);
+		}
+		if (king_in_check_piece != NULL) {
+			highlight_check_square(high_cr, king_in_check_piece->pos.column, king_in_check_piece->pos.row, check_warn_r, check_warn_g, check_warn_b, check_warn_a, wi, hi);
+		}
 		cairo_destroy(high_cr);
 	}
 
@@ -1281,27 +1305,18 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 	restore_dragging_background(piece, -1, wi, hi );
 
 	return FALSE;
-
 }
 
 void init_dragging_background(int wi, int hi) {
-
-	cairo_t *drag_dc;
-
 	cairo_surface_destroy (dragging_background);
 	dragging_background = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, wi, hi);
-	drag_dc = cairo_create(dragging_background);
-
+	cairo_t *drag_dc = cairo_create(dragging_background);
 	paint_layers(drag_dc);
-
 	cairo_destroy (drag_dc);
-
 }
 
-/* remove passed piece from dragging surface */
+// Remove passed piece from dragging surface
 static void update_dragging_background(chess_piece *piece, int wi, int hi) {
-
-	cairo_t *drag_dc;
 
 	double ww = wi / 8.0f;
 	double hh = hi / 8.0f;
@@ -1309,14 +1324,15 @@ static void update_dragging_background(chess_piece *piece, int wi, int hi) {
 	double xy[2];
 	piece_to_xy(piece, xy, wi, hi);
 
-	drag_dc = cairo_create(dragging_background);
+	cairo_t *drag_dc = cairo_create(dragging_background);
 
 	// Repaint square from which piece originated without the pieces layer, thus removing the dragged piece
 	cairo_rectangle(drag_dc, xy[0] - wi / 16.0f, xy[1] - hi / 16.0f, ww, hh);
+	cairo_clip_preserve(drag_dc);
 	cairo_set_operator (drag_dc, CAIRO_OPERATOR_SOURCE);
 	cairo_set_source_surface(drag_dc, board_layer, 0.0f, 0.0f);
 	cairo_fill_preserve(drag_dc);
-	cairo_set_operator (drag_dc, CAIRO_OPERATOR_OVER);
+	cairo_set_operator(drag_dc, CAIRO_OPERATOR_OVER);
 	cairo_set_source_surface(drag_dc, highlight_under_layer, 0.0f, 0.0f);
 	cairo_fill_preserve(drag_dc);
 	cairo_set_source_surface(drag_dc, coordinates_layer, 0.0f, 0.0f);
@@ -1326,9 +1342,29 @@ static void update_dragging_background(chess_piece *piece, int wi, int hi) {
 	cairo_destroy(drag_dc);
 }
 
-static void restore_dragging_background(chess_piece *piece, int move_result, int wi, int hi) {
+// Refresh dragging background for a square
+static void update_dragging_background_at(int col, int row, int wi, int hi) {
+	double ww = wi / 8.0f;
+	double hh = hi / 8.0f;
 
-	cairo_t *drag_dc;
+	double xy[2];
+	loc_to_xy(col, row, xy, wi, hi);
+
+	cairo_t *drag_dc = cairo_create(dragging_background);
+
+	// Repaint square from which piece originated without the pieces layer, thus removing the dragged piece
+	cairo_rectangle(drag_dc, xy[0] - wi / 16.0f, xy[1] - hi / 16.0f, ww, hh);
+	cairo_clip(drag_dc);
+	paint_layers(drag_dc);
+	cairo_destroy(drag_dc);
+}
+
+// Refresh dragging background for the square piece is on
+static void update_dragging_background_with_piece(chess_piece *piece, int wi, int hi) {
+	update_dragging_background_at(piece->pos.column, piece->pos.row, wi, hi);
+}
+
+static void restore_dragging_background(chess_piece *piece, int move_result, int wi, int hi) {
 
 	double ww = wi/8.0f;
 	double hh = hi/8.0f;
@@ -1336,7 +1372,7 @@ static void restore_dragging_background(chess_piece *piece, int move_result, int
 	double xy[2];
 	piece_to_xy(piece, xy, wi, hi);
 
-	drag_dc = cairo_create(dragging_background);
+	cairo_t *drag_dc = cairo_create(dragging_background);
 
 	// Repaint square to where piece landed
 	cairo_rectangle(drag_dc, floor(xy[0] - wi / 16.0f), floor(xy[1] - hi / 16.0f), ceil(ww), ceil(hh));
@@ -1394,7 +1430,6 @@ static void restore_dragging_background(chess_piece *piece, int move_result, int
 	cairo_clip(drag_dc);
 	paint_layers(drag_dc);
 	cairo_destroy (drag_dc);
-
 }
 
 // repaint square from last dragging step
@@ -1410,14 +1445,6 @@ static void clean_last_drag_step(cairo_t *cdc, double wi, double hi) {
 	cairo_save(cdc);
 	cairo_rectangle(cdc, dragged_x - 1 - wi / 16.0f, dragged_y - 1 - hi / 16.0f, ww + 2, hh + 2);
 	cairo_clip(cdc);
-//	cairo_set_source_surface(cdc, board_layer, 0.0f, 0.0f);
-//	cairo_set_operator (cdc, CAIRO_OPERATOR_SOURCE);
-//	cairo_paint(cdc);
-//	cairo_set_source_surface(cdc, pieces_layer, 0.0f, 0.0f);
-//	cairo_set_operator (cdc, CAIRO_OPERATOR_OVER);
-//	cairo_paint(cdc);
-//	cairo_set_source_surface(cdc, highlight_over_layer, 0.0f, 0.0f);
-//	cairo_paint(cdc);
 
 	paint_layers(cdc);
 	cairo_restore(cdc);
@@ -1429,8 +1456,8 @@ void handle_button_release(void) {
 	get_last_release_xy(&new_x, &new_y);
 
 	int ij[2];
-	double wi = gtk_widget_get_allocated_width(board);
-	double hi = gtk_widget_get_allocated_height(board);
+	int wi = gtk_widget_get_allocated_width(board);
+	int hi = gtk_widget_get_allocated_height(board);
 
 	int move_result = -1;
 
@@ -1492,12 +1519,11 @@ void handle_button_release(void) {
 						killed_anim->killed_by = KILLED_BY_INSTANT_MOVE_TAKING;
 					}
 				}
-				//debug("SAN: %s\n", san_move);
 				if (!delay_from_promotion) {
 					check_ending_clause(main_game);
 					plys_list_append_ply(main_list, ply_new(p_old_col, p_old_row, ij[0], ij[1], NULL, last_san_move));
 					insert_san_move(last_san_move, FALSE);
-					/* update eco - we're already inside threads lock */
+					// update eco - we're already inside threads lock
 					update_eco_tag(FALSE);
 				}
 
@@ -1512,7 +1538,6 @@ void handle_button_release(void) {
 		ij[0] = mouse_dragged_piece->pos.column;
 		ij[1] = mouse_dragged_piece->pos.row;
 
-
 		double xy[2];
 		double ww = wi/8.0f;
 		double hh = hi/8.0f;
@@ -1525,7 +1550,7 @@ void handle_button_release(void) {
 
 		// repaint destination square
 		cairo_save(cache_dc);
-		cairo_rectangle(cache_dc, floor(xy[0]-wi/16.0f), floor(xy[1]-hi/16.0f), ceil(ww), ceil(hh));
+		cairo_rectangle(cache_dc, floor(xy[0] - wi / 16.0f), floor(xy[1] - hi / 16.0f), ceil(ww), ceil(hh));
 		cairo_clip(cache_dc);
 		paint_layers(cache_dc);
 		cairo_restore(cache_dc);
@@ -1538,33 +1563,33 @@ void handle_button_release(void) {
 		double rook_xy[2];
 		if (move_result > 0 && move_result & CASTLE) {
 			switch (move_result & MOVE_DETAIL_MASK) {
-			case W_CASTLE_LEFT:
-				oc = 0;
-				or = 0;
-				nc = 3;
-				nr = 0;
-				break;
-			case W_CASTLE_RIGHT:
-				oc = 7;
-				or = 0;
-				nc = 5;
-				nr = 0;
-				break;
-			case B_CASTLE_LEFT:
-				oc = 0;
-				or = 7;
-				nc = 3;
-				nr = 7;
-				break;
-			case B_CASTLE_RIGHT:
-				oc = 7;
-				or = 7;
-				nc = 5;
-				nr = 7;
-				break;
-			default:
-				// Bug if it happens
-				break;
+				case W_CASTLE_LEFT:
+					oc = 0;
+					or = 0;
+					nc = 3;
+					nr = 0;
+					break;
+				case W_CASTLE_RIGHT:
+					oc = 7;
+					or = 0;
+					nc = 5;
+					nr = 0;
+					break;
+				case B_CASTLE_LEFT:
+					oc = 0;
+					or = 7;
+					nc = 3;
+					nr = 7;
+					break;
+				case B_CASTLE_RIGHT:
+					oc = 7;
+					or = 7;
+					nc = 5;
+					nr = 7;
+					break;
+				default:
+					// Bug if it happens
+					break;
 			}
 			update_pieces_surface_by_loc(wi, hi, oc, or, nc, nr);
 
@@ -1597,6 +1622,49 @@ void handle_button_release(void) {
 			kill_piece_from_surface(wi, hi, ij[0], ij[1] + (main_game->whose_turn ? -1 : 1));
 		}
 
+		chess_piece *clean_old_check = king_in_check_piece;
+		double old_king_xy[2];
+		bool king_is_checked = false;
+		double king_xy[2];
+		if (move_result >= 0) {
+
+			// Clean up all highlights after a successful move
+			init_highlight_under_surface(wi, hi);
+			init_highlight_over_surface(wi, hi);
+
+
+			king_is_checked = is_king_checked(main_game, main_game->whose_turn);
+			if (king_is_checked) {
+				king_in_check_piece = get_king(main_game->whose_turn, main_game->squares);
+				loc_to_xy(king_in_check_piece->pos.column, king_in_check_piece->pos.row, king_xy, wi, hi);
+
+				cairo_t *high_cr = cairo_create(highlight_under_layer);
+				highlight_check_square(high_cr, king_in_check_piece->pos.column, king_in_check_piece->pos.row, check_warn_r, check_warn_g,
+				                       check_warn_b, check_warn_a, wi, hi);
+				cairo_destroy(high_cr);
+
+				cairo_rectangle(cache_dc, king_xy[0] - wi / 16.0f, king_xy[1] - hi / 16.0f, ww, hh);
+				cairo_clip(cache_dc);
+				paint_layers(cache_dc);
+
+				update_dragging_background_with_piece(king_in_check_piece, wi, hi);
+			} else {
+				king_in_check_piece = NULL;
+			}
+
+			if (clean_old_check != NULL) {
+				if (clean_old_check != mouse_dragged_piece) {
+					loc_to_xy(clean_old_check->pos.column, clean_old_check->pos.row, old_king_xy, wi, hi);
+					cairo_rectangle(cache_dc, old_king_xy[0] - wi / 16.0f, old_king_xy[1] - hi / 16.0f, ww, hh);
+					cairo_clip(cache_dc);
+					paint_layers(cache_dc);
+					update_dragging_background_with_piece(clean_old_check, wi, hi);
+				} else {
+					update_dragging_background_at(p_old_col, p_old_row, wi, hi);
+					clean_old_check = NULL;
+				}
+			}
+		}
 
 		// destroy buffer drawing context
 		cairo_destroy(cache_dc);
@@ -1622,6 +1690,15 @@ void handle_button_release(void) {
 		if (move_result > 0 && move_result & EN_PASSANT) {
 			loc_to_xy(ij[0], ij[1] + (mouse_dragged_piece->colour ? 1 : -1), pawn_xy, wi, hi);
 			cairo_rectangle(cdr, floor(pawn_xy[0]-wi/16.0f), floor(pawn_xy[1]-hi/16.0f), ceil(ww), ceil(hh));
+		}
+
+		// Add special clipping squares if king is checked
+		if (king_is_checked) {
+			cairo_rectangle(cdr, floor(king_xy[0]-wi/16.0f), floor(king_xy[1]-hi/16.0f), ceil(ww), ceil(hh));
+		}
+
+		if (clean_old_check != NULL && move_result >= 0) {
+			cairo_rectangle(cdr, floor(old_king_xy[0] - wi / 16.0f), floor(old_king_xy[1] - hi / 16.0f), ceil(ww), ceil(hh));
 		}
 
 		// Actual clip
@@ -1654,7 +1731,7 @@ void handle_button_release(void) {
 	 *    graphics related as this has been done in the on_press step */
 	if (mouse_clicked_piece != NULL && move_result < 0) {
 		chess_square *square = xy_to_square(main_game, new_x, new_y, wi, hi);
-		chess_piece* piece = square->piece;
+		chess_piece *piece = square->piece;
 		if (mouse_clicked_piece == piece) {
 
 			xy_to_loc(new_x, new_y, ij, wi, hi);
@@ -1664,6 +1741,9 @@ void handle_button_release(void) {
 			// only highlight if it's a different piece from last click
 			// (if user clicked on same piece again she wants to toggle it off)
 			if (mouse_clicked[0] != ij[0] || mouse_clicked[1] != ij[1]) {
+				// 1. click and released on same square and piece wasn't selected before : selecting
+				mouse_clicked[0] = ij[0];
+				mouse_clicked[1] = ij[1];
 
 				// paint to highlight_under_layer
 				cairo_t *high_cr = cairo_create(highlight_under_layer);
@@ -1682,24 +1762,17 @@ void handle_button_release(void) {
 				paint_layers(cache_cr);
 				cairo_destroy(cache_cr);
 
-				// 1. click and released on same square and piece wasn't selected before : selecting
-				mouse_clicked[0] = ij[0];
-				mouse_clicked[1] = ij[1];
-			}
-			else {
+			} else {
 				// 2. click and released on same square but piece WAS selected before: de-selecting
 				mouse_clicked[0] = -1;
 				mouse_clicked[1] = -1;
 			}
-
-		}
-		else {
+		} else {
 			// 3. click and released on different square: de-selecting
 			mouse_clicked[0] = -1;
 			mouse_clicked[1] = -1;
 		}
-	}
-	else {
+	} else {
 		// 4. no piece selected OR valid move occurred: de-selecting
 		mouse_clicked[0] = -1;
 		mouse_clicked[1] = -1;
@@ -1731,8 +1804,7 @@ void handle_left_button_press(GtkWidget *pWidget, int wi, int hi, int x, int y) 
 
 	if (square->piece != NULL && main_game->whose_turn == square->piece->colour && can_i_move_piece(square->piece)) {
 		mouse_clicked_piece = square->piece;
-	}
-	else {
+	} else {
 		mouse_clicked_piece = NULL;
 	}
 
@@ -1744,9 +1816,10 @@ void handle_left_button_press(GtkWidget *pWidget, int wi, int hi, int x, int y) 
 	mouse_dragged_piece = square->piece;
 
 	if (mouse_dragged_piece != NULL) {
-
-		kill_piece_from_surface(wi, hi, mouse_dragged_piece->pos.column, mouse_dragged_piece->pos.row);
-		update_dragging_background(mouse_dragged_piece, wi, hi);
+		piece_to_ghost(mouse_dragged_piece, wi, hi);
+//		update_dragging_background(mouse_dragged_piece, wi, hi);
+		cairo_t *drag_dc = cairo_create(dragging_background);
+		paint_layers(drag_dc);
 
 		double xy[2];
 		piece_to_xy(mouse_dragged_piece, xy, wi, hi);
@@ -1861,7 +1934,7 @@ void *process_moves(void *ptr) {
 				continue;
 			}
 
-			/* Get coordinates from last mouse move */
+			// Get coordinates from last mouse move
 			int new_x, new_y;
 			get_last_move_xy(&new_x, &new_y);
 
@@ -1872,6 +1945,7 @@ void *process_moves(void *ptr) {
 
 			// Paint dragging Background to cache layer
 			cairo_t *cache_dc = cairo_create(cache_layer);
+			cairo_set_operator(cache_dc, CAIRO_OPERATOR_SOURCE);
 			cairo_set_source_surface(cache_dc, dragging_background, 0.0f, 0.0f);
 			cairo_paint(cache_dc);
 
@@ -1880,13 +1954,13 @@ void *process_moves(void *ptr) {
 			cairo_set_operator(cache_dc, CAIRO_OPERATOR_OVER);
 			cairo_paint(cache_dc);
 
-			/* destroy cache_dc*/
+			// destroy cache_dc
 			cairo_destroy(cache_dc);
 
 			// Efficient clip
 			cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
-			cairo_rectangle(cdr, floor(new_x-wi/16.0f), floor(new_y-hi/16.0f), ceil(ww), ceil(hh));
-			cairo_rectangle(cdr, floor(dragged_x-wi/16.0f), floor(dragged_y-hi/16.0f), ceil(ww), ceil(hh));
+			cairo_rectangle(cdr, floor(dragged_x - wi / 16.0f), floor(dragged_y - hi / 16.0f), ceil(ww), ceil(hh));
+			cairo_rectangle(cdr, floor(new_x - wi / 16.0f), floor(new_y - hi / 16.0f), ceil(ww), ceil(hh));
 			cairo_clip(cdr);
 
 			// Apply cache surface to visible canvas
@@ -2023,9 +2097,8 @@ static void clip_to_square(cairo_t *dc, int col, int row, int wi, int hi) {
 	cairo_clip(dc);
 }
 
-/* Highlight a square insets e.g. to mark a selection */
+// Highlight a square, e.g. to mark a selection
 static void highlight_square(cairo_t *dc, int col, int row, double r, double g, double b, double a, int wi, int hi) {
-
 	double xy[2];
 	loc_to_xy(col, row, xy, wi, hi);
 	double square_width = wi / 8.0f;
@@ -2033,116 +2106,29 @@ static void highlight_square(cairo_t *dc, int col, int row, double r, double g, 
 	double half_width = square_width / 2.0f;
 	double half_height = square_height / 2.0f;
 
-	// use this instead for plain rectangle
 	cairo_rectangle(dc, xy[0] - half_width, xy[1] - half_height, square_width, square_height);
 	cairo_set_source_rgba(dc, r, g, b, a);
 	cairo_fill(dc);
+}
 
-//	// Calculate the gradient half width
-//	double half_line_width = ((double)wi)/(8.0f*45.0f);
-//	if (half_line_width < 1.0f) {
-//		half_line_width = 1.0f;
-//	}
-//
-//	double line_width = 4*half_line_width;
-//	double x,y,w,h;
-//	x = xy[0]-wi/16.0f;
-//	y = xy[1]-hi/16.0f;
-//	w = wi/8.0f;
-//	h = hi/8.0f;
-//
-//	// Build gradients
-//	cairo_pattern_t *linpat;
-//
-//	// Top Edge
-//	linpat = cairo_pattern_create_linear (x, y, x, y+line_width);
-//	cairo_pattern_add_color_stop_rgba(linpat, 0.00,  r, g, b, 1);
-//	cairo_pattern_add_color_stop_rgba(linpat, 0.33,  r, g, b, 1);
-//	cairo_pattern_add_color_stop_rgba(linpat, 1.00,  r, g, b, 0);
-//
-//	create_trapeze_path(dc, x, y, w, h, line_width, TOP);
-//	cairo_set_source(dc, linpat);
-//	cairo_fill(dc);
-//
-//	// Right Edge
-//	linpat = cairo_pattern_create_linear (x+w, y, x+w-line_width, y);
-//	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
-//	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
-//	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
-//
-//	create_trapeze_path(dc, x, y, w, h, line_width, RIGHT);
-//	cairo_set_source (dc, linpat);
-//	cairo_fill (dc);
-//
-//	// Bottom Edge
-//	linpat = cairo_pattern_create_linear (x+w, y+h, x+w, y+h-line_width);
-//	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
-//	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
-//	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
-//
-//	create_trapeze_path(dc, x, y, w, h, line_width, BOTTOM);
-//	cairo_set_source (dc, linpat);
-//	cairo_fill (dc);
-//
-//	// Left Edge
-//	linpat = cairo_pattern_create_linear (x, y+h, x+line_width, y+h);
-//	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
-//	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
-//	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
-//
-//	create_trapeze_path(dc, x, y, w, h, line_width, LEFT);
-//	cairo_set_source (dc, linpat);
-//	cairo_fill (dc);
-//
-//	// Now fill in the gaps in case of display rounding
-//
-//	// Top Left
-//	linpat = cairo_pattern_create_linear (x, y, x+line_width,y+line_width);
-//	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
-//	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
-//	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
-//
-//	cairo_move_to(dc, x+1, y+1);
-//	cairo_rel_line_to(dc, line_width-3, line_width-3);
-//	cairo_set_line_width(dc, 1);
-//	cairo_set_source(dc, linpat);
-//	cairo_stroke(dc);
-//
-//	// Top Right
-//	linpat = cairo_pattern_create_linear (x+w, y, x+w-line_width, y+line_width);
-//	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
-//	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
-//	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
-//
-//	cairo_move_to(dc, x+w-1, y+1);
-//	cairo_rel_line_to(dc, -line_width+3, line_width-3);
-//	cairo_set_line_width(dc, 1);
-//	cairo_set_source(dc, linpat);
-//	cairo_stroke(dc);
-//
-//	// Bottom Right
-//	linpat = cairo_pattern_create_linear (x+w, y+h, x+w-line_width, y+h-line_width);
-//	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
-//	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
-//	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
-//
-//	cairo_move_to(dc, x+w-1, y+h-1);
-//	cairo_rel_line_to(dc, -line_width+3, -line_width+3);
-//	cairo_set_line_width(dc, 1);
-//	cairo_set_source(dc, linpat);
-//	cairo_stroke(dc);
-//
-//	// Bottom Left
-//	linpat = cairo_pattern_create_linear (x, y+h, x+line_width, y+h-line_width);
-//	cairo_pattern_add_color_stop_rgba (linpat, 0.00,  r, g, b, 1);
-//	cairo_pattern_add_color_stop_rgba (linpat, 0.33,  r, g, b, 1);
-//	cairo_pattern_add_color_stop_rgba (linpat, 1.00,  r, g, b, 0);
-//
-//	cairo_move_to(dc, x+1, y+h-1);
-//	cairo_rel_line_to(dc, line_width-3, -line_width+3);
-//	cairo_set_line_width(dc, 1);
-//	cairo_set_source(dc, linpat);
-//	cairo_stroke(dc);
+// Highlight a square to mark check
+static void highlight_check_square(cairo_t *dc, int col, int row, double r, double g, double b, double a, int wi, int hi) {
+	double xy[2];
+	loc_to_xy(col, row, xy, wi, hi);
+
+	double square_width = wi / 8.0f;
+	double square_height = hi / 8.0f;
+	double half_width = square_width / 2.0f;
+	double half_height = square_height / 2.0f;
+
+	cairo_pattern_t *p = cairo_pattern_create_radial(xy[0], xy[1], 1.3 * half_width, xy[0], xy[1], 0.5 * half_width);
+	cairo_pattern_add_color_stop_rgba(p, 0, r, g, b, 0);
+	cairo_pattern_add_color_stop_rgba(p, 1, r, g, b, a);
+	cairo_rectangle(dc, xy[0] - half_width, xy[1] - half_height, square_width, square_height);
+	cairo_clip(dc);
+	cairo_set_source(dc, p);
+	cairo_mask(dc, p);
+	cairo_fill(dc);
 }
 
 static void logical_promote(int last_promote) {

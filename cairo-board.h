@@ -253,6 +253,7 @@ extern double dr,dg, db;
 extern double lr, lg, lb;
 extern double highlight_selected_r, highlight_selected_g, highlight_selected_b, highlight_selected_a;
 extern GdkRGBA chat_handle_colour;
+extern double check_warn_r, check_warn_g, check_warn_b, check_warn_a;
 
 extern int needs_update;
 extern int needs_scale;
@@ -264,6 +265,7 @@ extern double h_ratio;
 
 extern chess_piece *mouse_dragged_piece;
 extern chess_piece *mouse_clicked_piece;
+extern chess_piece *king_in_check_piece;
 
 extern int game_mode;
 

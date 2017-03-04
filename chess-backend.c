@@ -451,12 +451,12 @@ int is_material_draw(chess_piece w_set[16], chess_piece b_set[16]) {
 }
 
 
-int is_king_checked(chess_game *game, int colour) {
+bool is_king_checked(chess_game *game, int colour) {
 	return is_piece_under_attack_raw(game, get_king(colour, game->squares));
 }
 
 /* Determine whether piece may be under attack in passed situation */
-int is_piece_under_attack_raw(chess_game *game, chess_piece* piece) {
+bool is_piece_under_attack_raw(chess_game *game, chess_piece* piece) {
 	int i,j,k;
 	int colour = piece->colour;
 	int col = piece->pos.column;
@@ -465,8 +465,6 @@ int is_piece_under_attack_raw(chess_game *game, chess_piece* piece) {
 	chess_piece *cur_piece;
 	int count;
 	int possible_moves[64][2];
-
-	int maybe_under_attack = 0;
 
 	for (i = 0; i < 8; i++) {
 		for (j = 0; j < 8; j++) {
@@ -477,8 +475,7 @@ int is_piece_under_attack_raw(chess_game *game, chess_piece* piece) {
 					count = get_possible_moves(game, cur_piece, possible_moves, 0);
 					for (k = 0; k < count; k++) {
 						if (possible_moves[k][0] == col && possible_moves[k][1] == row) {
-							maybe_under_attack++;
-							break;
+							return true;
 						}
 					}
 				}
@@ -486,7 +483,7 @@ int is_piece_under_attack_raw(chess_game *game, chess_piece* piece) {
 		}
 
 	}
-	return maybe_under_attack;
+	return false;
 }
 
 
