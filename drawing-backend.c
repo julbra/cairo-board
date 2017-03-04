@@ -1502,7 +1502,6 @@ static void clean_last_drag_step(cairo_t *cdc, double wi, double hi) {
 }
 
 void handle_button_release(void) {
-	debug("handle_button_release()\n");
 	double old_xy[2];
 	int new_x, new_y;
 	get_last_release_xy(&new_x, &new_y);
@@ -1817,9 +1816,16 @@ void handle_button_release(void) {
 				mouse_clicked[0] = ij[0];
 				mouse_clicked[1] = ij[1];
 
-				// paint to highlight_under_layer
 				cairo_t *high_cr = cairo_create(highlight_under_layer);
-				highlight_square(high_cr, ij[0], ij[1], highlight_selected_r, highlight_selected_g, highlight_selected_b, highlight_selected_a, wi, hi);
+				if (king_in_check_piece == mouse_clicked_piece) {
+					// clean out old highlight surface
+					clean_highlight_surface(mouse_clicked[0], mouse_clicked[1], wi, hi);
+					highlight_square(high_cr, ij[0], ij[1], highlight_selected_r, highlight_selected_g, highlight_selected_b, highlight_selected_a, wi, hi);
+					highlight_check_square(high_cr, king_in_check_piece->pos.column, king_in_check_piece->pos.row, check_warn_r, check_warn_g, check_warn_b, check_warn_a, wi, hi);
+				} else {
+					// paint to highlight_under_layer
+					highlight_square(high_cr, ij[0], ij[1], highlight_selected_r, highlight_selected_g, highlight_selected_b, highlight_selected_a, wi, hi);
+				}
 				cairo_destroy(high_cr);
 
 				// paint to main
@@ -1856,6 +1862,12 @@ void handle_left_button_press(GtkWidget *pWidget, int wi, int hi, int x, int y) 
 	if (mouse_clicked[0] >= 0) {
 		// clean out old highlight surface
 		clean_highlight_surface(mouse_clicked[0], mouse_clicked[1], wi, hi);
+
+		if (king_in_check_piece == mouse_clicked_piece) {
+			cairo_t *high_cr = cairo_create(highlight_under_layer);
+			highlight_check_square(high_cr, king_in_check_piece->pos.column, king_in_check_piece->pos.row, check_warn_r, check_warn_g, check_warn_b, check_warn_a, wi, hi);
+			cairo_destroy(high_cr);
+		}
 
 		cairo_t *board_cr = gdk_cairo_create(gtk_widget_get_window(pWidget));
 		de_highlight_square(board_cr, mouse_clicked[0], mouse_clicked[1], wi, hi);

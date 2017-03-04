@@ -698,21 +698,18 @@ void init_castle_state(chess_game *game) {
 
 /* basic sanity check to prevent moving while observing or moving oponent's pieces */
 bool can_i_move_piece(chess_piece *piece) {
-	debug("Can I move piece %d %d %d - game_mode: %d\n", piece->colour, piece->pos.column, piece->pos.row, game_mode);
-	if (game_mode == I_PLAY_WHITE) {
-		return !piece->colour;
+	switch (game_mode) {
+		case I_PLAY_WHITE:
+			return !piece->colour;
+		case I_PLAY_BLACK:
+			return piece->colour;
+		case I_OBSERVE:
+			return false;
+		case MANUAL_PLAY:
+			return true;
+		default:
+			return false;
 	}
-	if (game_mode == I_PLAY_BLACK) {
-		debug("I play black! piece color == %d\n", piece->colour);
-		return piece->colour;
-	}
-	if (game_mode == I_OBSERVE) {
-		return false;
-	}
-	if (game_mode == MANUAL_PLAY) {
-		return true;
-	}
-	return false;
 }
 
 int move_piece(chess_piece *piece, int col, int row, int check_legality, int move_source, char san_move[SAN_MOVE_SIZE], chess_game *game, bool lock_threads) {
