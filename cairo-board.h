@@ -268,6 +268,7 @@ extern chess_piece *mouse_clicked_piece;
 extern chess_piece *king_in_check_piece;
 
 extern int game_mode;
+extern bool play_vs_machine;
 
 extern GtkWidget *board;
 

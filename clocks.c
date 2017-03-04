@@ -24,29 +24,28 @@ void send_to_ics(char*);
 
 static struct timeval zero_tv = {0, -250000}; // allow 250ms margin
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-noreturn"
 void *black_clock_runner_function(void *_clock) {
 	chess_clock *clock = (chess_clock*)_clock;
 	struct timeval now, diff;
 
-	for(;;) {
-		sem_wait( &clock->sem_black );
-		sem_post( &clock->sem_black );
+	for (;;) {
+		sem_wait(&clock->sem_black);
+		sem_post(&clock->sem_black);
 
-		/* get the current time */
+		// get the current time
 		gettimeofday(&now, NULL);
 
-		/* check the clock has not just resumed from pause */
+		// check the clock has not just resumed from pause
 		if (clock->last_modified_time[1].tv_sec) {
-			/* measure exactly how long elapsed since last_update */
-			timersub( &now, &clock->last_modified_time[1], &diff);
+			// measure exactly how long elapsed since last_update
+			timersub(&now, &clock->last_modified_time[1], &diff);
 
-			/* thread safe update of the remaining time */
-			{
-				pthread_mutex_lock( &clock->update_mutex );
-				timersub( &clock->remaining_time[1], &diff, &clock->remaining_time[1]);
-				pthread_mutex_unlock( &clock->update_mutex );
-			}
-			
+			// thread safe update of the remaining time
+			pthread_mutex_lock(&clock->update_mutex);
+			timersub(&clock->remaining_time[1], &diff, &clock->remaining_time[1]);
+			pthread_mutex_unlock(&clock->update_mutex);
 		}
 
 		gdk_threads_enter();
@@ -55,53 +54,54 @@ void *black_clock_runner_function(void *_clock) {
 		}
 		gdk_threads_leave();
 
-		/* update last modified timestamp */
+		// update last modified timestamp
 		clock->last_modified_time[1] = now;
 
-		/* sleep approx 100ms */
+		// sleep approx 100ms
 		usleep(CLOCK_INTERVAL);
 	}
 }
+#pragma clang diagnostic pop
 
 
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-noreturn"
 void *white_clock_runner_function(void *_clock) {
 	chess_clock *clock = (chess_clock*)_clock;
 	struct timeval now, diff;
 
-	for(;;) {
-		sem_wait( &(clock->sem_white) );
-		sem_post( &clock->sem_white );
+	for (;;) {
+		sem_wait(&(clock->sem_white));
+		sem_post(&clock->sem_white);
 
-		/* get the current time */
+		// get the current time
 		gettimeofday(&now, NULL);
 
-		/* check the clock has not just resumed from pause */
+		// check the clock has not just resumed from pause
 		if (clock->last_modified_time[0].tv_sec) {
-			/* measure exactly how long elapsed since last_update */
-			timersub( &now, &clock->last_modified_time[0], &diff);
+			// measure exactly how long elapsed since last_update
+			timersub(&now, &clock->last_modified_time[0], &diff);
 
-			/* thread safe update of the remaining time */
-			{
-				pthread_mutex_lock( &clock->update_mutex );
-				timersub( &clock->remaining_time[0], &diff, &clock->remaining_time[0]);
-				pthread_mutex_unlock( &clock->update_mutex );
-			}
-
+			// thread safe update of the remaining time
+			pthread_mutex_lock(&clock->update_mutex);
+			timersub(&clock->remaining_time[0], &diff, &clock->remaining_time[0]);
+			pthread_mutex_unlock(&clock->update_mutex);
 		}
 
+		gdk_threads_enter();
 		if (clock->parent != NULL) {
-			gdk_threads_enter();
 			refresh_one_clock(GTK_WIDGET(clock->parent), 0);
-			gdk_threads_leave();
 		}
+		gdk_threads_leave();
 
-		/* update last modified timestamp */
+		// update last modified timestamp
 		clock->last_modified_time[0] = now;
 
-		/* sleep approx 100ms */
+		// sleep approx 100ms
 		usleep(CLOCK_INTERVAL);
 	}
 }
+#pragma clang diagnostic pop
 
 chess_clock *clock_new(int initial_time_s, int incerement_s, int relation) {
 
@@ -155,29 +155,29 @@ void clock_reset(chess_clock *clock, int initial_time, int increment, int relati
 }
 
 void clock_destroy(chess_clock *clock) {
-	pthread_cancel( clock->white_clock_runner );
-	pthread_cancel( clock->black_clock_runner );
-	pthread_join( clock->white_clock_runner, NULL);
-	pthread_join( clock->black_clock_runner, NULL);
+	pthread_cancel(clock->white_clock_runner);
+	pthread_cancel(clock->black_clock_runner);
+	pthread_join(clock->white_clock_runner, NULL);
+	pthread_join(clock->black_clock_runner, NULL);
 
-	sem_post( &clock->sem_white );
-	sem_destroy( &clock->sem_white );
-	sem_post( &clock->sem_black );
-	sem_destroy( &clock->sem_black );
-	pthread_mutex_unlock( &clock->update_mutex );
-	pthread_mutex_destroy( &clock->update_mutex );
+	sem_post(&clock->sem_white);
+	sem_destroy(&clock->sem_white);
+	sem_post(&clock->sem_black);
+	sem_destroy(&clock->sem_black);
+	pthread_mutex_unlock(&clock->update_mutex);
+	pthread_mutex_destroy(&clock->update_mutex);
 
 	free(clock);
 }
 
 /* this is thread safe */
 void update_clocks(chess_clock *clock, int white_s, int black_s, bool shouldLock) {
-	pthread_mutex_lock( &clock->update_mutex );
+	pthread_mutex_lock(&clock->update_mutex);
 	clock->remaining_time[0].tv_sec = white_s;
 	clock->remaining_time[0].tv_usec = 0;
 	clock->remaining_time[1].tv_sec = black_s;
 	clock->remaining_time[1].tv_usec = 0;
-	pthread_mutex_unlock( &clock->update_mutex );
+	pthread_mutex_unlock(&clock->update_mutex);
 	if (shouldLock) {
 		gdk_threads_enter();
 	}
@@ -187,8 +187,8 @@ void update_clocks(chess_clock *clock, int white_s, int black_s, bool shouldLock
 	}
 }
 
-/* locks the associated runner function and reset the mtime */
-void stop_one_clock(chess_clock *clock, int color, bool shouldLock) {
+// locks the associated runner function and reset the mtime
+void stop_one_clock(chess_clock *clock, int color, bool should_lock) {
 
 	sem_wait(color ? &clock->sem_black : &clock->sem_white);
 
@@ -196,16 +196,10 @@ void stop_one_clock(chess_clock *clock, int color, bool shouldLock) {
 	clock->last_modified_time[color].tv_sec = 0;
 	pthread_mutex_unlock(&clock->update_mutex);
 
-	if (shouldLock) {
-		gdk_threads_enter();
-	}
 	refresh_one_clock(GTK_WIDGET(clock->parent), color);
-	if (shouldLock) {
-		gdk_threads_leave();
-	}
 }
 
-/* unlocks the associated runner funtion */
+// unlocks the associated runner funtion
 void start_one_clock(chess_clock *clock, int color) {
 	sem_post(color ? &clock->sem_black : &clock->sem_white);
 }

@@ -465,8 +465,10 @@ void refresh_one_clock(GtkWidget *clock, int black) {
 	if (!GTK_WIDGET(clock)) {
 		return;
 	}
+	pthread_mutex_lock(&mutex_drawing);
 	double half_w = gtk_widget_get_allocated_width(clock) / 2.0;
 	int x_offset = (int) (black ? floor(half_w) : 0);
 	int redraw_w = (int) ceil(half_w);
 	gtk_widget_queue_draw_area(clock, x_offset, 0, redraw_w, gtk_widget_get_allocated_height(clock));
+	pthread_mutex_unlock(&mutex_drawing);
 }

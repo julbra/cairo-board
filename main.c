@@ -1675,11 +1675,11 @@ gboolean auto_play_one_move(gpointer data) {
 			if (!strncmp("Kasparov, Gary", main_game->black_name, 16)) {
 				g_signal_emit_by_name(board, "flip-board");
 			}
-			//start_one_clock(main_clock, 0);
+//			start_one_clock(main_clock, 0);
 		}
 		int resolved = resolve_move(main_game, type, currentMoveString, resolved_move);
 		if (resolved) {
-//			//swap_clocks(main_clock);
+//			start_one_stop_other_clock(main_clock, main_game->whose_turn, true);
 			auto_move(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE);
 			return TRUE;
 		}

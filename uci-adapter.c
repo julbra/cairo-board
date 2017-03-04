@@ -35,6 +35,7 @@ static bool uci_ready = 0;
 static bool analysing = 0;
 static bool stop_requested = 0;
 
+
 static pthread_mutex_t uci_writer_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t uci_ok_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t uci_ready_lock = PTHREAD_MUTEX_INITIALIZER;
@@ -49,6 +50,7 @@ char shown_best_line[BUFSIZ] = "";
 size_t shown_best_line_len = 0;
 static UCI_MODE uci_mode;
 
+bool play_vs_machine;
 const char START_SEQUENCE[] = "position startpos moves";
 
 static void * parse_uci_function(void *pVoid);
@@ -217,8 +219,8 @@ int spawn_uci_engine(void) {
 	}
 	printf("UCI OK!\n");
 
-	write_to_uci("setoption name Threads value 7\n");
-	write_to_uci("setoption name Hash value 4096\n");
+	write_to_uci("setoption name Threads value 6\n");
+	write_to_uci("setoption name Hash value 2048\n");
 	write_to_uci("setoption name Ponder value true\n");
 //	write_to_uci("setoption name Skill Level value 5\n");
 	wait_for_engine();
@@ -249,6 +251,7 @@ void start_new_uci_game(int time, UCI_MODE mode) {
 	int relation;
 	switch (uci_mode) {
 		case ENGINE_WHITE:
+			play_vs_machine = true;
 			relation = -1;
 			start_game("You", engine_name, time, 0, relation, false);
 			// If engine is white, kick it now
@@ -257,10 +260,12 @@ void start_new_uci_game(int time, UCI_MODE mode) {
 			write_to_uci(go);
 			break;
 		case ENGINE_BLACK:
+			play_vs_machine = true;
 			relation = 1;
 			start_game("You", engine_name, time, 0, relation, false);
 			break;
 		case ENGINE_ANALYSIS:
+			play_vs_machine = false;
 //			sprintf(go, "position startpos\ngo infinite\n");
 //			write_to_uci(go);
 //			set_analysing(true);
@@ -287,6 +292,7 @@ void append_move(char *new_move, bool lock_threads) {
 
 	debug("append_move: all_moves '%s'\n", all_moves);
 	if (!ics_mode && !load_file_specified) {
+//	if (!ics_mode) {
 		if (ply_num == 1) {
 			start_one_clock(main_clock, to_play);
 		} else if (ply_num > 1) {
@@ -425,10 +431,12 @@ void parse_move_with_ponder(char *moveText) {
 	g_signal_emit_by_name(board, "got-uci-move");
 
 	char moves[8192];
-	sprintf(moves, "%s %s\n", all_moves, ponderMove);
+//	sprintf(moves, "%s %s\n", all_moves, ponderMove);
+	sprintf(moves, "%s\n", all_moves);
 	write_to_uci(moves);
-	write_to_uci("go ponder\n");
-	set_analysing(1);
+//	write_to_uci("go ponder\n");
+	write_to_uci("go infinite\n");
+	set_analysing(true);
 }
 
 void parse_info(char *info) {
