@@ -355,7 +355,7 @@ void piece_to_ghost(chess_piece *piece, int wi, int hi) {
 	cairo_paint(dc);
 	// Add piece ghost to surface
 	cairo_set_source_surface(dc, piece->surf, xy[0] - half_sq_width, xy[1] - half_sq_height);
-	cairo_paint_with_alpha(dc, 0.5);
+	cairo_paint_with_alpha(dc, 0.35);
 	cairo_destroy(dc);
 }
 
@@ -1452,6 +1452,7 @@ static void clean_last_drag_step(cairo_t *cdc, double wi, double hi) {
 
 void handle_button_release(void) {
 	debug("handle_button_release()\n");
+	double old_xy[2];
 	int new_x, new_y;
 	get_last_release_xy(&new_x, &new_y);
 
@@ -1475,6 +1476,7 @@ void handle_button_release(void) {
 		// Save old position
 		p_old_col = mouse_dragged_piece->pos.column;
 		p_old_row = mouse_dragged_piece->pos.row;
+		loc_to_xy(p_old_col, p_old_row, old_xy, wi, hi);
 
 		gboolean piece_moved = false;
 		// if piece NOT moved or not allowed to move, don't bother trying the move
@@ -1596,18 +1598,23 @@ void handle_button_release(void) {
 			// repaint rook source square
 			loc_to_xy(oc, or, rook_xy, wi, hi);
 			cairo_rectangle(cache_dc, floor(rook_xy[0]-wi/16.0f), floor(rook_xy[1]-hi/16.0f), ceil(ww), ceil(hh));
-			cairo_set_source_surface(cache_dc, board_layer, 0.0f, 0.0f);
 			cairo_set_operator (cache_dc, CAIRO_OPERATOR_SOURCE);
+			cairo_set_source_surface(cache_dc, board_layer, 0.0f, 0.0f);
+			cairo_fill_preserve(cache_dc);
+			cairo_set_operator (cache_dc, CAIRO_OPERATOR_OVER);
+			cairo_set_source_surface(cache_dc, coordinates_layer, 0.0f, 0.0f);
 			cairo_fill(cache_dc);
 
 			// repaint rook destination square
 			loc_to_xy(nc, nr, rook_xy, wi, hi);
 			cairo_rectangle(cache_dc, floor(rook_xy[0]-wi/16.0f), floor(rook_xy[1]-hi/16.0f), ceil(ww), ceil(hh));
-			cairo_set_source_surface(cache_dc, board_layer, 0.0f, 0.0f);
 			cairo_set_operator (cache_dc, CAIRO_OPERATOR_SOURCE);
+			cairo_set_source_surface(cache_dc, board_layer, 0.0f, 0.0f);
+			cairo_fill_preserve(cache_dc);
+			cairo_set_operator (cache_dc, CAIRO_OPERATOR_OVER);
+			cairo_set_source_surface(cache_dc, coordinates_layer, 0.0f, 0.0f);
 			cairo_fill_preserve(cache_dc);
 			cairo_set_source_surface(cache_dc, pieces_layer, 0.0f, 0.0f);
-			cairo_set_operator (cache_dc, CAIRO_OPERATOR_OVER);
 			cairo_fill(cache_dc);
 		}
 
@@ -1632,6 +1639,13 @@ void handle_button_release(void) {
 			init_highlight_under_surface(wi, hi);
 			init_highlight_over_surface(wi, hi);
 
+			// Clean the ghost
+			kill_piece_from_surface(wi, hi, p_old_col, p_old_row);
+			cairo_save(cache_dc);
+			cairo_rectangle(cache_dc, floor(old_xy[0] - wi / 16.0f), floor(old_xy[1] - hi / 16.0f), ceil(ww), ceil(hh));
+			cairo_clip(cache_dc);
+			paint_layers(cache_dc);
+			cairo_restore(cache_dc);
 
 			king_is_checked = is_king_checked(main_game, main_game->whose_turn);
 			if (king_is_checked) {
@@ -1643,9 +1657,11 @@ void handle_button_release(void) {
 				                       check_warn_b, check_warn_a, wi, hi);
 				cairo_destroy(high_cr);
 
+				cairo_save(cache_dc);
 				cairo_rectangle(cache_dc, king_xy[0] - wi / 16.0f, king_xy[1] - hi / 16.0f, ww, hh);
 				cairo_clip(cache_dc);
 				paint_layers(cache_dc);
+				cairo_restore(cache_dc);
 
 				update_dragging_background_with_piece(king_in_check_piece, wi, hi);
 			} else {
@@ -1699,6 +1715,11 @@ void handle_button_release(void) {
 
 		if (clean_old_check != NULL && move_result >= 0) {
 			cairo_rectangle(cdr, floor(old_king_xy[0] - wi / 16.0f), floor(old_king_xy[1] - hi / 16.0f), ceil(ww), ceil(hh));
+		}
+
+		// Clean the ghost
+		if (move_result >= 0) {
+			cairo_rectangle(cdr, floor(old_xy[0] - wi / 16.0f), floor(old_xy[1] - hi / 16.0f), ceil(ww), ceil(hh));
 		}
 
 		// Actual clip
@@ -1817,7 +1838,6 @@ void handle_left_button_press(GtkWidget *pWidget, int wi, int hi, int x, int y) 
 
 	if (mouse_dragged_piece != NULL) {
 		piece_to_ghost(mouse_dragged_piece, wi, hi);
-//		update_dragging_background(mouse_dragged_piece, wi, hi);
 		cairo_t *drag_dc = cairo_create(dragging_background);
 		paint_layers(drag_dc);
 
