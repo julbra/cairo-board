@@ -1210,6 +1210,57 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 			update_eco_tag(lock_threads);
 		}
 
+		// Show check warning
+		double king_xy[2];
+		double old_king_xy[2];
+		double ww = wi / 8.0;
+		double hh = hi / 8.0;
+
+		chess_piece *clean_old_check = king_in_check_piece;
+		cairo_t *cache_dc = cairo_create(cache_layer);
+		cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
+
+		// Clean up all highlights after a successful move
+		init_highlight_under_surface(wi, hi);
+		init_highlight_over_surface(wi, hi);
+
+		bool king_is_checked = is_king_checked(main_game, main_game->whose_turn);
+		if (king_is_checked) {
+			king_in_check_piece = get_king(main_game->whose_turn, main_game->squares);
+
+			loc_to_xy(king_in_check_piece->pos.column, king_in_check_piece->pos.row, king_xy, wi, hi);
+
+			cairo_t *high_cr = cairo_create(highlight_under_layer);
+			highlight_check_square(high_cr, king_in_check_piece->pos.column, king_in_check_piece->pos.row, check_warn_r, check_warn_g,
+			                       check_warn_b, check_warn_a, wi, hi);
+			cairo_destroy(high_cr);
+
+			cairo_save(cache_dc);
+			cairo_rectangle(cache_dc, king_xy[0] - wi / 16.0f, king_xy[1] - hi / 16.0f, ww, hh);
+			cairo_clip(cache_dc);
+			paint_layers(cache_dc);
+			cairo_restore(cache_dc);
+			cairo_rectangle(cdr, floor(king_xy[0]-wi/16.0f), floor(king_xy[1]-hi/16.0f), ceil(ww), ceil(hh));
+		} else {
+			king_in_check_piece = NULL;
+		}
+
+		if (clean_old_check != NULL && clean_old_check != piece) {
+			loc_to_xy(clean_old_check->pos.column, clean_old_check->pos.row, old_king_xy, wi, hi);
+			cairo_rectangle(cache_dc, old_king_xy[0] - wi / 16.0f, old_king_xy[1] - hi / 16.0f, ww, hh);
+			cairo_clip(cache_dc);
+			paint_layers(cache_dc);
+			cairo_rectangle(cdr, floor(old_king_xy[0] - wi / 16.0f), floor(old_king_xy[1] - hi / 16.0f), ceil(ww), ceil(hh));
+		}
+		cairo_destroy(cache_dc);
+
+		cairo_clip(cdr);
+		cairo_set_source_surface(cdr, cache_layer, 0.0f, 0.0f);
+		cairo_set_operator(cdr, CAIRO_OPERATOR_SOURCE);
+		cairo_paint(cdr);
+		cairo_destroy(cdr);
+
+		// Start animation
 		double n_xy[2];
 		double o_xy[2];
 		loc_to_xy(old_col, old_row, o_xy, wi, hi);
@@ -1726,7 +1777,7 @@ void handle_button_release(void) {
 		cairo_clip(cdr);
 
 		cairo_set_source_surface(cdr, cache_layer, 0.0f, 0.0f);
-		cairo_set_operator (cdr, CAIRO_OPERATOR_OVER);
+		cairo_set_operator (cdr, CAIRO_OPERATOR_SOURCE);
 		cairo_paint(cdr);
 
 		// debug : uncomment the following to highlight repainted areas
