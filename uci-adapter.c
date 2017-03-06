@@ -665,7 +665,7 @@ void write_to_uci(char *message) {
 	debug("Wrote to UCI: %s", message);
 }
 
-void wait_for_engine_ready(void) {
+static void wait_for_engine_ready(void) {
 	struct timeval start, now, diff;
 
 	set_uci_ready(false);
@@ -683,7 +683,7 @@ void wait_for_engine_ready(void) {
 	}
 }
 
-void stop_and_wait(void) {
+static void stop_and_wait(void) {
 	struct timeval start, now, diff;
 
 	set_stop_requested(true);
@@ -785,16 +785,37 @@ void process_uci_actions() {
 	int j;
 	char *initial_command;
 	char *tokenize_save;
+
+	char *all_tokens[200] = {NULL};
+	unsigned int token_count = 0;
 	for (j = 1, initial_command = raw_buff; ; j++, initial_command = NULL) {
 		char *token = strtok_r(initial_command, "\n", &tokenize_save);
 		if (token == NULL) {
 			break;
 		}
-		if (!strcmp(START_ANALYSIS_TOKEN, token)) {
-			real_start_uci_analysis();
-		} else if (!strcmp(START_NEW_GAME_TOKEN, token)) {
-			real_start_uci_game();
+		all_tokens[token_count++] = token;
+	}
+
+	// Combine multiple start analysis into a single one
+	token_count = 0;
+	bool analysis_requested = false;
+	while (all_tokens[token_count] != NULL) {
+		char *token = all_tokens[token_count];
+		if (!analysis_requested && !strcmp(START_ANALYSIS_TOKEN, token)) {
+			analysis_requested = true;
+		} else {
+			if (analysis_requested) {
+				real_start_uci_analysis();
+				analysis_requested = false;
+			}
+			if (!strcmp(START_NEW_GAME_TOKEN, token)) {
+				real_start_uci_game();
+			}
 		}
+		token_count++;
+	}
+	if (analysis_requested) {
+		real_start_uci_analysis();
 	}
 }
 
