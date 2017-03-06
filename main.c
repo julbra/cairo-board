@@ -2063,7 +2063,6 @@ int parse_board12(char *string_chunk) {
 						update_clocks(main_clock, white_time, black_time, true);
 						debug("Starting a clock here\n");
 						start_one_clock(main_clock, (to_play == 'W') ? 0 : 1);
-						debug("start clocks\n");
 					}
 					set_last_move(san_move);
 					debug("Emitting got-move signal while observing\n");
@@ -3462,15 +3461,19 @@ void parse_ics_buffer(void) {
 				draw_pieces_surface(old_wi, old_hi);
 				init_dragging_background(old_wi, old_hi);
 				init_highlight_under_surface(old_wi, old_hi);
+//				init_highlight_over_surface(old_wi, old_hi);
 
 				// highlight last move
 				if (highlight_last_move) {
 					highlight_move(resolved_move[0], resolved_move[1], resolved_move[2], resolved_move[3], old_wi, old_hi);
 				}
 
-//				init_highlight_over_surface(old_wi, old_hi);
 				gtk_widget_queue_draw(GTK_WIDGET(board));
 				gdk_threads_leave();
+				if (!clock_started) {
+					clock_started = 1;
+					start_one_clock(main_clock, (main_game->whose_turn));
+				}
 				start_uci_analysis();
 				break;
 			case GAME_RESUME: {
