@@ -2021,7 +2021,7 @@ void handle_flip_board(GtkWidget *pWidget, bool lock_threads) {
 
 void *process_moves(void *ptr) {
 	double dragged_x, dragged_y;
-	while(is_running_flag()) {
+	while (is_running_flag()) {
 
 		if (is_moveit_flag() && is_more_events_flag()) {
 

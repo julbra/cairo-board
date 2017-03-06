@@ -1665,7 +1665,7 @@ gboolean auto_play_one_move(gpointer data) {
 		}
 	}
 	if (i != -1) {
-		if (! playing) {
+		if (!playing) {
 			playing = 1;
 			start_game(main_game->white_name, main_game->black_name, 0, 0, -2, true);
 			start_new_uci_game(0, ENGINE_ANALYSIS);
@@ -1679,8 +1679,7 @@ gboolean auto_play_one_move(gpointer data) {
 //			start_one_stop_other_clock(main_clock, main_game->whose_turn, true);
 			auto_move(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE, false);
 			return TRUE;
-		}
-		else {
+		} else {
 			fprintf(stderr, "Could not resolve move %c%s\n", type_to_char(type), currentMoveString);
 		}
 	}
@@ -1797,13 +1796,6 @@ gboolean auto_play_one_uci_move(gpointer data) {
 
 	auto_move(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE, false);
 	return true;
-}
-
-gboolean delayed_start_uci_game(gpointer data) {
-//	start_new_uci_game(60, ENGINE_WHITE);
-	start_new_uci_game(60, ENGINE_ANALYSIS);
-	start_uci_analysis();
-	return FALSE;
 }
 
 // handle max of 10 starmatches at once (per-looking at)
@@ -3922,6 +3914,18 @@ static void get_theme_colours(GtkWidget *widget) {
 	}
 }
 
+static gboolean spawn_uci_engine_idle(gpointer data) {
+	debug("Spawning UCI engine...\n");
+	spawn_uci_engine();
+	debug("Spawned UCI engine [OK]\n");
+	if (!ics_mode) {
+		debug("Starting new UCI game...\n");
+		start_new_uci_game(60, ENGINE_ANALYSIS);
+		start_uci_analysis();
+	}
+	return FALSE;
+}
+
 int main (int argc, char **argv) {
 
 	int c;
@@ -4381,8 +4385,7 @@ int main (int argc, char **argv) {
 		}
 	}
 
-	spawn_uci_engine();
-	debug("Spawned UCI engine\n");
+	g_idle_add(spawn_uci_engine_idle, NULL);
 
 	spawn_mover();
 
@@ -4415,10 +4418,6 @@ int main (int argc, char **argv) {
 		} else {
 			debug("Successfully loaded font in FontConfig! %s %s\n", sevenSegmentFTFace->family_name, sevenSegmentFTFace->style_name);
 		}
-	}
-
-	if (!ics_mode) {
-		g_timeout_add(0, delayed_start_uci_game, NULL);
 	}
 
 	// Start Gdk Main Loop

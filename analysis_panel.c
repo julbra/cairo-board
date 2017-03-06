@@ -88,5 +88,7 @@ void set_analysis_nodes_per_second(const char *nps) {
 }
 
 void set_analysis_engine_name(const char *engine_name) {
+	gdk_threads_enter();
 	gtk_label_set_text(GTK_LABEL(engine_name_label), engine_name);
+	gdk_threads_leave();
 }

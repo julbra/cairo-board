@@ -18,27 +18,27 @@
 static char *key = "Timestamp (FICS) v1.0 - programmed by Henrik Gram.";
 static char hello[100] = "TIMESTAMP|cairo-board programmed by Julbra from FICS|Running on Gentoo Linux|";
 
-/* encode the passed string using fics timeseal's protocol */
-static int codec(char *s, int l) {
+// encode the passed string using fics timeseal's protocol
+static size_t codec(char *s, size_t l) {
 
 	int n;
 	struct timeval tv;
 
-	/* escape character which announces the start of the timestamp value */
+	// escape character which announces the start of the timestamp value
 	s[l++] = '\x18';
 
-	/* get the current timestamp */
+	// get the current timestamp
 	gettimeofday(&tv, NULL);
 
-	/* add the timestamp the the sent string */
+	// add the timestamp the the sent string
 	l += sprintf(&s[l], "%ld", (tv.tv_sec%10000)*1000 + tv.tv_usec/1000);
 
-	/* escape character which announces the end of the timestamp value */
+	// escape character which announces the end of the timestamp value
 	s[l++]='\x19';
 
-	/* padd the sent string with 1 till we reach a length multiple of 12 */
-	for( ; l%12; l++) {
-		s[l]='1';
+	// padd the sent string with 1 till we reach a length multiple of 12
+	for (; l % 12; l++) {
+		s[l] = '1';
 	}
 
 	/* Xor various characters with each other
@@ -59,8 +59,8 @@ static int codec(char *s, int l) {
 	return l;
 }
 
-static void write_to_fd(int fd, char *buff, int n) {
-	if(write(fd, buff, n) == -1) {
+static void write_to_fd(int fd, char *buff, size_t n) {
+	if (write(fd, buff, n) == -1) {
 		perror(NULL);
 		return;
 	}
@@ -68,7 +68,8 @@ static void write_to_fd(int fd, char *buff, int n) {
 
 int open_tcp(char *hostname, unsigned short uport) {
 
-	int socket_fd, i;
+	int socket_fd;
+	size_t i;
 	struct hostent* host_info;
 	struct sockaddr_in sa;
 
@@ -102,22 +103,22 @@ void close_tcp(int fd) {
 	close(fd);
 }
 
-void send_to_fics(int ics_fd, char *buff, int *rd) {
+void send_to_fics(int ics_fd, char *buff, size_t *rd) {
 
-	/* static storage duration, no linkage */
+	// static storage duration, no linkage
 	static int i = 0;
 
-	for( ; i < *rd; i++) {
+	for (; i < *rd; i++) {
 
-		/* search for '\n' character */
+		// search for '\n' character
 		if (buff[i] == '\n') {
 			char ffub[BSIZE+20];
-			int k;
+			size_t k;
 
-			/* copy passed buffer till '\n' */
-			memcpy(ffub, buff, i);
+			// copy passed buffer till '\n'
+			memcpy(ffub, buff, (size_t) i);
 
-			/* encode string */
+			// encode string
 			k = codec(ffub, i);
 
 			/* send encoded data to socket */
@@ -135,14 +136,14 @@ void send_to_fics(int ics_fd, char *buff, int *rd) {
 }
 
 /* decode encrypted buff and write it to output_fd */
-static void get_from_fics(int ics_fd, int output_fd, char *buff, int *rd) {
+static void get_from_fics(int ics_fd, int output_fd, char *buff, size_t *rd) {
 
-	int n, m;
+	size_t n, m;
 
 	while(*rd > 0) {
 
-		/* write ack to fics */
-		if( ! strncmp(buff, "[G]\n\r", *rd < 5? *rd : 5)) {
+		// write ack to fics
+		if (!strncmp(buff, "[G]\n\r", *rd < 5 ? *rd : 5)) {
 			if(*rd < 5) {
 				break;
 			}
@@ -158,19 +159,19 @@ static void get_from_fics(int ics_fd, int output_fd, char *buff, int *rd) {
 			}
 		}
 
-		/* find '\r' in buff */
-		for (n = 0; n <* rd && buff[n] != '\r'; n++);
+		// find '\r' in buff
+		for (n = 0; n < *rd && buff[n] != '\r'; n++);
 
-		/* n < *rd means we found \r */
-		if( n < *rd) {
+		// n < *rd means we found \r
+		if (n < *rd) {
 			n++;
 		}
 
-		/* write the decoded data to output_fd */
+		// write the decoded data to output_fd
 		write_to_fd(output_fd, buff, n);
 
 		for (m = n; m < *rd; m++) {
-			buff[m-n] = buff[m];
+			buff[m - n] = buff[m];
 		}
 		*rd -= n;
 	}
@@ -199,49 +200,49 @@ int read_write_ics_fd(int input_fd, int output_fd, int ics_fd) {
 	/* check I/O status of our fds */
 	select(ics_fd+1, &r_fds, &w_fds, NULL, NULL);
 
-	/* we can read from stdin and write to ics */
-	if(FD_ISSET(input_fd, &r_fds) && FD_ISSET(ics_fd, &w_fds)) {
-		static int w_rd = 0;
+	// we can read from stdin and write to ics
+	if (FD_ISSET(input_fd, &r_fds) && FD_ISSET(ics_fd, &w_fds)) {
+		static size_t w_rd = 0;
 		static char buff[BSIZE];
 
-		/* read from input_fd */
-		w_rd += i = read(input_fd, buff+w_rd, BSIZE-w_rd);
+		// read from input_fd
+		w_rd += i = read(input_fd, buff + w_rd, BSIZE - w_rd);
 
-		if(!i) {
-			fprintf(stderr,"Read 0 bytes?!\n");
+		if (!i) {
+			fprintf(stderr, "Read 0 bytes?!\n");
 			return 1;
 		}
-		if(i < 0) {
+		if (i < 0) {
 			perror(NULL);
 			return -1;
 		}
 
 		send_to_fics(ics_fd, buff, &w_rd);
-		if(w_rd == BSIZE) {
-			fprintf(stderr,"Line too long?!\n");
+		if (w_rd == BSIZE) {
+			fprintf(stderr, "Line too long?!\n");
 			return -1;
 		}
 	}
 
-	/* we can read from and write to ics */
-	if(FD_ISSET(ics_fd, &r_fds) && FD_ISSET(ics_fd, &w_fds)) {
+	// we can read from and write to ics
+	if (FD_ISSET(ics_fd, &r_fds) && FD_ISSET(ics_fd, &w_fds)) {
 		static int r_rd = 0;
 		static char buff[BSIZE];
 
 		/* read from ics */
-		r_rd += i = read(ics_fd, buff, BSIZE-r_rd);
-		if(!i) {
+		r_rd += i = read(ics_fd, buff, BSIZE - r_rd);
+		if (!i) {
 			fprintf(stderr, "Connection closed\n");
 			return 1;
 		}
-		if(i < 0) {
+		if (i < 0) {
 			perror(NULL);
 			return -1;
 		}
 
-		/* decode and write to output */
+		// decode and write to output
 		get_from_fics(ics_fd, output_fd, buff, &r_rd);
-		if(r_rd == BSIZE) {
+		if (r_rd == BSIZE) {
 			fprintf(stderr, "Receive buffer full?!\n");
 			return -1;
 		}

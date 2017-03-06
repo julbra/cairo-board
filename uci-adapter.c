@@ -14,7 +14,10 @@ static int uci_in;
 static int uci_out;
 static int uci_err;
 
+static int uci_user_in[2];
+
 static pthread_t uci_read_thread;
+static pthread_t uci_manager_thread;
 
 static regex_t option_matcher;
 static regex_t best_move_ponder_matcher;
@@ -35,12 +38,12 @@ static bool uci_ready = 0;
 static bool analysing = 0;
 static bool stop_requested = 0;
 
-
 static pthread_mutex_t uci_writer_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t uci_ok_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t uci_ready_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t analysing_lock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t stop_requested_lock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t all_moves_lock = PTHREAD_MUTEX_INITIALIZER;
 
 static unsigned int ply_num;
 static int to_play;
@@ -53,10 +56,17 @@ static UCI_MODE uci_mode;
 bool play_vs_machine;
 const char START_SEQUENCE[] = "position startpos moves";
 
-static void * parse_uci_function(void *pVoid);
-static void wait_for_engine(void);
+// Commands to UCI manager
+const static char START_NEW_GAME_COMMAND[] = "start_new_game\n";
+const static char START_NEW_GAME_TOKEN[] = "start_new_game";
+const static char START_ANALYSIS_COMMAND[] = "start_analysis\n";
+const static char START_ANALYSIS_TOKEN[] = "start_analysis";
 
-void best_line_to_san(char line[8192], char san[8192]);
+// Private prototypes
+static void *parse_uci_function(void *);
+static void *uci_manager_function(void *);
+static void wait_for_engine_ready(void);
+static void best_line_to_san(char line[8192], char san[8192]);
 
 void cleanup_uci() {
 	pthread_mutex_destroy(&uci_writer_lock);
@@ -64,6 +74,7 @@ void cleanup_uci() {
 	pthread_mutex_destroy(&uci_ready_lock);
 	pthread_mutex_destroy(&analysing_lock);
 	pthread_mutex_destroy(&stop_requested_lock);
+	pthread_mutex_destroy(&all_moves_lock);
 }
 
 void set_uci_ok(bool val) {
@@ -122,64 +133,17 @@ bool is_stop_requested() {
 	return val;
 }
 
-void write_to_uci(char *message) {
-	pthread_mutex_lock(&uci_writer_lock);
-	if (write(uci_in, message, strlen(message)) == -1) {
-		perror(NULL);
-	}
-	pthread_mutex_unlock(&uci_writer_lock);
-	debug("Wrote to UCI: %s", message);
-}
-
-void wait_for_engine(void) {
-	struct timeval start, now, diff;
-
-	set_uci_ready(false);
-	write_to_uci("isready\n");
-
-	gettimeofday(&start, NULL);
-	while (!is_uci_ready()) {
-		usleep(10000);
-		gettimeofday(&now, NULL);
-		timersub(&now, &start, &diff);
-		if (diff.tv_sec > 3) {
-			debug("Ooops, UCI Engine did not reply to 'isready' within 3 seconds, process crashed?!\n");
-			break;
-		}
-	}
-}
-
-void stop_and_wait(void) {
-	struct timeval start, now, diff;
-
-	set_stop_requested(true);
-	write_to_uci("stop\n");
-
-	gettimeofday(&start, NULL);
-	while (is_stop_requested()) {
-		usleep(10000);
-		gettimeofday(&now, NULL);
-		timersub(&now, &start, &diff);
-		if (diff.tv_sec > 3) {
-			printf("Ooops, UCI Engine did not stop in 3 seconds will attempt to carry on anyway...\n");
-			set_analysing(false);
-			set_stop_requested(false);
-			break;
-		}
-	}
-}
-
 void compile_regex(regex_t* regex, const char *pattern) {
 	int status = regcomp(regex, pattern, REG_EXTENDED);
 	if (status != 0) {
 		char err_buf[BUFSIZ];
 		regerror(status, regex, err_buf, BUFSIZ);
-		fprintf(stderr, "init_regex(): regcomp failed - %s\n", err_buf);
+		fprintf(stderr, "compile_regex(): regcomp failed - %s\n", err_buf);
 		exit(1);
 	}
 }
 
-void init_regex() {
+void init_uci_adapter() {
 	compile_regex(&option_matcher, "option name (.*) type (.*)");
 	compile_regex(&best_move_ponder_matcher, "bestmove (.*) ponder (.*)");
 	compile_regex(&best_move_matcher, "bestmove (.*)");
@@ -192,12 +156,21 @@ void init_regex() {
 	compile_regex(&info_score_mate_matcher, "score mate (-?[0-9]+)");
 	compile_regex(&info_nps_matcher, " nps ([0-9]+)");
 	compile_regex(&info_best_line_matcher, " pv ([a-h1-8rnbq ]+)");
+
+	int result = pipe(uci_user_in);
+	if (result < 0) {
+		perror("Failed to create UCI manager pipe ");
+		exit(1);
+	}
+
+	pthread_create(&uci_read_thread, NULL, parse_uci_function, NULL);
+	pthread_create(&uci_manager_thread, NULL, uci_manager_function, NULL);
 }
 
 int spawn_uci_engine(void) {
 	GPid child_pid;
 
-	int i;
+
 	GError *spawnError = NULL;
 
 	gchar *argv[] = {"/usr/bin/stockfish", NULL};
@@ -210,20 +183,19 @@ int spawn_uci_engine(void) {
 		return -1;
 	}
 
-	init_regex();
+	init_uci_adapter();
 
-	pthread_create(&uci_read_thread, NULL, parse_uci_function, (void *) (&i));
 	write_to_uci("uci\n");
 	while (!is_uci_ok()) {
 		usleep(500);
 	}
-	printf("UCI OK!\n");
+	debug("UCI OK!\n");
 
-	write_to_uci("setoption name Threads value 6\n");
+	write_to_uci("setoption name Threads value 12\n");
 	write_to_uci("setoption name Hash value 2048\n");
 	write_to_uci("setoption name Ponder value true\n");
-//	write_to_uci("setoption name Skill Level value 5\n");
-	wait_for_engine();
+	write_to_uci("setoption name Skill Level value 20\n");
+	wait_for_engine_ready();
 	return 0;
 }
 
@@ -232,46 +204,23 @@ void start_new_uci_game(int time, UCI_MODE mode) {
 
 	uci_mode = mode;
 
-	if (is_analysing()) {
-		stop_and_wait();
-	}
-	wait_for_engine();
-
+	pthread_mutex_lock(&all_moves_lock);
 	memset(all_moves, 0, 4 * 8192);
 	memcpy(all_moves, START_SEQUENCE, 24);
 	debug("All moves set to: '%s'\n", all_moves);
+	pthread_mutex_unlock(&all_moves_lock);
+
 	ply_num = 1;
 	to_play = 0;
-	set_analysing(false);
 
-	write_to_uci("ucinewgame\n");
-	wait_for_engine();
+	if (write(uci_user_in[1], START_NEW_GAME_COMMAND, sizeof(START_NEW_GAME_COMMAND)) == -1) {
+		perror("Failed to start new UCI game via the UCI manager ");
+	}
+}
 
-	char go[256];
-	int relation;
-	switch (uci_mode) {
-		case ENGINE_WHITE:
-			play_vs_machine = true;
-			relation = -1;
-			start_game("You", engine_name, time, 0, relation, false);
-			// If engine is white, kick it now
-			sprintf(go, "position startpos\ngo wtime %ld btime %ld\n", get_remaining_time(main_clock, 0), get_remaining_time(main_clock, 1));
-			set_analysing(true);
-			write_to_uci(go);
-			break;
-		case ENGINE_BLACK:
-			play_vs_machine = true;
-			relation = 1;
-			start_game("You", engine_name, time, 0, relation, false);
-			break;
-		case ENGINE_ANALYSIS:
-			play_vs_machine = false;
-//			sprintf(go, "position startpos\ngo infinite\n");
-//			write_to_uci(go);
-//			set_analysing(true);
-			break;
-		default:
-			break;
+void start_uci_analysis() {
+	if (write(uci_user_in[1], START_ANALYSIS_COMMAND, sizeof(START_ANALYSIS_COMMAND)) == -1) {
+		perror("Failed to start UCI analysis via the UCI manager ");
 	}
 }
 
@@ -285,9 +234,13 @@ void append_move(char *new_move, bool lock_threads) {
 	debug("append_move: %s\n", new_move);
 
 	size_t newMoveLen = strlen(new_move);
+
+	pthread_mutex_lock(&all_moves_lock);
 	size_t movesLength = strlen(all_moves);
 	all_moves[movesLength] = ' ';
 	memcpy(all_moves + movesLength + 1, new_move, newMoveLen + 1); // includes terminating null
+	pthread_mutex_unlock(&all_moves_lock);
+
 	to_play = to_play ? 0 : 1;
 
 	debug("append_move: all_moves '%s'\n", all_moves);
@@ -301,30 +254,6 @@ void append_move(char *new_move, bool lock_threads) {
 	}
 
 	ply_num++;
-}
-
-void start_uci_analysis() {
-	char moves[8192];
-	if (ply_num == 1) {
-		sprintf(moves, "%s\n", "position startpos");
-	} else {
-		sprintf(moves, "%s\n", all_moves);
-	}
-	if (is_analysing()) {
-		stop_and_wait();
-	}
-	wait_for_engine();
-	write_to_uci(moves);
-
-	char go[256];
-	if (uci_mode == ENGINE_ANALYSIS) {
-		sprintf(go, "go infinite\n");
-	} else {
-		sprintf(go, "go wtime %ld btime %ld\n", get_remaining_time(main_clock, 0),
-		        get_remaining_time(main_clock, 1));
-	}
-	write_to_uci(go);
-	set_analysing(true);
 }
 
 void user_move_to_uci(char *move, bool analyse) {
@@ -432,7 +361,11 @@ void parse_move_with_ponder(char *moveText) {
 
 	char moves[8192];
 //	sprintf(moves, "%s %s\n", all_moves, ponderMove);
+
+	pthread_mutex_lock(&all_moves_lock);
 	sprintf(moves, "%s\n", all_moves);
+	pthread_mutex_unlock(&all_moves_lock);
+
 	write_to_uci(moves);
 //	write_to_uci("go ponder\n");
 	write_to_uci("go infinite\n");
@@ -603,17 +536,14 @@ void best_line_to_san(char *line, char *san) {
 			return;
 		}
 
-		int type = piece->type;
-		int resolved_move[4];
-
-
 		if (!trans_game->whose_turn) {
 			char move_num[16];
 			sprintf(move_num, "%d. ", trans_game->current_move_number);
 			strcat(san, move_num);
 		}
 
-		int resolved = resolve_move(trans_game, type, move, resolved_move);
+		int resolved_move[4];
+		int resolved = resolve_move(trans_game, piece->type, move, resolved_move);
 		if (resolved) {
 			char san_move[SAN_MOVE_SIZE];
 			move_piece(trans_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0,
@@ -644,7 +574,7 @@ void best_line_to_san(char *line, char *san) {
 			size_t newMoveLen = strlen(san_move);
 			memcpy(san + movesLength, san_move, newMoveLen + 1); // includes terminating null
 		} else {
-			debug("best_line_to_san Could not resolve move %c%s\n", type_to_char(type), move);
+			debug("best_line_to_san Could not resolve move %c%s\n", type_to_char(piece->type), move);
 		}
 
 		left_over++;
@@ -670,9 +600,6 @@ void parse_uci_buffer(void) {
 	int i = 0;
 	while (i > -1) {
 		i = uci_scanner_lex();
-//		if (is_stop_requested()) {
-//			printf("While STOP_REQUESTED read from engine: %d: '%s'\n", is_stop_requested(), uci_scanner_text);
-//		}
 		switch (i) {
 			case UCI_OK: {
 				set_uci_ok(true);
@@ -683,13 +610,13 @@ void parse_uci_buffer(void) {
 				break;
 			}
 			case UCI_ID_NAME: {
-				printf("Got UCI Name: %s\n", uci_scanner_text);
+				debug("Got UCI Name: %s\n", uci_scanner_text);
 				strcpy(engine_name, uci_scanner_text + 8);
 				set_analysis_engine_name(engine_name);
 				break;
 			}
 			case UCI_ID_AUTHOR: {
-				printf("Got UCI Author: %s\n", uci_scanner_text);
+				debug("Got UCI Author: %s\n", uci_scanner_text);
 				break;
 			}
 			case UCI_OPTION: {
@@ -721,11 +648,164 @@ void parse_uci_buffer(void) {
 void *parse_uci_function(void *ignored) {
 	fprintf(stdout, "[parse UCI thread] - Starting UCI parser\n");
 
-	while(is_running_flag()) {
+	while (is_running_flag()) {
 		parse_uci_buffer();
 	}
 
 	fprintf(stdout, "[parse UCI thread] - Closing UCI parser\n");
+	return 0;
+}
+
+void write_to_uci(char *message) {
+	pthread_mutex_lock(&uci_writer_lock);
+	if (write(uci_in, message, strlen(message)) == -1) {
+		perror("Failed to write to UCI engine ");
+	}
+	pthread_mutex_unlock(&uci_writer_lock);
+	debug("Wrote to UCI: %s", message);
+}
+
+void wait_for_engine_ready(void) {
+	struct timeval start, now, diff;
+
+	set_uci_ready(false);
+	write_to_uci("isready\n");
+
+	gettimeofday(&start, NULL);
+	while (!is_uci_ready()) {
+		usleep(10000);
+		gettimeofday(&now, NULL);
+		timersub(&now, &start, &diff);
+		if (diff.tv_sec > 3) {
+			debug("Ooops, UCI Engine did not reply to 'isready' within 3 seconds, process crashed?!\n");
+			break;
+		}
+	}
+}
+
+void stop_and_wait(void) {
+	struct timeval start, now, diff;
+
+	set_stop_requested(true);
+	write_to_uci("stop\n");
+
+	gettimeofday(&start, NULL);
+	while (is_stop_requested()) {
+		usleep(10000);
+		gettimeofday(&now, NULL);
+		timersub(&now, &start, &diff);
+		if (diff.tv_sec > 3) {
+			printf("Ooops, UCI Engine did not stop in 3 seconds will attempt to carry on anyway...\n");
+			set_analysing(false);
+			set_stop_requested(false);
+			break;
+		}
+	}
+}
+
+static void real_start_uci_analysis() {
+	debug("Starting UCI analysis from UCI manager\n");
+
+	char moves[8192];
+	if (ply_num == 1) {
+		sprintf(moves, "%s\n", "position startpos");
+	} else {
+		pthread_mutex_lock(&all_moves_lock);
+		sprintf(moves, "%s\n", all_moves);
+		pthread_mutex_unlock(&all_moves_lock);
+	}
+	if (is_analysing()) {
+		stop_and_wait();
+	}
+	wait_for_engine_ready();
+	write_to_uci(moves);
+
+	char go[256];
+	if (uci_mode == ENGINE_ANALYSIS) {
+		sprintf(go, "go infinite\n");
+	} else {
+		sprintf(go, "go wtime %ld btime %ld\n", get_remaining_time(main_clock, 0),
+		        get_remaining_time(main_clock, 1));
+	}
+	write_to_uci(go);
+	set_analysing(true);
+}
+
+static void real_start_uci_game() {
+	debug("Starting new game from UCI manager\n");
+
+	if (is_analysing()) {
+		stop_and_wait();
+	}
+	wait_for_engine_ready();
+
+	set_analysing(false);
+
+	write_to_uci("ucinewgame\n");
+	wait_for_engine_ready();
+
+	char go[256];
+	int relation;
+	switch (uci_mode) {
+		case ENGINE_WHITE:
+			play_vs_machine = true;
+			relation = -1;
+			start_game("You", engine_name, time, 0, relation, false);
+			// If engine is white, kick it now
+			sprintf(go, "position startpos\ngo wtime %ld btime %ld\n", get_remaining_time(main_clock, 0), get_remaining_time(main_clock, 1));
+			set_analysing(true);
+			write_to_uci(go);
+			break;
+		case ENGINE_BLACK:
+			play_vs_machine = true;
+			relation = 1;
+			start_game("You", engine_name, time, 0, relation, true);
+			break;
+		case ENGINE_ANALYSIS:
+			play_vs_machine = false;
+//			sprintf(go, "position startpos\ngo infinite\n");
+//			write_to_uci(go);
+//			set_analysing(true);
+			break;
+		default:
+			break;
+	}
+}
+
+void process_uci_actions() {
+	char raw_buff[BUFSIZ];
+
+	memset(raw_buff, 0, BUFSIZ);
+	int nread = (int) read(uci_user_in[0], &raw_buff, BUFSIZ);
+	if (nread < 1) {
+		perror("Failed to read data from UCI user pipe ");
+		return;
+	}
+
+	int j;
+	char *initial_command;
+	char *tokenize_save;
+	for (j = 1, initial_command = raw_buff; ; j++, initial_command = NULL) {
+		char *token = strtok_r(initial_command, "\n", &tokenize_save);
+		if (token == NULL) {
+			break;
+		}
+		if (!strcmp(START_ANALYSIS_TOKEN, token)) {
+			real_start_uci_analysis();
+		} else if (!strcmp(START_NEW_GAME_TOKEN, token)) {
+			real_start_uci_game();
+		}
+	}
+}
+
+void *uci_manager_function(void *ignored) {
+	fprintf(stdout, "[UCI manager thread] - Starting UCI manager\n");
+
+	while (is_running_flag()) {
+		process_uci_actions();
+	}
+
+	fprintf(stdout, "[UCI manager thread] - UCI manager terminated\n");
 	return 0;
 }
 
