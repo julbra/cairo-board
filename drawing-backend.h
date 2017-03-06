@@ -29,8 +29,7 @@ void init_highlight_over_surface(int wi, int hi);
 void draw_board_surface(int wi, int hi);
 void draw_pieces_surface(int wi, int hi);
 
-//gboolean choose_promote(int value, gboolean only_surfaces);
-void choose_promote(int last_promote, bool only_surfaces, int ocol, int orow, int ncol, int nrow, bool lock_threads);
+void choose_promote(int last_promote, bool only_surfaces, bool only_logical, int ocol, int orow, int ncol, int nrow);
 void choose_promote_handler(void *GtkWidget, gpointer value);
 void choose_promote_deactivate_handler(void *GtkWidget, gpointer value, gboolean only_surfaces);
 

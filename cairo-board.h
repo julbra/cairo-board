@@ -252,6 +252,7 @@ extern double svg_w, svg_h;
 extern double dr,dg, db;
 extern double lr, lg, lb;
 extern double highlight_selected_r, highlight_selected_g, highlight_selected_b, highlight_selected_a;
+extern double highlight_move_r, highlight_move_g, highlight_move_b, highlight_move_a;
 extern GdkRGBA chat_handle_colour;
 extern double check_warn_r, check_warn_g, check_warn_b, check_warn_a;
 
@@ -309,7 +310,7 @@ void loc_to_xy(int column, int row, double *xy, int wi, int hi);
 int char_to_type(int whose_turn, char c);
 char type_to_char(int);
 char type_to_fen_char(int type);
-int move_piece(chess_piece *piece, int col, int row, int check_legality, int move_source, char san_move[SAN_MOVE_SIZE], chess_game *game, bool lock_threads);
+int move_piece(chess_piece *piece, int col, int row, int check_legality, int move_source, char san_move[SAN_MOVE_SIZE], chess_game *game, bool logical_only);
 void send_to_ics(char *s);
 void send_to_uci(char *s);
 void insert_san_move(const char*, gboolean should_lock_threads);
@@ -327,7 +328,7 @@ int resolve_move(chess_game *game, int t, char *move, int resolved_move[4]);
 
 /********** FROM DRAWING BACKEND *************/
 extern RsvgHandle *piecesSvg[12];
-gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legality, int move_source);
+gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legality, int move_source, bool logical_only);
 
 #endif
 

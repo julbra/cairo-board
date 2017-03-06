@@ -81,7 +81,7 @@ gboolean use_fig = FALSE;
 gboolean show_last_move = FALSE;
 gboolean always_promote_to_queen = FALSE;
 gboolean highlight_moves = FALSE;
-bool highlight_last_move = FALSE;
+bool highlight_last_move = true;
 
 gboolean test_first_player = FALSE;
 
@@ -232,6 +232,10 @@ double highlight_selected_r;
 double highlight_selected_g;
 double highlight_selected_b;
 double highlight_selected_a = 0.5;
+double highlight_move_r;
+double highlight_move_g;
+double highlight_move_b;
+double highlight_move_a = 0.5;
 double check_warn_r = 1.0;
 double check_warn_g = 0.1;
 double check_warn_b = 0.1;
@@ -712,7 +716,7 @@ bool can_i_move_piece(chess_piece *piece) {
 	}
 }
 
-int move_piece(chess_piece *piece, int col, int row, int check_legality, int move_source, char san_move[SAN_MOVE_SIZE], chess_game *game, bool lock_threads) {
+int move_piece(chess_piece *piece, int col, int row, int check_legality, int move_source, char san_move[SAN_MOVE_SIZE], chess_game *game, bool only_logical) {
 
 	// Determine whether proposed move is legal
 	if (!check_legality || is_move_legal(game, piece, col, row)) {
@@ -779,21 +783,15 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 							}
 							/* found a piece from same set with same type
 							 * we now check whether it can go to the same dest */
-							//debug("found potential competitor\n");
 							int possible_moves[64][2];
 							int count = get_possible_moves(game, &competitor, possible_moves, 0);
 							for (j = 0; j < count; j++) {
-								//debug("considering move: %c%c (%d/%d)\n", 'a'+possible_moves[j][0], '1'+possible_moves[j][1],j+1, count);
 								if (possible_moves[j][0] == col && possible_moves[j][1] == row) {
-									//debug("found actual competitor\n");
 									if (competitor.pos.column != piece->pos.column) {
-//										debug("will disambiguate by col\n ");
 										disambiguator_need |= 1;
 									} else {
-//										debug("will disambiguate by row\n");
 										disambiguator_need |= 2;
 									}
-									//debug("breaking\n");
 									break;
 								}
 							}
@@ -816,16 +814,15 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 						break;
 				}
 
-				/* was piece taken? */
+				// was piece taken?
 				if (piece_taken) {
 					san_move[offset++] = 'x';
 				}
 
-				/* dest location */
+				// dest location
 				san_move[offset++] = (char) (col + 'a');
 				san_move[offset] = (char) (row + '1');
 
-				/* was it a promotion? */
 				// promotions handled later in SAN string
 			}
 		}
@@ -876,7 +873,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 					} else {
 						strcat(san_move, "=Q");
 					}
-					choose_promote(1, false, ocol, orow, col, row, lock_threads);
+					choose_promote(1, false, only_logical, ocol, orow, col, row);
 				}
 			} else {
 				delay_from_promotion = false; // this means we can print the move when we return from this
@@ -891,7 +888,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 				strcat(san_move, promo_string);
 
 				if (move_source == AUTO_SOURCE_NO_ANIM) {
-					choose_promote(game->promo_type, FALSE, ocol, orow, col, row, lock_threads);
+					choose_promote(game->promo_type, false, only_logical, ocol, orow, col, row);
 					// If animating, handle promotion at end of the animation (because it's prettier!)
 				}
 			}
@@ -1585,7 +1582,7 @@ void load_game(const char* file_path, int game_num) {
 				if (resolved) {
 					printf("move resolved to %c%d-%c%d\n", resolved_move[0]+'a', resolved_move[1]+1, resolved_move[2]+'a', resolved_move[3]+1);
 					char san[SAN_MOVE_SIZE];
-					move_piece(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE_NO_ANIM, san, main_game, TRUE);
+					move_piece(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE_NO_ANIM, san, main_game, false);
 					plys_list_append_ply(main_list, ply_new(resolved_move[0], resolved_move[1], resolved_move[2], resolved_move[3], NULL, san));
 					blacks_ply = ! blacks_ply;
 				}
@@ -1680,7 +1677,7 @@ gboolean auto_play_one_move(gpointer data) {
 		int resolved = resolve_move(main_game, type, currentMoveString, resolved_move);
 		if (resolved) {
 //			start_one_stop_other_clock(main_clock, main_game->whose_turn, true);
-			auto_move(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE);
+			auto_move(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE, false);
 			return TRUE;
 		}
 		else {
@@ -1718,7 +1715,7 @@ gboolean auto_play_one_ics_move(gpointer data) {
 		int resolved = resolve_move(main_game, type, currentMoveString, resolved_move);
 		if (resolved) {
 			debug("Move resolved to %c%d-%c%d\n", resolved_move[0] + 'a', resolved_move[1] + 1, resolved_move[2] + 'a', resolved_move[3] + 1);
-			auto_move(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE);
+			auto_move(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE, false);
 			return true;
 		} else {
 			fprintf(stderr, "Could not resolve move %c%s\n", type_to_char(type), currentMoveString);
@@ -1769,7 +1766,7 @@ gboolean auto_play_one_crafty_move(gpointer data) {
 
 			free(ics_command);
 
-			auto_move(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE);
+			auto_move(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE, false);
 			return TRUE;
 		}
 		else {
@@ -1798,7 +1795,7 @@ gboolean auto_play_one_uci_move(gpointer data) {
 	resolved_move[3] = lm[3] - '1';
 	debug("resolved_move %d%d %d%d\n", resolved_move[0], resolved_move[1], resolved_move[2], resolved_move[3]);
 
-	auto_move(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE);
+	auto_move(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE, false);
 	return true;
 }
 
@@ -2469,7 +2466,7 @@ int scan_append_ply(char *ply) {
 		int resolved = resolve_move(main_game, type, currentMoveString, resolved_move);
 		if (resolved) {
 			char san_move[SAN_MOVE_SIZE];
-			int move_result = move_piece(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE_NO_ANIM, san_move, main_game, true);
+			int move_result = move_piece(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE_NO_ANIM, san_move, main_game, false);
 
 			char uci_move[6];
 			uci_move[0] = (char) (resolved_move[0] + 'a');
@@ -4017,10 +4014,15 @@ int main (int argc, char **argv) {
 		}
 	}
 
-	highlight_selected_r = (dr + lr) / 3.0;
-	highlight_selected_g = 1;
+	// Compute highlight colours
+	highlight_selected_r = 1;
+	highlight_selected_g = (dg + lg) / 3.0;
 	highlight_selected_b = (db + lb) / 3.0;
 	highlight_selected_a = 0.3;
+	highlight_move_r = (dr + lr) / 3.0;
+	highlight_move_g = 1;
+	highlight_move_b = (db + lb) / 3.0;
+	highlight_move_a = 0.3;
 
 	debug("Debug info enabled\n");
 	if (ics_mode) {
