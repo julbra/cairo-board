@@ -441,11 +441,7 @@ void draw_full_update(cairo_t *cdr, int wi, int hi) {
 
 	if (highlight_last_move) {
 		if (lm_source_col > -1) {
-			// paint to highlight layer
-			cairo_t *high_cr = cairo_create(highlight_over_layer);
-			highlight_square(high_cr, lm_source_col, lm_source_row, 0, 255, 0, 1, wi, hi);
-			highlight_square(high_cr, lm_dest_col, lm_dest_row, 0, 255, 0, 1, wi, hi);
-			cairo_destroy(high_cr);
+			highlight_move(lm_source_col, lm_source_row, lm_dest_col, lm_dest_row, wi, hi);
 		}
 	}
 
@@ -1053,6 +1049,13 @@ static gboolean animate_one_step(gpointer data) {
 
 }
 
+void highlight_move(int source_col, int source_row, int dest_col, int dest_row, int wi, int hi) {
+	cairo_t *high_cr = cairo_create(highlight_under_layer);
+	highlight_square(high_cr, source_col, source_row, highlight_move_r, highlight_move_g, highlight_move_b, highlight_move_a, wi, hi);
+	highlight_square(high_cr, dest_col, dest_row, highlight_move_r, highlight_move_g, highlight_move_b, highlight_move_a, wi, hi);
+	cairo_destroy(high_cr);
+}
+
 gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legality, int move_source, bool logical_only) {
 	if (piece == NULL) {
 		debug("NULL PIECE auto_move\n");
@@ -1197,10 +1200,7 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 			lm_dest_row = new_row;
 
 			// paint to highlight layer
-			cairo_t *high_cr = cairo_create(highlight_under_layer);
-			highlight_square(high_cr, lm_source_col, lm_source_row, highlight_move_r, highlight_move_g, highlight_move_b, highlight_move_a, wi, hi);
-			highlight_square(high_cr, lm_dest_col, lm_dest_row, highlight_move_r, highlight_move_g, highlight_move_b, highlight_move_a, wi, hi);
-			cairo_destroy(high_cr);
+			highlight_move(lm_source_col, lm_source_row, lm_dest_col, lm_dest_row, wi, hi);
 
 			// update cache surface (used for scaling)
 			square_to_rectangle(cache_dc, lm_source_col, lm_source_row, wi, hi);
@@ -1721,10 +1721,7 @@ void handle_button_release(void) {
 				lm_dest_row = ij[1];
 
 				// paint to highlight layer
-				cairo_t *high_cr = cairo_create(highlight_under_layer);
-				highlight_square(high_cr, lm_source_col, lm_source_row, highlight_move_r, highlight_move_g, highlight_move_b, highlight_move_a, wi, hi);
-				highlight_square(high_cr, lm_dest_col, lm_dest_row, highlight_move_r, highlight_move_g, highlight_move_b, highlight_move_a, wi, hi);
-				cairo_destroy(high_cr);
+				highlight_move(lm_source_col, lm_source_row, lm_dest_col, lm_dest_row, wi, hi);
 
 				// update cache surface (used for scaling)
 				square_to_rectangle(cache_dc, lm_source_col, lm_source_row, wi, hi);
