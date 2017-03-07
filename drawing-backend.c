@@ -60,8 +60,7 @@ GHashTable *anims_map;
 static gboolean is_scaled = false;
 
 // Show last move variables
-int lm_source_col = -1, lm_source_row;
-int lm_dest_col, lm_dest_row;
+int prev_highlighted_move[4] = {-1};
 
 void init_anims_map(void) {
 	anims_map = g_hash_table_new(g_direct_hash, g_direct_equal);
@@ -440,8 +439,8 @@ void draw_full_update(cairo_t *cdr, int wi, int hi) {
 	}
 
 	if (highlight_last_move) {
-		if (lm_source_col > -1) {
-			highlight_move(lm_source_col, lm_source_row, lm_dest_col, lm_dest_row, wi, hi);
+		if (prev_highlighted_move[0] > -1) {
+			highlight_move(prev_highlighted_move[0], prev_highlighted_move[1], prev_highlighted_move[2], prev_highlighted_move[3], wi, hi);
 		}
 	}
 
@@ -1050,6 +1049,11 @@ static gboolean animate_one_step(gpointer data) {
 }
 
 void highlight_move(int source_col, int source_row, int dest_col, int dest_row, int wi, int hi) {
+	prev_highlighted_move[0] = source_col;
+	prev_highlighted_move[1] = source_row;
+	prev_highlighted_move[2] = dest_col;
+	prev_highlighted_move[3] = dest_row;
+
 	cairo_t *high_cr = cairo_create(highlight_under_layer);
 	highlight_square(high_cr, source_col, source_row, highlight_move_r, highlight_move_g, highlight_move_b, highlight_move_a, wi, hi);
 	highlight_square(high_cr, dest_col, dest_row, highlight_move_r, highlight_move_g, highlight_move_b, highlight_move_a, wi, hi);
@@ -1184,41 +1188,36 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 			cairo_save(cache_dc);
 
 			cairo_t *drag_cr = cairo_create(dragging_background);
-			if (lm_source_col > -1) {
+			if (prev_highlighted_move[0] > -1) {
 				// Clip to clean previous last move
-				square_to_rectangle(drag_cr, lm_source_col, lm_source_row, wi, hi);
-				square_to_rectangle(drag_cr, lm_dest_col, lm_dest_row, wi, hi);
-				square_to_rectangle(cache_dc, lm_source_col, lm_source_row, wi, hi);
-				square_to_rectangle(cache_dc, lm_dest_col, lm_dest_row, wi, hi);
-				square_to_rectangle(cdr, lm_source_col, lm_source_row, wi, hi);
-				square_to_rectangle(cdr, lm_dest_col, lm_dest_row, wi, hi);
+				square_to_rectangle(drag_cr, prev_highlighted_move[0], prev_highlighted_move[1], wi, hi);
+				square_to_rectangle(drag_cr, prev_highlighted_move[2], prev_highlighted_move[3], wi, hi);
+				square_to_rectangle(cache_dc, prev_highlighted_move[0], prev_highlighted_move[1], wi, hi);
+				square_to_rectangle(cache_dc, prev_highlighted_move[2], prev_highlighted_move[3], wi, hi);
+				square_to_rectangle(cdr, prev_highlighted_move[0], prev_highlighted_move[1], wi, hi);
+				square_to_rectangle(cdr, prev_highlighted_move[2], prev_highlighted_move[3], wi, hi);
 			}
 
-			lm_source_col = old_col;
-			lm_source_row = old_row;
-			lm_dest_col = new_col;
-			lm_dest_row = new_row;
-
 			// paint to highlight layer
-			highlight_move(lm_source_col, lm_source_row, lm_dest_col, lm_dest_row, wi, hi);
+			highlight_move(old_col, old_row, new_col, new_row, wi, hi);
 
 			// update cache surface (used for scaling)
-			square_to_rectangle(cache_dc, lm_source_col, lm_source_row, wi, hi);
-			square_to_rectangle(cache_dc, lm_dest_col, lm_dest_row, wi, hi);
+			square_to_rectangle(cache_dc, old_col, old_row, wi, hi);
+			square_to_rectangle(cache_dc, new_col, new_row, wi, hi);
 			cairo_clip(cache_dc);
 			paint_layers(cache_dc);
 			cairo_restore(cache_dc);
 
 			// update dragging surface
-			square_to_rectangle(drag_cr, lm_source_col, lm_source_row, wi, hi);
-			square_to_rectangle(drag_cr, lm_dest_col, lm_dest_row, wi, hi);
+			square_to_rectangle(drag_cr, old_col, old_row, wi, hi);
+			square_to_rectangle(drag_cr, new_col, new_row, wi, hi);
 			cairo_clip(drag_cr);
 			paint_layers(drag_cr);
 			cairo_destroy(drag_cr);
 
 			// Clip to show last move
-			square_to_rectangle(cdr, lm_source_col, lm_source_row, wi, hi);
-			square_to_rectangle(cdr, lm_dest_col, lm_dest_row, wi, hi);
+			square_to_rectangle(cdr, old_col, old_row, wi, hi);
+			square_to_rectangle(cdr, new_col, new_row, wi, hi);
 		}
 
 		bool king_is_checked = is_king_checked(main_game, main_game->whose_turn);
@@ -1703,37 +1702,32 @@ void handle_button_release(void) {
 
 			if (highlight_last_move) {
 				cairo_save(cache_dc);
-				old_highlights[0] = lm_source_col;
-				old_highlights[1] = lm_source_row;
-				old_highlights[2] = lm_dest_col;
-				old_highlights[3] = lm_dest_row;
+				old_highlights[0] = prev_highlighted_move[0];
+				old_highlights[1] = prev_highlighted_move[1];
+				old_highlights[2] = prev_highlighted_move[2];
+				old_highlights[3] = prev_highlighted_move[3];
 
 				// de-highlight previous move
-				if (old_highlights[0] > -1) {
+				if (prev_highlighted_move[0] > -1) {
 					// Special clipping
-					square_to_rectangle(cache_dc, old_highlights[0], old_highlights[1], wi, hi);
-					square_to_rectangle(cache_dc, old_highlights[2], old_highlights[3], wi, hi);
+					square_to_rectangle(cache_dc, prev_highlighted_move[0], prev_highlighted_move[1], wi, hi);
+					square_to_rectangle(cache_dc, prev_highlighted_move[2], prev_highlighted_move[3], wi, hi);
 				}
 
-				lm_source_col = p_old_col;
-				lm_source_row = p_old_row;
-				lm_dest_col = ij[0];
-				lm_dest_row = ij[1];
-
 				// paint to highlight layer
-				highlight_move(lm_source_col, lm_source_row, lm_dest_col, lm_dest_row, wi, hi);
+				highlight_move(p_old_col, p_old_row, ij[0], ij[1], wi, hi);
 
 				// update cache surface (used for scaling)
-				square_to_rectangle(cache_dc, lm_source_col, lm_source_row, wi, hi);
-				square_to_rectangle(cache_dc, lm_dest_col, lm_dest_row, wi, hi);
+				square_to_rectangle(cache_dc, p_old_col, p_old_row, wi, hi);
+				square_to_rectangle(cache_dc, ij[0], ij[1], wi, hi);
 				cairo_clip(cache_dc);
 				paint_layers(cache_dc);
 				cairo_restore(cache_dc);
 
 				// update dragging surface
 				cairo_t *drag_cr = cairo_create(dragging_background);
-				square_to_rectangle(drag_cr, lm_source_col, lm_source_row, wi, hi);
-				square_to_rectangle(drag_cr, lm_dest_col, lm_dest_row, wi, hi);
+				square_to_rectangle(drag_cr, p_old_col, p_old_row, wi, hi);
+				square_to_rectangle(drag_cr, ij[0], ij[1], wi, hi);
 				cairo_clip(drag_cr);
 				paint_layers(drag_cr);
 				cairo_destroy(drag_cr);
@@ -2413,7 +2407,7 @@ void reset_board(void) {
 	mouse_clicked[1] = -1;
 	king_in_check_piece = NULL;
 	mouse_clicked_piece = NULL;
-	lm_source_col = -1;
+	prev_highlighted_move[0] = -1;
 	// Need to reassign surfaces in case of promotions during previous game
 	assign_surfaces();
 	draw_board_surface(old_wi, old_hi);

@@ -191,7 +191,7 @@ int spawn_uci_engine(void) {
 	}
 	debug("UCI OK!\n");
 
-	write_to_uci("setoption name Threads value 12\n");
+	write_to_uci("setoption name Threads value 7\n");
 	write_to_uci("setoption name Hash value 2048\n");
 	write_to_uci("setoption name Ponder value true\n");
 	write_to_uci("setoption name Skill Level value 20\n");

@@ -39,6 +39,4 @@ void init_anims_map(void);
 // TEST
 gboolean test_animate_random_step(gpointer data);
 
-extern int lm_source_col;
-
 #endif /* DRAWINGBACKEND_H_ */
