@@ -1239,7 +1239,7 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 			cairo_clip(cache_dc);
 			paint_layers(cache_dc);
 			cairo_restore(cache_dc);
-			cairo_rectangle(cdr, floor(king_xy[0]-wi/16.0f), floor(king_xy[1]-hi/16.0f), ceil(ww), ceil(hh));
+			cairo_rectangle(cdr, floor(king_xy[0] - wi / 16.0f), floor(king_xy[1] - hi / 16.0f), ceil(ww), ceil(hh));
 		} else {
 			king_in_check_piece = NULL;
 		}
