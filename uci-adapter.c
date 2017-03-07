@@ -55,6 +55,7 @@ static char all_moves[4 * 8192];
 char shown_best_line[BUFSIZ] = "";
 size_t shown_best_line_len = 0;
 static UCI_MODE uci_mode;
+static unsigned int game_time = 0;
 
 bool play_vs_machine;
 const char START_SEQUENCE[] = "position startpos moves";
@@ -170,13 +171,19 @@ void init_uci_adapter() {
 	pthread_create(&uci_manager_thread, NULL, uci_manager_function, NULL);
 }
 
-int spawn_uci_engine(void) {
+int spawn_uci_engine(bool brainfish) {
 	GPid child_pid;
 
 
 	GError *spawnError = NULL;
 
-	gchar *argv[] = {"/usr/bin/stockfish", NULL};
+	gchar *argv[2];
+	if (brainfish) {
+		argv[0] = "/usr/local/bin/brainfish";
+	} else {
+		argv[0] = "/usr/bin/stockfish";
+	}
+	argv[1] = NULL;
 
 	gboolean ret = g_spawn_async_with_pipes(g_get_home_dir(), argv, NULL, G_SPAWN_DEFAULT, NULL, NULL, &child_pid,
 	                                        &uci_in, &uci_out, &uci_err, &spawnError);
@@ -198,14 +205,18 @@ int spawn_uci_engine(void) {
 	write_to_uci("setoption name Hash value 2048\n");
 	write_to_uci("setoption name Ponder value true\n");
 	write_to_uci("setoption name Skill Level value 20\n");
+	if (brainfish) {
+		write_to_uci("setoption name BookPath value /home/hts/brainfish/Cerebellum_Light.bin\n");
+	}
 	wait_for_engine_ready();
 	return 0;
 }
 
-void start_new_uci_game(int time, UCI_MODE mode) {
+void start_new_uci_game(unsigned int initial_time, UCI_MODE mode) {
 	debug("Start UCI - game mode: %d\n", mode);
 
 	uci_mode = mode;
+	game_time = initial_time;
 
 	pthread_mutex_lock(&all_moves_lock);
 	memset(all_moves, 0, 4 * 8192);
@@ -297,6 +308,7 @@ bool handle_move_after_stop() {
 }
 
 void parse_move(char *moveText) {
+
 	/* Note: UCI uses a weird notation, unlike what the spec says it is not the *long algebraic notation* (LAN) at all...
 	 For example: a Knight to f3 move LAN is Ng1-f3 but we get g1f3
 	 Also, promotions are indicated like such: a7a8q*/
@@ -304,6 +316,8 @@ void parse_move(char *moveText) {
 	if (handle_move_after_stop()) {
 		return;
 	}
+
+	set_analysing(false);
 
 	regmatch_t pmatch[2];
 	int status = regexec(&best_move_matcher, moveText, 2, pmatch, 0);
@@ -328,6 +342,16 @@ void parse_move(char *moveText) {
 
 	set_last_move(bestMove);
 	g_signal_emit_by_name(board, "got-uci-move");
+
+	char moves[8192];
+	pthread_mutex_lock(&all_moves_lock);
+	sprintf(moves, "%s\n", all_moves);
+	pthread_mutex_unlock(&all_moves_lock);
+
+	write_to_uci(moves);
+//	write_to_uci("go ponder\n");
+	write_to_uci("go infinite\n");
+	set_analysing(true);
 }
 
 void parse_move_with_ponder(char *moveText) {
@@ -339,6 +363,8 @@ void parse_move_with_ponder(char *moveText) {
 	if (handle_move_after_stop()) {
 		return;
 	}
+
+	set_analysing(false);
 
 	regmatch_t pmatch[3];
 	int status = regexec(&best_move_ponder_matcher, moveText, 3, pmatch, 0);
@@ -367,9 +393,8 @@ void parse_move_with_ponder(char *moveText) {
 	g_signal_emit_by_name(board, "got-uci-move");
 
 	char moves[8192];
-//	sprintf(moves, "%s %s\n", all_moves, ponderMove);
-
 	pthread_mutex_lock(&all_moves_lock);
+	//	sprintf(moves, "%s %s\n", all_moves, ponderMove);
 	sprintf(moves, "%s\n", all_moves);
 	pthread_mutex_unlock(&all_moves_lock);
 
@@ -423,6 +448,9 @@ void parse_info(char *info) {
 				score_int =-score_int;
 				break;
 			case ENGINE_WHITE:
+				if (to_play) {
+					score_int =-score_int;
+				}
 				break;
 		}
 		char *evaluation;
@@ -732,12 +760,12 @@ static void real_start_uci_analysis() {
 	char go[256];
 	if (uci_mode == ENGINE_ANALYSIS) {
 		sprintf(go, "go infinite\n");
+		set_analysing(true);
 	} else {
 		sprintf(go, "go wtime %ld btime %ld\n", get_remaining_time(main_clock, 0),
 		        get_remaining_time(main_clock, 1));
 	}
 	write_to_uci(go);
-	set_analysing(true);
 }
 
 static void real_start_uci_game() {
@@ -759,22 +787,18 @@ static void real_start_uci_game() {
 		case ENGINE_WHITE:
 			play_vs_machine = true;
 			relation = -1;
-			start_game("You", engine_name, time, 0, relation, false);
+			start_game("You", engine_name, game_time, 0, relation, true);
 			// If engine is white, kick it now
 			sprintf(go, "position startpos\ngo wtime %ld btime %ld\n", get_remaining_time(main_clock, 0), get_remaining_time(main_clock, 1));
-			set_analysing(true);
 			write_to_uci(go);
 			break;
 		case ENGINE_BLACK:
 			play_vs_machine = true;
 			relation = 1;
-			start_game("You", engine_name, time, 0, relation, true);
+			start_game("You", engine_name, game_time, 0, relation, true);
 			break;
 		case ENGINE_ANALYSIS:
 			play_vs_machine = false;
-//			sprintf(go, "position startpos\ngo infinite\n");
-//			write_to_uci(go);
-//			set_analysing(true);
 			break;
 		default:
 			break;

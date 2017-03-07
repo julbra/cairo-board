@@ -3931,10 +3931,13 @@ static void get_theme_colours(GtkWidget *widget) {
 
 static gboolean spawn_uci_engine_idle(gpointer data) {
 	debug("Spawning UCI engine...\n");
-	spawn_uci_engine();
+	bool brainfish = *(bool*)data;
+	spawn_uci_engine(brainfish);
 	debug("Spawned UCI engine [OK]\n");
 	if (!ics_mode) {
 		debug("Starting new UCI game...\n");
+//		start_new_uci_game(60, ENGINE_WHITE);
+//		start_new_uci_game(60, ENGINE_BLACK);
 		start_new_uci_game(60, ENGINE_ANALYSIS);
 		start_uci_analysis();
 	}
@@ -4400,7 +4403,8 @@ int main (int argc, char **argv) {
 		}
 	}
 
-	g_idle_add(spawn_uci_engine_idle, NULL);
+	bool brainfish = false;
+	g_idle_add(spawn_uci_engine_idle, &brainfish);
 
 	spawn_mover();
 

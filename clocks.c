@@ -302,7 +302,9 @@ void clock_to_string(chess_clock *clock, int color, char clock_string[], char gh
 	long ms = get_remaining_time(clock, color);
 
 	if (ms > (long) 24 * 60 * 60 * 1000) { // > 1 day
-		fprintf(stderr, "ERROR: %ld milliseconds passed to %s exceeded allowed range of 1day", ms, __FUNCTION__);
+		fprintf(stderr, "ERROR: %ld milliseconds passed to %s exceeded allowed range of 1day\n", ms, __FUNCTION__);
+		strcat(clock_string, "00:00");
+		strcat(ghost_string, "88:88");
 		return;
 	}
 
