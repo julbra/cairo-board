@@ -109,6 +109,7 @@ unsigned int auto_play_delay = 1000;
 static int requested_moves = 0;
 static int requested_start = 0;
 static int got_header = 0;
+static bool has_moves = false;
 static int finished_parsing_moves = 0;
 static int requested_times = 0;
 
@@ -3434,20 +3435,22 @@ void parse_ics_buffer(void) {
 			}
 			case MOVE_LIST_START:
 				debug("Found Movelist start: '%s'\n", ics_scanner_text);
-				if(!requested_moves) {
+				if (!requested_moves) {
 					debug("Found Movelist start but we didn't ask for any moves?: '%s'\n", ics_scanner_text);
-				}
-				else {
+				} else {
+					has_moves = false;
 					got_header = 1;
 				}
 				break;
 			case MOVE_LIST_WHITE_PLY:
 				if (requested_moves && got_header) {
+					has_moves = true;
 					parse_move_list_white_ply(ics_scanner_text);
 				}
 				break;
 			case MOVE_LIST_FULL_MOVE:
 				if (requested_moves && got_header) {
+					has_moves = true;
 					parse_move_list_full_move(ics_scanner_text);
 				}
 				break;
@@ -3464,7 +3467,7 @@ void parse_ics_buffer(void) {
 //				init_highlight_over_surface(old_wi, old_hi);
 
 				// highlight last move
-				if (highlight_last_move) {
+				if (has_moves && highlight_last_move) {
 					highlight_move(resolved_move[0], resolved_move[1], resolved_move[2], resolved_move[3], old_wi, old_hi);
 				}
 

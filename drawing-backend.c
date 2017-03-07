@@ -2409,11 +2409,10 @@ void reset_board(void) {
 	prev_highlighted_move[0] = -1;
 	// Need to reassign surfaces in case of promotions during previous game
 	assign_surfaces();
+	init_highlight_under_surface(old_wi, old_hi);
 	draw_board_surface(old_wi, old_hi);
 	draw_pieces_surface(old_wi, old_hi);
 	init_dragging_background(old_wi, old_hi);
-	init_highlight_under_surface(old_wi, old_hi);
-//	init_highlight_over_surface(old_wi, old_hi);
 	gtk_widget_queue_draw(GTK_WIDGET(board));
 }
 

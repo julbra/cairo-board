@@ -676,8 +676,8 @@ static void wait_for_engine_ready(void) {
 		usleep(10000);
 		gettimeofday(&now, NULL);
 		timersub(&now, &start, &diff);
-		if (diff.tv_sec > 3) {
-			debug("Ooops, UCI Engine did not reply to 'isready' within 3 seconds, process crashed?!\n");
+		if (diff.tv_sec > 4) {
+			debug("Ooops, UCI Engine did not reply to 'isready' within 4 seconds, process crashed?!\n");
 			break;
 		}
 	}
@@ -694,8 +694,8 @@ static void stop_and_wait(void) {
 		usleep(10000);
 		gettimeofday(&now, NULL);
 		timersub(&now, &start, &diff);
-		if (diff.tv_sec > 3) {
-			printf("Ooops, UCI Engine did not stop in 3 seconds will attempt to carry on anyway...\n");
+		if (diff.tv_sec > 6) {
+			printf("Ooops, UCI Engine did not stop in 6 seconds will attempt to carry on anyway...\n");
 			set_analysing(false);
 			set_stop_requested(false);
 			break;
