@@ -659,7 +659,7 @@ static gboolean animate_one_step(gpointer data) {
 	// Animation was killed, find out why
 	if (anim->killed_by || anim->piece->dead) {
 		if (anim->piece->dead) {
-			debug("Piece was killed while being animated!\n");
+			debug("Piece was killed while being animated! killed by %d\n", anim->killed_by);
 		}
 
 		gdk_threads_enter();
@@ -677,7 +677,6 @@ static gboolean animate_one_step(gpointer data) {
 		cairo_rectangle(dragging_dc, floor(prev_x - wi / 16), floor(prev_y - hi / 16), ceil(ww), ceil(hh));
 		cairo_clip(dragging_dc);
 		paint_layers(dragging_dc);
-
 
 		// paint buffer surface with dragging background
 		cairo_t *cache_dc = cairo_create(cache_layer);
@@ -702,20 +701,27 @@ static gboolean animate_one_step(gpointer data) {
 			loc_to_xy(anim->new_col, anim->new_row, killed_xy, wi, hi);
 			cairo_rectangle(dragging_dc, floor(killed_xy[0] - wi / 16), floor(killed_xy[1] - hi / 16), ceil(ww), ceil(hh));
 			cairo_clip(dragging_dc);
+			cairo_set_operator(cdr, CAIRO_OPERATOR_SOURCE);
 			cairo_set_source_surface(dragging_dc, board_layer, 0.0f, 0.0f);
+			cairo_paint(dragging_dc);
+			cairo_set_operator(cdr, CAIRO_OPERATOR_OVER);
+			cairo_set_source_surface(dragging_dc, highlight_under_layer, 0.0f, 0.0f);
+			cairo_paint(dragging_dc);
+			cairo_set_source_surface(dragging_dc, coordinates_layer, 0.0f, 0.0f);
 			cairo_paint(dragging_dc);
 			cairo_set_source_surface(dragging_dc, anim->piece->surf, killed_xy[0] - wi / 16, killed_xy[1] - hi / 16);
 			cairo_paint(dragging_dc);
 
 			// debug
-//				cairo_set_source_rgba (dragging_dc, 1, 0, 0, .5f);
-//				cairo_paint(dragging_dc);
+//			cairo_set_source_rgba (dragging_dc, 1, 0, 0, .5f);
+//			cairo_paint(dragging_dc);
 
 			cairo_restore(cache_dc);
 			cairo_save(cache_dc);
-			cairo_set_source_surface(cache_dc, dragging_background, 0, 0);
 			cairo_rectangle(cache_dc, floor(killed_xy[0] - wi / 16), floor(killed_xy[1] - hi / 16), ceil(ww), ceil(hh));
 			cairo_clip(cache_dc);
+			cairo_set_operator(cdr, CAIRO_OPERATOR_SOURCE);
+			cairo_set_source_surface(cache_dc, dragging_background, 0, 0);
 			cairo_paint(cache_dc);
 			cairo_restore(cache_dc);
 			cairo_rectangle(cdr, floor(killed_xy[0] - wi / 16), floor(killed_xy[1] - hi / 16), ceil(ww), ceil(hh));
@@ -826,8 +832,8 @@ static gboolean animate_one_step(gpointer data) {
 	cairo_clip(cdr);
 
 	// apply buffered surface to cr (NB: cr is clipped)
-	cairo_set_operator (cdr, CAIRO_OPERATOR_SOURCE);
-	cairo_set_source_surface (cdr, cache_layer, 0.0f, 0.0f);
+	cairo_set_operator(cdr, CAIRO_OPERATOR_SOURCE);
+	cairo_set_source_surface(cdr, cache_layer, 0.0f, 0.0f);
 	cairo_paint(cdr);
 
 	// debug
@@ -1297,8 +1303,8 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 			}
 		}
 
-//		points_to_plot *= 4.0f;
-		//points_to_plot /= 3.0f;
+//		points_to_plot *= 7.0f;
+//		points_to_plot /= 3.0f;
 
 		double **anim_steps;
 		// this will be freed when we free the anim structure!
