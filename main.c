@@ -726,7 +726,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 		int was_double_pawn_push = is_move_double_pawn_push(piece, col, row);
 		int was_en_passant = is_move_en_passant(game, piece, col, row);
 		int was_promotion = is_move_promotion(piece, col, row);
-		int piece_taken = is_move_capture(game, piece, col, row);
+		int piece_taken = was_en_passant || is_move_capture(game, piece, col, row);
 
 		if (san_move != NULL) { // we've been asked to build the san move
 			/* move is valid, start building the san_move string */
