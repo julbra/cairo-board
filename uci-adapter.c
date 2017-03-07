@@ -8,6 +8,9 @@
 #include "uci-adapter.h"
 #include "uci_scanner.h"
 
+const static unsigned int STOP_TIMEOUT_SEC = 10;
+const static unsigned int READY_TIMEOUT_SEC = 3;
+
 int uci_scanner__scan_bytes(const char *bytes, int len);
 
 static int uci_in;
@@ -676,8 +679,8 @@ static void wait_for_engine_ready(void) {
 		usleep(10000);
 		gettimeofday(&now, NULL);
 		timersub(&now, &start, &diff);
-		if (diff.tv_sec > 4) {
-			debug("Ooops, UCI Engine did not reply to 'isready' within 4 seconds, process crashed?!\n");
+		if (diff.tv_sec > READY_TIMEOUT_SEC) {
+			debug("Ooops, UCI Engine did not reply to 'isready' within %d seconds, process crashed?!\n", READY_TIMEOUT_SEC);
 			break;
 		}
 	}
@@ -694,8 +697,8 @@ static void stop_and_wait(void) {
 		usleep(10000);
 		gettimeofday(&now, NULL);
 		timersub(&now, &start, &diff);
-		if (diff.tv_sec > 6) {
-			printf("Ooops, UCI Engine did not stop in 6 seconds will attempt to carry on anyway...\n");
+		if (diff.tv_sec > STOP_TIMEOUT_SEC) {
+			printf("Ooops, UCI Engine did not stop in %d seconds will attempt to carry on anyway...\n", STOP_TIMEOUT_SEC);
 			set_analysing(false);
 			set_stop_requested(false);
 			break;
