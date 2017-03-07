@@ -480,13 +480,13 @@ static gboolean on_board_draw(GtkWidget *pWidget, cairo_t *cdr) {
 }
 
 void flip_board(int wi, int hi) {
-	debug("Flipping board 1: %i\n", is_board_flipped());
 	pthread_mutex_lock(&board_flipped_lock);
 	board_flipped = !board_flipped;
 	pthread_mutex_unlock(&board_flipped_lock);
 	draw_board_surface(wi, hi);
-	draw_pieces_surface(wi, hi);
-	debug("Flipping board 2: %i\n", is_board_flipped());
+	cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
+	draw_full_update(cdr, wi, hi);
+	cairo_destroy(cdr);
 }
 
 int char_to_type(int whose_turn, char c) {

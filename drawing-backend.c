@@ -426,7 +426,6 @@ void draw_full_update(cairo_t *cdr, int wi, int hi) {
 
 	// Re-highlight highlighted square if any
 	init_highlight_under_surface(wi, hi);
-//	init_highlight_over_surface(wi, hi);
 	if (mouse_clicked[0] >= 0 || king_in_check_piece != NULL) {
 		cairo_t *high_cr = cairo_create(highlight_under_layer);
 		if (mouse_clicked[0] >= 0) {
@@ -1987,7 +1986,7 @@ void handle_flip_board(GtkWidget *pWidget, bool lock_threads) {
 		gdk_threads_enter();
 	}
 
-	// Logical flip and repaint pieces layer
+	// Logical flip and repaint all layer
 	flip_board(old_wi, old_hi);
 
 	// Reconstruct cache layer
