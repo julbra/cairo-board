@@ -8,7 +8,7 @@
 #include "uci-adapter.h"
 #include "uci_scanner.h"
 
-const static unsigned int STOP_TIMEOUT_SEC = 10;
+const static unsigned int STOP_TIMEOUT_SEC = 5;
 const static unsigned int READY_TIMEOUT_SEC = 3;
 
 int uci_scanner__scan_bytes(const char *bytes, int len);
@@ -286,15 +286,22 @@ void parse_option(char *optionText) {
 	}
 }
 
+bool handle_move_after_stop() {
+	if (is_stop_requested() && is_analysing()) {
+		debug("Skip final best move after stop\n");
+		set_analysing(false);
+		set_stop_requested(false);
+		return true;
+	}
+	return false;
+}
+
 void parse_move(char *moveText) {
 	/* Note: UCI uses a weird notation, unlike what the spec says it is not the *long algebraic notation* (LAN) at all...
 	 For example: a Knight to f3 move LAN is Ng1-f3 but we get g1f3
 	 Also, promotions are indicated like such: a7a8q*/
 
-	if (is_analysing() && is_stop_requested()) {
-		debug("Skip final best move after stop\n");
-		set_analysing(false);
-		set_stop_requested(false);
+	if (handle_move_after_stop()) {
 		return;
 	}
 
@@ -329,10 +336,7 @@ void parse_move_with_ponder(char *moveText) {
 	 For example, for a Knight to f3 move, LAN would be Ng1-f3
 	 Instead we get g1f3 */
 
-	if (is_stop_requested() && is_analysing()) {
-		debug("Skip final best move after stop\n");
-		set_analysing(false);
-		set_stop_requested(false);
+	if (handle_move_after_stop()) {
 		return;
 	}
 
@@ -600,6 +604,7 @@ void parse_uci_buffer(void) {
 		return;
 	}
 	uci_scanner__scan_bytes(raw_buff, nread);
+//	debug("Read from UCI '%s'\n", raw_buff);
 	int i = 0;
 	while (i > -1) {
 		i = uci_scanner_lex();
@@ -627,6 +632,7 @@ void parse_uci_buffer(void) {
 				break;
 			}
 			case UCI_BEST_MOVE_NONE:
+				handle_move_after_stop();
 				break;
 			case UCI_BEST_MOVE_WITH_PONDER: {
 				parse_move_with_ponder(uci_scanner_text);
@@ -665,7 +671,7 @@ void write_to_uci(char *message) {
 		perror("Failed to write to UCI engine ");
 	}
 	pthread_mutex_unlock(&uci_writer_lock);
-	debug("Wrote to UCI: %s", message);
+	debug("Wrote to UCI: '%s'", message);
 }
 
 static void wait_for_engine_ready(void) {
