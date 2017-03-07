@@ -3470,6 +3470,9 @@ void parse_ics_buffer(void) {
 				if (parsed_plys > 0 && highlight_last_move) {
 					highlight_move(resolved_move[0], resolved_move[1], resolved_move[2], resolved_move[3], old_wi, old_hi);
 				}
+				if (parsed_plys > 0 && is_king_checked(main_game, main_game->whose_turn)) {
+					warn_check(old_wi, old_hi);
+				}
 
 				gtk_widget_queue_draw(GTK_WIDGET(board));
 				gdk_threads_leave();

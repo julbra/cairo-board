@@ -1059,6 +1059,16 @@ void highlight_move(int source_col, int source_row, int dest_col, int dest_row, 
 	cairo_destroy(high_cr);
 }
 
+void warn_check(int wi, int hi) {
+	double king_xy[2];
+	king_in_check_piece = get_king(main_game->whose_turn, main_game->squares);
+	loc_to_xy(king_in_check_piece->pos.column, king_in_check_piece->pos.row, king_xy, wi, hi);
+	cairo_t *high_cr = cairo_create(highlight_under_layer);
+	highlight_check_square(high_cr, king_in_check_piece->pos.column, king_in_check_piece->pos.row, check_warn_r, check_warn_g,
+	                       check_warn_b, check_warn_a, wi, hi);
+	cairo_destroy(high_cr);
+}
+
 gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legality, int move_source, bool logical_only) {
 	if (piece == NULL) {
 		debug("NULL PIECE auto_move\n");
@@ -1221,15 +1231,9 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 
 		bool king_is_checked = is_king_checked(main_game, main_game->whose_turn);
 		if (king_is_checked) {
-			king_in_check_piece = get_king(main_game->whose_turn, main_game->squares);
+			warn_check(wi, hi);
 
 			loc_to_xy(king_in_check_piece->pos.column, king_in_check_piece->pos.row, king_xy, wi, hi);
-
-			cairo_t *high_cr = cairo_create(highlight_under_layer);
-			highlight_check_square(high_cr, king_in_check_piece->pos.column, king_in_check_piece->pos.row, check_warn_r, check_warn_g,
-			                       check_warn_b, check_warn_a, wi, hi);
-			cairo_destroy(high_cr);
-
 			cairo_save(cache_dc);
 			cairo_rectangle(cache_dc, king_xy[0] - wi / 16.0f, king_xy[1] - hi / 16.0f, ww, hh);
 			cairo_clip(cache_dc);
@@ -1734,14 +1738,9 @@ void handle_button_release(void) {
 
 			king_is_checked = is_king_checked(main_game, main_game->whose_turn);
 			if (king_is_checked) {
-				king_in_check_piece = get_king(main_game->whose_turn, main_game->squares);
+				warn_check(wi, hi);
+
 				loc_to_xy(king_in_check_piece->pos.column, king_in_check_piece->pos.row, king_xy, wi, hi);
-
-				cairo_t *high_cr = cairo_create(highlight_under_layer);
-				highlight_check_square(high_cr, king_in_check_piece->pos.column, king_in_check_piece->pos.row, check_warn_r, check_warn_g,
-				                       check_warn_b, check_warn_a, wi, hi);
-				cairo_destroy(high_cr);
-
 				cairo_save(cache_dc);
 				cairo_rectangle(cache_dc, king_xy[0] - wi / 16.0f, king_xy[1] - hi / 16.0f, ww, hh);
 				cairo_clip(cache_dc);
@@ -1782,20 +1781,20 @@ void handle_button_release(void) {
 		// Add special clipping squares in case of castling
 		if (move_result > 0 && move_result & CASTLE) {
 			loc_to_xy(oc, or, rook_xy, wi, hi);
-			cairo_rectangle(cdr, floor(rook_xy[0]-wi/16.0f), floor(rook_xy[1]-hi/16.0f), ceil(ww), ceil(hh));
+			cairo_rectangle(cdr, floor(rook_xy[0] - wi / 16.0f), floor(rook_xy[1] - hi / 16.0f), ceil(ww), ceil(hh));
 			loc_to_xy(nc, nr, rook_xy, wi, hi);
-			cairo_rectangle(cdr, floor(rook_xy[0]-wi/16.0f), floor(rook_xy[1]-hi/16.0f), ceil(ww), ceil(hh));
+			cairo_rectangle(cdr, floor(rook_xy[0] - wi / 16.0f), floor(rook_xy[1] - hi / 16.0f), ceil(ww), ceil(hh));
 		}
 
 		// Add special clipping squares in case of en-passant
 		if (move_result > 0 && move_result & EN_PASSANT) {
 			loc_to_xy(ij[0], ij[1] + (mouse_dragged_piece->colour ? 1 : -1), pawn_xy, wi, hi);
-			cairo_rectangle(cdr, floor(pawn_xy[0]-wi/16.0f), floor(pawn_xy[1]-hi/16.0f), ceil(ww), ceil(hh));
+			cairo_rectangle(cdr, floor(pawn_xy[0] - wi / 16.0f), floor(pawn_xy[1] - hi / 16.0f), ceil(ww), ceil(hh));
 		}
 
 		// Add special clipping squares if king is checked
 		if (king_is_checked) {
-			cairo_rectangle(cdr, floor(king_xy[0]-wi/16.0f), floor(king_xy[1]-hi/16.0f), ceil(ww), ceil(hh));
+			cairo_rectangle(cdr, floor(king_xy[0] - wi / 16.0f), floor(king_xy[1] - hi / 16.0f), ceil(ww), ceil(hh));
 		}
 
 		if (clean_old_check != NULL && move_result >= 0) {
