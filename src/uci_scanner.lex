@@ -6,8 +6,8 @@
 #include <errno.h>
 #include <fcntl.h>
 
-#include "uci_scanner.h"
-#include "cairo-board.h"
+#include "src/uci_scanner.h"
+#include "src/cairo-board.h"
 
 
 %}

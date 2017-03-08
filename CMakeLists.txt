@@ -8,6 +8,7 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 
 find_package(Freetype REQUIRED)
 include_directories(${FREETYPE_INCLUDE_DIRS})
+
 find_package(Fontconfig REQUIRED)
 include_directories(${FONTCONFIG_INCLUDE_DIRS})
 
@@ -28,45 +29,44 @@ include_directories(${GTHREAD_INCLUDE_DIRS})
 link_directories(${GTHREAD_LIBRARY_DIRS})
 add_definitions(${GTHREAD_CFLAGS_OTHER})
 
-
 FIND_PACKAGE(FLEX)
-FLEX_TARGET(IcsScanner ics_scanner.lex  ${CMAKE_CURRENT_BINARY_DIR}/ics_scanner.c COMPILE_FLAGS "-Pics_scanner_")
-FLEX_TARGET(CraftyScanner crafty_scanner.lex  ${CMAKE_CURRENT_BINARY_DIR}/crafty_scanner.c COMPILE_FLAGS "-Pcrafty_scanner_")
-FLEX_TARGET(SanScanner san_scanner.lex  ${CMAKE_CURRENT_BINARY_DIR}/san_scanner.c COMPILE_FLAGS "-Psan_scanner_")
-FLEX_TARGET(UciScanner uci_scanner.lex  ${CMAKE_CURRENT_BINARY_DIR}/uci_scanner.c COMPILE_FLAGS "-Puci_scanner_")
+FLEX_TARGET(IcsScanner src/ics_scanner.lex ${CMAKE_CURRENT_BINARY_DIR}/ics_scanner.c COMPILE_FLAGS "-Pics_scanner_")
+FLEX_TARGET(CraftyScanner src/crafty_scanner.lex ${CMAKE_CURRENT_BINARY_DIR}/crafty_scanner.c COMPILE_FLAGS "-Pcrafty_scanner_")
+FLEX_TARGET(SanScanner src/san_scanner.lex ${CMAKE_CURRENT_BINARY_DIR}/san_scanner.c COMPILE_FLAGS "-Psan_scanner_")
+FLEX_TARGET(UciScanner src/uci_scanner.lex ${CMAKE_CURRENT_BINARY_DIR}/uci_scanner.c COMPILE_FLAGS "-Puci_scanner_")
 
 set(SOURCE_FILES
-        analysis_panel.h
-        analysis_panel.c
-        cairo-board.h
-        channels.c
-        channels.h
-        chess-backend.c
-        chess-backend.h
-        clock-widget.c
-        clock-widget.h
-        clocks.c
-        clocks.h
-        configuration.c
-        configuration.h
-        crafty-adapter.c
-        crafty-adapter.h
+        src/analysis_panel.h
+        src/analysis_panel.c
+        src/cairo-board.h
+        src/channels.c
+        src/channels.h
+        src/chess-backend.c
+        src/chess-backend.h
+        src/clock-widget.c
+        src/clock-widget.h
+        src/clocks.c
+        src/clocks.h
+        src/configuration.c
+        src/configuration.h
+        src/crafty-adapter.c
+        src/crafty-adapter.h
         crafty_scanner.c
-        crafty_scanner.h
-        drawing-backend.c
-        drawing-backend.h
+        src/crafty_scanner.h
+        src/drawing-backend.c
+        src/drawing-backend.h
         ics_scanner.c
-        ics_scanner.h
-        main.c
-        netstuff.h
-        netstuff.c
-        san_scanner.h
+        src/ics_scanner.h
+        src/main.c
+        src/netstuff.h
+        src/netstuff.c
+        src/san_scanner.h
         san_scanner.c
-        test.h
-        test.c
-        uci-adapter.h
-        uci-adapter.c
-        uci_scanner.h
+        src/test.h
+        src/test.c
+        src/uci-adapter.h
+        src/uci-adapter.c
+        src/uci_scanner.h
         uci_scanner.c)
 
 include_directories(

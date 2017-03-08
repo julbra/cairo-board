@@ -12,7 +12,7 @@
 #include <getopt.h>
 #include <cairo-ft.h>
 #include <ft2build.h>
-#include FT_FREETYPE_H
+#include "freetype/freetype.h" FT_FREETYPE_H
 
 #include "cairo-board.h"
 #include "configuration.h"
@@ -3851,8 +3851,8 @@ GHashTable *eco_long;
 GHashTable *eco_short;
 
 #define FEN_LINE_MAX 128
-int compile_eco_long(void) {
 
+int compile_eco_long(void) {
 	char name[] = "eco_long.idx";
 	char fen_key[FEN_LINE_MAX];
 	char long_description[FEN_LINE_MAX];
@@ -3873,14 +3873,14 @@ int compile_eco_long(void) {
 
 	return 0;
 }
-int compile_eco_short(void) {
 
+int compile_eco_short(void) {
 	char name[] = "eco_short.idx";
 	char fen_key[FEN_LINE_MAX];
 	char eco_code[FEN_LINE_MAX];
 
 	eco_short = g_hash_table_new(g_str_hash, g_str_equal);
-	FILE *f = fopen( name, "r" );
+	FILE *f = fopen(name, "r");
 	if (f == NULL) {
 		fprintf(stderr, "Error opening file '%s': %s\n", name, strerror(errno));
 		return 1;
