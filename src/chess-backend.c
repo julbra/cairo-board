@@ -1221,7 +1221,6 @@ void game_free(chess_game *game) {
 
 void append_san_move(chess_game *game, char *san_move) {
 	// Whose-turn has already been swapped
-	printf("Appending SAN move, current list: '%s' -> '%s'\n", san_move, game->moves_list);
 	char *append = calloc(SAN_MOVE_SIZE, sizeof(char));
 	if (game->ply_num == 1) {
 		sprintf(append, "1.%s", san_move);

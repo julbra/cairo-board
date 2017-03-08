@@ -1361,6 +1361,7 @@ static int init_pieces(chess_game *game) {
 
 static void reset_game(bool lock_threads) {
 	main_game->current_move_number = 1;
+	memset(main_game->moves_list, 0, strlen(main_game->moves_list));
 	main_game->moves_list[0] = '\0';
 	main_game->ply_num = 1;
 	init_zobrist_hash_history(main_game);
