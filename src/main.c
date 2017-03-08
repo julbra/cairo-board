@@ -200,8 +200,6 @@ chess_piece *last_piece_taken = NULL;
 
 // Game Metadata
 plys_list *main_list;
-char last_eco_code[16];
-char last_eco_description[128];
 
 long my_game = 0;
 int init_time;
@@ -255,7 +253,7 @@ void reset_moves_list_view(gboolean lock_threads);
 gboolean auto_play_one_crafty_move(gpointer data);
 gboolean auto_play_one_uci_move(gpointer data);
 
-static void reset_game(void);
+static void reset_game(bool lock_threads);
 static void end_game(void);
 static void parse_ics_buffer(void);
 
@@ -1045,17 +1043,19 @@ void update_eco_tag(gboolean should_lock_threads) {
 	char *eco_full = get_eco_full(main_game->moves_list);
 	if (eco_full) {
 		char eco[128];
+		char eco_description[128];
+		memset(eco_description, 0, 128);
 		memset(eco, 0, 128);
 		char eco_code[4];
 		memcpy(eco_code, eco_full, 3);
 		eco_code[3] = '\0';
-		strncpy(last_eco_description, eco_full + 4, 128);
-		snprintf(eco, 128, "<span weight=\"bold\">%s</span> %s", eco_code, last_eco_description);
+		strncpy(eco_description, eco_full + 4, 128);
+		snprintf(eco, 128, "<span weight=\"bold\">%s</span> %s", eco_code, eco_description);
 		if (should_lock_threads) {
 			gdk_threads_enter();
 		}
 		gtk_label_set_markup(GTK_LABEL(opening_code_label), eco);
-		gtk_widget_set_tooltip_text(opening_code_label, last_eco_description);
+		gtk_widget_set_tooltip_text(opening_code_label, eco_description);
 		if (should_lock_threads) {
 			gdk_threads_leave();
 		}
@@ -1098,7 +1098,7 @@ static gboolean on_button_press(GtkWidget *pWidget, GdkEventButton *pButton, Gdk
 			handle_right_button_press(pWidget, wi, hi);
 		}
 		else if (pButton->button == 2) {
-			reset_game();
+			reset_game(false);
 			reset_board();
 			reset_moves_list_view(FALSE);
 			handle_middle_button_press(pWidget, wi, hi);
@@ -1359,8 +1359,10 @@ static int init_pieces(chess_game *game) {
 	return 0;
 }
 
-static void reset_game(void) {
+static void reset_game(bool lock_threads) {
 	main_game->current_move_number = 1;
+	main_game->moves_list[0] = '\0';
+	main_game->ply_num = 1;
 	init_zobrist_hash_history(main_game);
 	init_pieces(main_game);
 	if (main_list != NULL) {
@@ -1368,8 +1370,14 @@ static void reset_game(void) {
 	}
 	main_list = plys_list_new();
 
-	memset(last_eco_code, 0, 16);
-	memset(last_eco_description, 0, 128);
+	if (lock_threads) {
+		gdk_threads_enter();
+	}
+	gtk_label_set_markup(GTK_LABEL(opening_code_label), "");
+	gtk_widget_set_tooltip_text(opening_code_label, "");
+	if (lock_threads) {
+		gdk_threads_leave();
+	}
 }
 
 void * icsPr;
@@ -1633,7 +1641,7 @@ gboolean auto_play_one_move(gpointer data) {
 		if (waiting) {
 			debug("In if waiting\n");
 			waiting = 0;
-			reset_game();
+			reset_game(true);
 			memset(main_game->white_name, 0, 256);
 			memset(main_game->black_name, 0, 256);
 		}
@@ -2604,7 +2612,7 @@ void start_game(char *w_name, char *b_name, int seconds, int increment, int rela
 
 	game_started = 1;
 
-	reset_game();
+	reset_game(false);
 	reset_moves_list_view(FALSE);
 
 	reset_board();
@@ -4339,7 +4347,7 @@ int main (int argc, char **argv) {
 	set_running_flag(true);
 	set_more_events_flag(false);
 
-	reset_game();
+	reset_game(false);
 
 	gtk_widget_show_all(main_window);
 
