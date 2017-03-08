@@ -4,7 +4,7 @@
 #define __CAIRO_BOARD_H__
 
 #include <ft2build.h>
-#include FT_FREETYPE_H
+#include "freetype/freetype.h" FT_FREETYPE_H
 #include <gtk/gtk.h>
 #include <librsvg/rsvg.h>
 #include <stdbool.h>
