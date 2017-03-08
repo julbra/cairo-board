@@ -1175,8 +1175,8 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 
 			// Append to moves-list
 			check_ending_clause(main_game);
-			plys_list_append_ply(main_list, ply_new(p_old_col, p_old_row, new_col, new_row, NULL, last_san_move));
 			insert_san_move(last_san_move, lock_threads);
+			plys_list_append_ply(main_list, ply_new(p_old_col, p_old_row, new_col, new_row, NULL, last_san_move));
 
 			// update eco
 			update_eco_tag(lock_threads);
@@ -1583,8 +1583,8 @@ void handle_button_release(void) {
 				}
 				if (!delay_from_promotion) {
 					check_ending_clause(main_game);
-					plys_list_append_ply(main_list, ply_new(p_old_col, p_old_row, ij[0], ij[1], NULL, last_san_move));
 					insert_san_move(last_san_move, FALSE);
+					plys_list_append_ply(main_list, ply_new(p_old_col, p_old_row, ij[0], ij[1], NULL, last_san_move));
 					// update eco - we're already inside threads lock
 					update_eco_tag(FALSE);
 				}
@@ -2350,18 +2350,13 @@ void choose_promote(int last_promote, bool only_surfaces, bool only_logical, int
 
 		char bufstr[8];
 		memset(bufstr, 0, sizeof(bufstr));
-		if (use_fig) {
-			sprintf(bufstr, "=%lc", type_to_unicode_char(to_promote->type));
-		}
-		else {
-			sprintf(bufstr, "=%c", type_to_char(to_promote->type));
-		}
+		sprintf(bufstr, "=%c", type_to_char(to_promote->type));
 		strcat(last_san_move, bufstr);
 		check_ending_clause(main_game);
 
-		plys_list_append_ply(main_list, ply_new(ocol, orow, ncol, nrow, NULL, last_san_move));
-		// FIXME: review this lock thread for inserting a move into list
 		insert_san_move(last_san_move, FALSE);
+		plys_list_append_ply(main_list, ply_new(ocol, orow, ncol, nrow, NULL, last_san_move));
+
 		update_eco_tag(FALSE);
 	}
 
@@ -2397,7 +2392,7 @@ gboolean idle_promote_chooser(gpointer trash) {
 }
 
 void choose_promote_deactivate_handler(void *GtkWidget, gpointer value, gboolean only_surfaces) {
-	g_idle_add_full(G_PRIORITY_HIGH, idle_promote_chooser, NULL, NULL);
+	gdk_threads_add_idle_full(G_PRIORITY_HIGH, idle_promote_chooser, NULL, NULL);
 }
 
 void choose_promote_handler(void *GtkWidget, gpointer value) {

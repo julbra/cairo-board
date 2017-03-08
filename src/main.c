@@ -243,6 +243,7 @@ double check_warn_b = 0.1;
 double check_warn_a = 1.0;
 
 /* Prototypes */
+char *get_eco_full(const char *san_moves_list);
 char *get_eco_long(const char *fen_key);
 char *get_eco_short(const char *fen_key);
 wint_t type_to_unicode_char(int type);
@@ -511,7 +512,7 @@ int char_to_type(int whose_turn, char c) {
 }
 
 char type_to_char(int type) {
-	switch(type) {
+	switch (type) {
 		case W_ROOK:
 		case B_ROOK:
 			return 'R';
@@ -529,13 +530,14 @@ char type_to_char(int type) {
 			return 'K';
 		case W_PAWN:
 		case B_PAWN:
-			return (char)0;
+			return (char) 0;
+		default:
+			return (char) 0;
 	}
-	return (char)0;
 }
 
 char type_to_fen_char(int type) {
-	switch(type) {
+	switch (type) {
 		case W_ROOK:
 			return 'R';
 		case B_ROOK:
@@ -560,8 +562,9 @@ char type_to_fen_char(int type) {
 			return 'P';
 		case B_PAWN:
 			return 'p';
+		default:
+			return (char) 0;
 	}
-	return (char)0;
 }
 
 // move is legal so we can make assumptions
@@ -729,103 +732,105 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 		int was_promotion = is_move_promotion(piece, col, row);
 		int piece_taken = (was_en_passant || is_move_capture(game, piece, col, row)) ? PIECE_TAKEN : 0;
 
-		if (san_move != NULL) { // we've been asked to build the san move
-			/* move is valid, start building the san_move string */
-			memset(san_move, 0, SAN_MOVE_SIZE);
+		char move_in_san[SAN_MOVE_SIZE];
+		// Build the san move
+		memset(move_in_san, 0, SAN_MOVE_SIZE);
 
-			/* handle castle special case */
-			if (was_castle) {
-				switch (was_castle & MOVE_DETAIL_MASK) {
-					case W_CASTLE_LEFT:
-					case B_CASTLE_LEFT:
-						strncpy(san_move, "O-O-O", 6);
-						break;
-					case W_CASTLE_RIGHT:
-					case B_CASTLE_RIGHT:
-						strncpy(san_move, "O-O", 4);
-						break;
-					default:
-						// Bug if it happens, print error and exit
-						fprintf(stderr, "ERROR: error in castling code!\n");
-						exit(1);
-						break;
+		/* handle castle special case */
+		if (was_castle) {
+			switch (was_castle & MOVE_DETAIL_MASK) {
+				case W_CASTLE_LEFT:
+				case B_CASTLE_LEFT:
+					strncpy(move_in_san, "O-O-O", 6);
+					break;
+				case W_CASTLE_RIGHT:
+				case B_CASTLE_RIGHT:
+					strncpy(move_in_san, "O-O", 4);
+					break;
+				default:
+					// Bug if it happens, print error and exit
+					fprintf(stderr, "ERROR: error in castling code!\n");
+					exit(1);
+					break;
+			}
+		} else {
+
+			int offset = 0;
+
+			/* piece type letter */
+			char ptype = type_to_char(piece->type);
+			if (ptype) {
+				move_in_san[offset++] = ptype;
+			}
+
+			/* do we need a disambiguator? */
+			int disambiguator_need = 0; // 1 column, 2 row, 3 both
+			if (!ptype) {
+				if (piece_taken) { // special pawn-taking case
+					disambiguator_need = 1;
 				}
-			} else {
+			} else { // non-pawn case
+				/* remember this turn's whose_turn swap hasn't happened yet */
+				chess_piece *set = game->whose_turn ? game->black_set : game->white_set;
 
-				int offset = 0;
-
-				/* piece type letter */
-				char ptype = type_to_char(piece->type);
-				if (ptype) {
-					san_move[offset++] = ptype;
-				}
-
-				/* do we need a disambiguator? */
-				int disambiguator_need = 0; // 1 column, 2 row, 3 both
-				if (!ptype) {
-					if (piece_taken) { // special pawn-taking case
-						disambiguator_need = 1;
-					}
-				} else { // non-pawn case
-					/* remember this turn's whose_turn swap hasn't happened yet */
-					chess_piece *set = game->whose_turn ? game->black_set : game->white_set;
-
-					int i, j;
-					for (i = 0; i < 16; i++) {
-						chess_piece competitor = set[i];
-						if (!competitor.dead && competitor.type == piece->type &&
-						    (competitor.pos.row != piece->pos.row || competitor.pos.column != piece->pos.column)) {
-							if (piece->type == B_KING || piece->type == W_KING) {
-								for (i = 0; i < 16; i++) {
-									debug("Piece[%d]: %c %c%c\n", i, type_to_char(set[i].type), set[i].pos.column + 'a', set[i].pos.row + '1');
-								}
-								fprintf(stderr, "Disambiguating for king?! %d %p %p\n", (&competitor != piece), &competitor, piece);
-								debug("The Piece: %c %c%d\n", type_to_char(piece->type), piece->pos.column + 'a', piece->pos.row + 1);
+				int i, j;
+				for (i = 0; i < 16; i++) {
+					chess_piece competitor = set[i];
+					if (!competitor.dead && competitor.type == piece->type &&
+					    (competitor.pos.row != piece->pos.row || competitor.pos.column != piece->pos.column)) {
+						if (piece->type == B_KING || piece->type == W_KING) {
+							for (i = 0; i < 16; i++) {
+								debug("Piece[%d]: %c %c%c\n", i, type_to_char(set[i].type), set[i].pos.column + 'a',
+								      set[i].pos.row + '1');
 							}
-							/* found a piece from same set with same type
-							 * we now check whether it can go to the same dest */
-							int possible_moves[64][2];
-							int count = get_possible_moves(game, &competitor, possible_moves, 0);
-							for (j = 0; j < count; j++) {
-								if (possible_moves[j][0] == col && possible_moves[j][1] == row) {
-									if (competitor.pos.column != piece->pos.column) {
-										disambiguator_need |= 1;
-									} else {
-										disambiguator_need |= 2;
-									}
-									break;
+							fprintf(stderr, "Disambiguating for king?! %d %p %p\n", (&competitor != piece), &competitor,
+							        piece);
+							debug("The Piece: %c %c%d\n", type_to_char(piece->type), piece->pos.column + 'a',
+							      piece->pos.row + 1);
+						}
+						/* found a piece from same set with same type
+						 * we now check whether it can go to the same dest */
+						int possible_moves[64][2];
+						int count = get_possible_moves(game, &competitor, possible_moves, 0);
+						for (j = 0; j < count; j++) {
+							if (possible_moves[j][0] == col && possible_moves[j][1] == row) {
+								if (competitor.pos.column != piece->pos.column) {
+									disambiguator_need |= 1;
+								} else {
+									disambiguator_need |= 2;
 								}
+								break;
 							}
 						}
 					}
 				}
-
-				switch(disambiguator_need) {
-					case 1:
-						san_move[offset++] = (char) ('a' + piece->pos.column);
-						break;
-					case 2:
-						san_move[offset++] = (char) ('1' + piece->pos.row);
-						break;
-					case 3:
-						san_move[offset++] = (char) ('a' + piece->pos.column);
-						san_move[offset++] = (char) ('1' + piece->pos.row);
-						break;
-					default:
-						break;
-				}
-
-				// was piece taken?
-				if (piece_taken) {
-					san_move[offset++] = 'x';
-				}
-
-				// dest location
-				san_move[offset++] = (char) (col + 'a');
-				san_move[offset] = (char) (row + '1');
-
-				// promotions handled later in SAN string
 			}
+
+			switch (disambiguator_need) {
+				case 1:
+					move_in_san[offset++] = (char) ('a' + piece->pos.column);
+					break;
+				case 2:
+					move_in_san[offset++] = (char) ('1' + piece->pos.row);
+					break;
+				case 3:
+					move_in_san[offset++] = (char) ('a' + piece->pos.column);
+					move_in_san[offset++] = (char) ('1' + piece->pos.row);
+					break;
+				default:
+					break;
+			}
+
+			// was piece taken?
+			if (piece_taken) {
+				move_in_san[offset++] = 'x';
+			}
+
+			// dest location
+			move_in_san[offset++] = (char) (col + 'a');
+			move_in_san[offset] = (char) (row + '1');
+
+			// promotions handled later in SAN string
 		}
 
 		int ocol, orow;
@@ -866,14 +871,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 					delay_from_promotion = true;
 				} else {
 					delay_from_promotion = false;
-					if (use_fig) {
-						char promo_string[8];
-						memset(promo_string, 0, 8);
-						sprintf(promo_string, "=%lc", type_to_unicode_char(game->whose_turn ? B_QUEEN : W_QUEEN));
-						strcat(san_move, promo_string);
-					} else {
-						strcat(san_move, "=Q");
-					}
+					strcat(move_in_san, "=Q");
 					choose_promote(1, false, only_logical, ocol, orow, col, row);
 				}
 			} else {
@@ -886,7 +884,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 				else {
 					sprintf(promo_string, "=%c", type_to_char(game->promo_type));
 				}
-				strcat(san_move, promo_string);
+				strcat(move_in_san, promo_string);
 
 				if (move_source == AUTO_SOURCE_NO_ANIM) {
 					choose_promote(game->promo_type, false, only_logical, ocol, orow, col, row);
@@ -895,6 +893,14 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 			}
 		} else {
 			delay_from_promotion = false;
+		}
+
+		if (!delay_from_promotion) {
+
+		}
+
+		if (san_move != NULL) {
+			memcpy(san_move, move_in_san, SAN_MOVE_SIZE);
 		}
 
 		if (was_castle) {
@@ -1036,34 +1042,24 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 }
 
 void update_eco_tag(gboolean should_lock_threads) {
-	char *fen = calloc(128, sizeof(char));
-    char *eco = calloc(128, sizeof(char));
-
-	generate_fen_no_enpassant(fen, main_game->squares, main_game->castle_state, main_game->whose_turn);
-	//debug("%s\n", fen);
-	char *eco_code = get_eco_short(fen);
-	char *eco_desc = get_eco_long(fen);
-	if (eco_code) {
-		strncpy(last_eco_code, eco_code, 16);
+	char *eco_full = get_eco_full(main_game->moves_list);
+	if (eco_full) {
+		char eco[128];
+		memset(eco, 0, 128);
+		char eco_code[4];
+		memcpy(eco_code, eco_full, 3);
+		eco_code[3] = '\0';
+		strncpy(last_eco_description, eco_full + 4, 128);
+		snprintf(eco, 128, "<span weight=\"bold\">%s</span> %s", eco_code, last_eco_description);
+		if (should_lock_threads) {
+			gdk_threads_enter();
+		}
+		gtk_label_set_markup(GTK_LABEL(opening_code_label), eco);
+		gtk_widget_set_tooltip_text(opening_code_label, last_eco_description);
+		if (should_lock_threads) {
+			gdk_threads_leave();
+		}
 	}
-	if (eco_desc) {
-		strncpy(last_eco_description, eco_desc, 128);
-	}
-
-
-	snprintf(eco, 128, "[%s] %s", last_eco_code, last_eco_description);
-	//debug("%s\n", fen);
-	if (should_lock_threads) {
-		gdk_threads_enter();
-	}
-	gtk_label_set_text(GTK_LABEL(opening_code_label), eco);
-	gtk_widget_set_tooltip_text(opening_code_label, eco);
-	if (should_lock_threads) {
-		gdk_threads_leave();
-	}
-
-    free(fen);
-	free(eco);
 }
 
 void check_ending_clause(chess_game *game) {
@@ -1577,11 +1573,11 @@ void load_game(const char* file_path, int game_num) {
 				}
 			}
 			if (found_my_game) {
-				printf("raw move %c%s - whose_turn %d\n", type_to_char(type), currentMoveString, blacks_ply);
+				debug("raw move %c%s - whose_turn %d\n", type_to_char(type), currentMoveString, blacks_ply);
 				type = colorise_type(type, blacks_ply);
 				int resolved = resolve_move(main_game, type, currentMoveString, resolved_move);
 				if (resolved) {
-					printf("move resolved to %c%d-%c%d\n", resolved_move[0]+'a', resolved_move[1]+1, resolved_move[2]+'a', resolved_move[3]+1);
+					debug("move resolved to %c%d-%c%d\n", resolved_move[0]+'a', resolved_move[1]+1, resolved_move[2]+'a', resolved_move[3]+1);
 					char san[SAN_MOVE_SIZE];
 					move_piece(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE_NO_ANIM, san, main_game, false);
 					plys_list_append_ply(main_list, ply_new(resolved_move[0], resolved_move[1], resolved_move[2], resolved_move[3], NULL, san));
@@ -1673,11 +1669,9 @@ gboolean auto_play_one_move(gpointer data) {
 			if (!strncmp("Kasparov, Gary", main_game->black_name, 16)) {
 				g_signal_emit_by_name(board, "flip-board");
 			}
-//			start_one_clock(main_clock, 0);
 		}
 		int resolved = resolve_move(main_game, type, currentMoveString, resolved_move);
 		if (resolved) {
-//			start_one_stop_other_clock(main_clock, main_game->whose_turn, true);
 			auto_move(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE, false);
 			return TRUE;
 		} else {
@@ -2472,6 +2466,7 @@ int scan_append_ply(char *ply) {
 			}
 			user_move_to_uci(uci_move, false);
 
+			append_san_move(main_game, san_move);
 			update_eco_tag(true);
 			if (is_king_checked(main_game, main_game->whose_turn)) {
 				if (is_check_mate(main_game)) {
@@ -3607,7 +3602,7 @@ gint cleanup(gpointer ignored) {
 }
 
 wint_t type_to_unicode_char(int type) {
-	return (wint_t) BASE_CHESS_UNICODE_CHAR+type;
+	return (wint_t) BASE_CHESS_UNICODE_CHAR + type;
 }
 
 /* <Moves List data structures utilities> */
@@ -3804,6 +3799,9 @@ void refresh_moves_list_view(plys_list *list) {
 
 
 void insert_san_move(const char* san_move, gboolean should_lock_threads) {
+
+	append_san_move(main_game, san_move);
+
 	char str[32];
 	memset(str, 0, sizeof(str));
 	char buf_str[16];
@@ -3816,9 +3814,14 @@ void insert_san_move(const char* san_move, gboolean should_lock_threads) {
 		tt = colorise_type(tt, !main_game->whose_turn);
 		sprintf(buf_str, "%lc", type_to_unicode_char(tt));
 		strcat(buf_str, san_move + 1);
-	}
-	else {
+	} else {
 		strcpy(buf_str, san_move);
+	}
+	char *promo = strrchr(san_move, '=');
+	if (use_fig && promo != NULL) {
+		// promo handling figurine
+		int promo_type = char_to_type(!main_game->whose_turn, promo[1]);
+		sprintf(promo + 1, "%lc", type_to_unicode_char(promo_type));
 	}
 
 	/* insert move number if it *was* white's ply */
@@ -3847,66 +3850,36 @@ void reset_moves_list_view(gboolean should_lock_threads) {
 	}
 }
 
-GHashTable *eco_long;
-GHashTable *eco_short;
+GHashTable *eco_full;
 
-#define FEN_LINE_MAX 128
+#define ECO_LINE_MAX 256
 
-int compile_eco_long(void) {
-	char name[] = "eco_long.idx";
-	char fen_key[FEN_LINE_MAX];
-	char long_description[FEN_LINE_MAX];
+int compile_eco(void) {
+	char name[] = "full_eco.idx";
+	char san_key[ECO_LINE_MAX];
+	char full_description[ECO_LINE_MAX];
 
-	eco_long = g_hash_table_new(g_str_hash, g_str_equal);
-	FILE *f = fopen( name, "r" );
-	if (f == NULL) {
-		fprintf(stderr, "Error opening file '%s': %s\n", name, strerror(errno));
-		return 1;
-	}
-	while (fgets(fen_key, FEN_LINE_MAX, f) != NULL) {
-		fen_key[strlen(fen_key)-1] = 0;
-		if (fgets(long_description, FEN_LINE_MAX, f)) {
-			long_description[strlen(long_description)-1] = 0;
-			g_hash_table_insert(eco_long, strdup(fen_key), strdup(long_description));
-		}
-	}
-
-	return 0;
-}
-
-int compile_eco_short(void) {
-	char name[] = "eco_short.idx";
-	char fen_key[FEN_LINE_MAX];
-	char eco_code[FEN_LINE_MAX];
-
-	eco_short = g_hash_table_new(g_str_hash, g_str_equal);
+	eco_full = g_hash_table_new(g_str_hash, g_str_equal);
 	FILE *f = fopen(name, "r");
 	if (f == NULL) {
 		fprintf(stderr, "Error opening file '%s': %s\n", name, strerror(errno));
 		return 1;
 	}
-	while (fgets(fen_key, FEN_LINE_MAX, f) != NULL) {
-		fen_key[strlen(fen_key)-1] = 0;
-		if (fgets(eco_code, FEN_LINE_MAX, f)) {
-			eco_code[strlen(eco_code)-1] = 0;
-			g_hash_table_insert(eco_short, strdup(fen_key), strdup(eco_code));
+	while (fgets(san_key, ECO_LINE_MAX, f) != NULL) {
+		san_key[strlen(san_key) - 1] = 0;
+//		printf("San Key '%s'\n", san_key);
+		if (fgets(full_description, ECO_LINE_MAX, f)) {
+			full_description[strlen(full_description) - 1] = 0;
+//			printf("Full_description '%s'\n", full_description);
+			g_hash_table_insert(eco_full, strdup(san_key), strdup(full_description));
 		}
 	}
 
 	return 0;
 }
 
-void compile_eco(void) {
-	compile_eco_short();
-	compile_eco_long();
-}
-
-char *get_eco_long(const char* fen_key) {
-	return g_hash_table_lookup(eco_long, fen_key);
-}
-
-char *get_eco_short(const char* fen_key) {
-	return g_hash_table_lookup(eco_short, fen_key);
+char *get_eco_full(const char *san_moves_list) {
+	return g_hash_table_lookup(eco_full, san_moves_list);
 }
 
 static void get_theme_colours(GtkWidget *widget) {
@@ -4235,6 +4208,7 @@ int main (int argc, char **argv) {
 
 	/* Opening code label */
 	opening_code_label = gtk_label_new("");
+	add_class(opening_code_label, "eco-label");
 	gtk_misc_set_alignment(GTK_MISC(opening_code_label), 0, .5);
 	GtkWidget *opening_code_frame = gtk_frame_new(NULL);
 	gtk_container_add(GTK_CONTAINER (opening_code_frame), opening_code_label);
@@ -4445,7 +4419,7 @@ int main (int argc, char **argv) {
 	gdk_threads_leave();
 
 	free(main_clock);
-	free(main_game);
+	game_free(main_game);
 
 	cleanup_uci();
 	cleanup_mutexes();

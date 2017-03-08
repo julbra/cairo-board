@@ -46,3 +46,7 @@ notebook {
     margin-bottom: 5px;
     border-top: 1px solid #929292;
 }
+
+.eco-label > span {
+    font-weight: 500;
+}

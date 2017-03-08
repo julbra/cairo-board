@@ -40,7 +40,7 @@ void debug(format, ...) { if (debug_flag) fprintf(stdout, "%s:\033[31m%d\033[0m 
 #define ICS_TEST_HANDLE2	14
 #define ICS_TEST_PLAYER1	15
 
-/* base unicode char for chess fonts */
+// base unicode char for chess fonts
 #define BASE_CHESS_UNICODE_CHAR 0x2654
 
 #define WHITE false
@@ -107,6 +107,9 @@ typedef struct {
 	char black_name[256];
 	char white_rating[32];
 	char black_rating[32];
+
+	char *moves_list;
+	unsigned int ply_num;
 
 } chess_game;
 
@@ -325,6 +328,7 @@ void start_game(char *w_name, char *b_name, int seconds, int increment, int rela
 void update_eco_tag(gboolean should_lock_threads);
 void popup_join_channel_dialog(gboolean lock_threads);
 int resolve_move(chess_game *game, int t, char *move, int resolved_move[4]);
+void add_class(GtkWidget *, const char *);
 
 /********** FROM DRAWING BACKEND *************/
 extern RsvgHandle *piecesSvg[12];

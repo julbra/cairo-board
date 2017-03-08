@@ -616,7 +616,7 @@ void best_line_to_san(char *line, char *san) {
 		parsed_to = left_over;
 
 	}
-	free(trans_game);
+	game_free(trans_game);
 
 }
 

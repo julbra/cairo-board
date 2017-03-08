@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <malloc.h>
 
 #include "chess-backend.h"
 #include "cairo-board.h"
@@ -215,7 +216,7 @@ int can_castle(int colour, int side, chess_game *game) {
 		return 0;
 	}
 
-	free(trans_game);
+	game_free(trans_game);
 
 	// all conditions met
 	return 1;
@@ -570,7 +571,7 @@ int is_move_legal(chess_game *game, chess_piece *piece, int col, int row) {
 		return 0;
 	}
 
-	free(trans_game);
+	game_free(trans_game);
 
 	return possible;
 }
@@ -1207,8 +1208,41 @@ chess_game *game_new() {
 		perror("Malloc new_game failed");
 		return NULL;
 	}
+	new_game->ply_num = 1;
 	new_game->hash_history_index = 0;
+	new_game->moves_list = calloc(256, SAN_MOVE_SIZE);
 	return new_game;
+}
+
+void game_free(chess_game *game) {
+	free(game->moves_list);
+	free(game);
+}
+
+void append_san_move(chess_game *game, char *san_move) {
+	// Whose-turn has already been swapped
+	char *append = calloc(SAN_MOVE_SIZE, sizeof(char));
+	if (game->ply_num == 1) {
+		sprintf(append, "1.%s", san_move);
+	} else {
+		if (game->whose_turn) {
+			sprintf(append, " %d.%s", 1 + (game->ply_num / 2), san_move);
+		} else {
+			sprintf(append, " %s", san_move);
+		}
+	}
+	game->ply_num++;
+
+	size_t cur_len = strlen(game->moves_list);
+	size_t append_len = strlen(append);
+	size_t available = malloc_usable_size(game->moves_list);
+	size_t required = cur_len + append_len;
+	while (available < required) {
+		game->moves_list = (char *) realloc(game->moves_list, malloc_usable_size(game->moves_list) * 2);
+		available = malloc_usable_size(game->moves_list);
+	}
+	memcpy(game->moves_list + cur_len, append, append_len);
+	free(append);
 }
 
 // Saves the current hash to history and increment the hash_index

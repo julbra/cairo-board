@@ -11,7 +11,11 @@ static uint64_t zobrist_keys_castle[2][2];
 
 chess_game *game_new();
 
+void game_free(chess_game *game);
+
 int get_square_colour(int col, int row);
+
+void append_san_move(chess_game *game, char *san_move);
 
 int get_possible_moves(chess_game *game, chess_piece *, int[64][2], int);
 
