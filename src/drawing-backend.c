@@ -1303,7 +1303,7 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 			}
 		}
 
-//		points_to_plot *= 7.0f;
+		points_to_plot *= 2.0f;
 //		points_to_plot /= 3.0f;
 
 		double **anim_steps;
@@ -1352,8 +1352,9 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 
 		g_hash_table_insert(anims_map, animation->piece, animation);
 
-//		g_timeout_add(1000/120, animate_one_step, animation);
-		g_timeout_add(1000/60, animate_one_step, animation);
+//		g_timeout_add(1000/240, animate_one_step, animation);
+//		g_timeout_add(1000/60, animate_one_step, animation);
+		g_timeout_add(8, animate_one_step, animation);
 		return TRUE;
 	}
 
@@ -2114,7 +2115,8 @@ void *process_moves(void *ptr) {
 
 		}
 //		usleep(1000000/120);
-		usleep(1000000/60);
+//		usleep(1000000/60);
+		usleep(3000);
 	}
 	return 0;
 }
