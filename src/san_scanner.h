@@ -7,6 +7,8 @@
 
 int san_scanner_lex(void);
 void san_scanner_restart (FILE *input_file);
+// parser funcs
+YY_BUFFER_STATE san_scanner__scan_string(const char *yy_str);
 
 int char_to_type(int whose_turn, char);
 char type_to_char(int);

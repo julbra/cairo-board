@@ -1087,7 +1087,7 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 	old_col = piece->pos.column;
 	old_row = piece->pos.row;
 
-	gboolean lock_threads = move_source != MANUAL_SOURCE;
+	bool lock_threads = move_source != MANUAL_SOURCE;
 
 	/* handle special case when auto moved piece is being dragged by user */
 	if (piece == mouse_dragged_piece) {
@@ -1568,9 +1568,9 @@ void handle_button_release(void) {
 						send_to_uci(ics_mv);
 					}
 
-					if (crafty_mode) {
-						write_to_crafty(ics_mv);
-					}
+//					if (crafty_mode) {
+//						write_to_crafty(ics_mv);
+//					}
 				}
 
 				piece_moved = true;
@@ -1584,10 +1584,10 @@ void handle_button_release(void) {
 				}
 				if (!delay_from_promotion) {
 					check_ending_clause(main_game);
-					insert_san_move(last_san_move, FALSE);
+					insert_san_move(last_san_move, false);
 					plys_list_append_ply(main_list, ply_new(p_old_col, p_old_row, ij[0], ij[1], NULL, last_san_move));
 					// update eco - we're already inside threads lock
-					update_eco_tag(FALSE);
+					update_eco_tag(false);
 				}
 
 				// only redraw pieces we need to redraw!
@@ -2356,10 +2356,10 @@ void choose_promote(int last_promote, bool only_surfaces, bool only_logical, int
 		strcat(last_san_move, bufstr);
 		check_ending_clause(main_game);
 
-		insert_san_move(last_san_move, FALSE);
+		insert_san_move(last_san_move, false);
 		plys_list_append_ply(main_list, ply_new(ocol, orow, ncol, nrow, NULL, last_san_move));
 
-		update_eco_tag(FALSE);
+		update_eco_tag(false);
 	}
 
 	if (!only_logical) {

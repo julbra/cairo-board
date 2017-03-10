@@ -283,7 +283,7 @@ void free_channel_function(gpointer key, gpointer value, gpointer data) {
 }
 
 void join_channel_function(gpointer key, gpointer value) {
-	popup_join_channel_dialog(FALSE);
+	popup_join_channel_dialog(false);
 }
 
 void leave_channel_function(gpointer key, gpointer value, gpointer data) {
@@ -495,7 +495,6 @@ channel* create_channel(int channel_num) {
 
 	gtk_widget_show_all(new_channel->top_vbox);
 
-
 	char *extended_description = calloc(256, sizeof(char));;
 	if (channel_num < 101 && strcmp("", channel_descriptions[channel_num])) {
 		sprintf(extended_description, "%d: %s", channel_num, channel_descriptions[channel_num]);
@@ -609,5 +608,3 @@ void insert_text_channel_view(int channel_num, char *username, char *message, gb
 	free(final_username);
 	free(final_message);
 }
-
-

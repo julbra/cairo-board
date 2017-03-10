@@ -55,6 +55,8 @@ set(SOURCE_FILES
         src/crafty_scanner.h
         src/drawing-backend.c
         src/drawing-backend.h
+        src/ics-adapter.c
+        src/ics-adapter.h
         ics_scanner.c
         src/ics_scanner.h
         src/main.c

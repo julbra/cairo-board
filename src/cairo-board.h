@@ -245,11 +245,19 @@ enum {
 	I_OBSERVE,
 };
 
+extern bool clock_started;
+extern bool game_started;
+extern long my_game;
+
 extern gboolean debug_flag;
 extern gboolean use_fig;
-extern gboolean crafty_mode;
 extern gboolean ics_mode;
+extern bool guest_mode;
 extern bool load_file_specified;
+
+extern char ics_host[256];
+extern unsigned short ics_port;
+extern char my_password[128];
 
 extern double svg_w, svg_h;
 extern double dr,dg, db;
@@ -274,10 +282,13 @@ extern chess_piece *king_in_check_piece;
 
 extern int game_mode;
 extern bool play_vs_machine;
+extern bool playing;
 
+extern GtkWidget *main_window;
 extern GtkWidget *board;
 
 extern char last_san_move[SAN_MOVE_SIZE];
+extern int resolved_move[4];
 extern chess_piece *last_piece_taken;
 
 extern bool delay_from_promotion;
@@ -306,6 +317,10 @@ extern bool highlight_last_move;
 extern chess_clock *main_clock;
 chess_game *main_game;
 
+extern FILE *san_scanner_in;
+extern char *ics_scanner_text;
+extern char *san_scanner_text;
+
 /* exported helpers */
 int colorise_type(int tt, int colour);
 void assign_surfaces();
@@ -317,7 +332,7 @@ char type_to_fen_char(int type);
 int move_piece(chess_piece *piece, int col, int row, int check_legality, int move_source, char san_move[SAN_MOVE_SIZE], chess_game *game, bool logical_only);
 void send_to_ics(char *s);
 void send_to_uci(char *s);
-void insert_san_move(const char*, gboolean should_lock_threads);
+void insert_san_move(const char*, bool should_lock_threads);
 void check_ending_clause(chess_game *game);
 void xy_to_loc(int x, int y, int *pos, int wi, int hi);
 chess_square *xy_to_square(chess_game *game, int x, int y, int wi, int hi);
@@ -326,14 +341,96 @@ wint_t type_to_unicode_char(int type);
 bool can_i_move_piece(chess_piece* piece);
 void set_last_move(char *move);
 void start_game(char *w_name, char *b_name, int seconds, int increment, int relation, bool should_lock);
-void update_eco_tag(gboolean should_lock_threads);
-void popup_join_channel_dialog(gboolean lock_threads);
+void end_game(void);
+void update_eco_tag(bool should_lock_threads);
+void popup_join_channel_dialog(bool lock_threads);
 int resolve_move(chess_game *game, int t, char *move, int resolved_move[4]);
 void add_class(GtkWidget *, const char *);
+void insert_text_moves_list_view(const gchar *text, bool should_lock_threads);
+void refresh_moves_list_view(plys_list *list);
+
+void show_login_dialog(bool lock_threads);
+void close_login_dialog(bool lock_threads);
 
 /********** FROM DRAWING BACKEND *************/
 extern RsvgHandle *piecesSvg[12];
 gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legality, int move_source, bool logical_only);
+
+/* Flex macros */
+#ifndef YY_TYPEDEF_YY_SIZE_T
+#define YY_TYPEDEF_YY_SIZE_T
+typedef unsigned int yy_size_t;
+#endif
+
+#ifndef YY_STRUCT_YY_BUFFER_STATE
+#define YY_STRUCT_YY_BUFFER_STATE
+struct yy_buffer_state
+{
+	FILE *yy_input_file;
+
+	char *yy_ch_buf;		/* input buffer */
+	char *yy_buf_pos;		/* current position in input buffer */
+
+	/* Size of input buffer in bytes, not including room for EOB
+	 * characters.
+	 */
+	int yy_buf_size;
+
+	/* Number of characters read into yy_ch_buf, not including EOB
+	 * characters.
+	 */
+	int yy_n_chars;
+
+	/* Whether we "own" the buffer - i.e., we know we created it,
+	 * and can realloc() it to grow it, and should free() it to
+	 * delete it.
+	 */
+	int yy_is_our_buffer;
+
+	/* Whether this is an "interactive" input source; if so, and
+	 * if we're using stdio for input, then we want to use getc()
+	 * instead of fread(), to make sure we stop fetching input after
+	 * each newline.
+	 */
+	int yy_is_interactive;
+
+	/* Whether we're considered to be at the beginning of a line.
+	 * If so, '^' rules will be active on the next match, otherwise
+	 * not.
+	 */
+	int yy_at_bol;
+
+	int yy_bs_lineno; /**< The line count. */
+	int yy_bs_column; /**< The column count. */
+
+	/* Whether to try to fill the input buffer when we reach the
+	 * end of it.
+	 */
+	int yy_fill_buffer;
+
+	int yy_buffer_status;
+
+#define YY_BUFFER_NEW 0
+#define YY_BUFFER_NORMAL 1
+	/* When an EOF's been seen but there's still some text to process
+	 * then we mark the buffer as YY_EOF_PENDING, to indicate that we
+	 * shouldn't try reading from the input source any more.  We might
+	 * still have a bunch of tokens to match, though, because of
+	 * possible backing-up.
+	 *
+	 * When we actually see the EOF, we change the status to "new"
+	 * (via san_scanner_restart()), so that the user can continue scanning by
+	 * just pointing san_scanner_in at a new input file.
+	 */
+#define YY_BUFFER_EOF_PENDING 2
+
+};
+#endif /* !YY_STRUCT_YY_BUFFER_STATE */
+
+#ifndef YY_TYPEDEF_YY_BUFFER_STATE
+#define YY_TYPEDEF_YY_BUFFER_STATE
+typedef struct yy_buffer_state *YY_BUFFER_STATE;
+#endif
 
 #endif
 

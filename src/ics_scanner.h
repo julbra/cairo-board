@@ -6,12 +6,9 @@
 
 int ics_scanner_lex(void);
 void ics_scanner_restart (FILE *input_file);
-#ifndef YY_TYPEDEF_YY_SIZE_T
-#define YY_TYPEDEF_YY_SIZE_T
-typedef unsigned int yy_size_t;
-#endif
 
 extern int ics_scanner_leng;
+YY_BUFFER_STATE ics_scanner__scan_bytes(const char *bytes, int len);
 
 enum _ics_match_type {
 	EOF_TYPE = -1,

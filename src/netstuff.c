@@ -12,6 +12,7 @@
 #include <netdb.h>
 #include <string.h>
 #include <unistd.h>
+#include "ics-adapter.h"
 
 #define BSIZE 1024
 
@@ -103,7 +104,7 @@ void close_tcp(int fd) {
 	close(fd);
 }
 
-void send_to_fics(int ics_fd, char *buff, size_t *rd) {
+void send_to_fics(char *buff, size_t *rd) {
 
 	// static storage duration, no linkage
 	static int i = 0;
@@ -217,7 +218,7 @@ int read_write_ics_fd(int input_fd, int output_fd, int ics_fd) {
 			return -1;
 		}
 
-		send_to_fics(ics_fd, buff, &w_rd);
+		send_to_fics(buff, &w_rd);
 		if (w_rd == BSIZE) {
 			fprintf(stderr, "Line too long?!\n");
 			return -1;
