@@ -257,6 +257,7 @@ extern double lr, lg, lb;
 extern double highlight_selected_r, highlight_selected_g, highlight_selected_b, highlight_selected_a;
 extern double highlight_move_r, highlight_move_g, highlight_move_b, highlight_move_a;
 extern GdkRGBA chat_handle_colour;
+extern bool invert_fig_colours;
 extern double check_warn_r, check_warn_g, check_warn_b, check_warn_a;
 
 extern int needs_update;

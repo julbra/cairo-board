@@ -226,6 +226,7 @@ double lr = 240.0/255.0;
 double lg = 217.0/255.0;
 double lb = 181.0/255.0;
 GdkRGBA chat_handle_colour;
+bool invert_fig_colours;
 
 double highlight_selected_r;
 double highlight_selected_g;
@@ -3611,7 +3612,7 @@ gint cleanup(gpointer ignored) {
 }
 
 wint_t type_to_unicode_char(int type) {
-	return (wint_t) BASE_CHESS_UNICODE_CHAR + type;
+	return (wint_t) BASE_CHESS_UNICODE_CHAR + (invert_fig_colours ? (type + 6) % 12 : type);
 }
 
 /* <Moves List data structures utilities> */
@@ -3903,11 +3904,15 @@ static void get_theme_colours(GtkWidget *widget) {
 		chat_handle_colour.green = (fg_color.green + bg_color.green) / 2.0;
 		chat_handle_colour.blue = (fg_color.blue + bg_color.blue) / 1.85;
 		chat_handle_colour.alpha = 1.0;
+		double bg_lum = bg_color.red + bg_color.green + bg_color.blue;
+		double fg_lum = fg_color.red + fg_color.green + fg_color.blue;
+		invert_fig_colours = bg_lum < fg_lum;
 	} else {
 		chat_handle_colour.red = 0.5;
 		chat_handle_colour.green = 0.5;
 		chat_handle_colour.blue = 0.5;
 		chat_handle_colour.alpha = 1.0;
+		invert_fig_colours = false;
 	}
 }
 
