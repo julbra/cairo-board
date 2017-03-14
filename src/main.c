@@ -1617,6 +1617,7 @@ gboolean auto_play_one_ics_move(gpointer data) {
 		if (resolved) {
 			debug("Move resolved to %c%d-%c%d\n", resolved_move[0] + 'a', resolved_move[1] + 1, resolved_move[2] + 'a', resolved_move[3] + 1);
 			auto_move(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE, false);
+			check_board12_game_consistency();
 			return true;
 		} else {
 			fprintf(stderr, "Could not resolve move %c%s\n", type_to_char(type), currentMoveString);

@@ -50,80 +50,104 @@ bool got_my_channels_header = false;
 
 bool invalid_password = false;
 
-/* From ICC specification
-"<12> rnbqkb-r pppppppp -----n-- -------- ----P--- -------- PPPPKPPP RNBQ-BNR B -1 0 0 1 1 0 7 Newton Einstein 1 2 12 39 39 119 122 2 K/e1-e2 (0:06) Ke2 0"
+/*
+ From ICC specification
+ "<12> rnbqkb-r pppppppp -----n-- -------- ----P--- -------- PPPPKPPP RNBQ-BNR B -1 0 0 1 1 0 7 Newton Einstein 1 2 12 39 39 119 122 2 K/e1-e2 (0:06) Ke2 0"
 
-This string always begins on a new line, and there are always exactly 31 non-
-empty fields separated by blanks. The fields are:
+ This string always begins on a new line, and there are always exactly 31 non-empty fields separated by blanks.
+ The fields are:
 
-* the string "<12>" to identify this line.
-* eight fields representing the board position.  The first one is White's
-  8th rank (also Black's 1st rank), then White's 7th rank (also Black's 2nd),
-  etc, regardless of who's move it is.
-* colour whose turn it is to move ("B" or "W")
-* -1 if the previous move was NOT a double pawn push, otherwise the chess
-  board file  (numbered 0--7 for a--h) in which the double push was made
-* can White still castle short? (0=no, 1=yes)
-* can White still castle long?
-* can Black still castle short?
-* can Black still castle long?
-* the number of moves made since the last irreversible move.  (0 if last move
-  was irreversible.  If the value is >= 100, the game can be declared a draw
-  due to the 50 move rule.)
-* The game number
-* White's name
-* Black's name
-* my relation to this game:
-	-3 isolated position, such as for "ref 3" or the "sposition" command
-	-2 I am observing game being examined
-	 2 I am the examiner of this game
-	-1 I am playing, it is my opponent's move
-	 1 I am playing and it is my move
-	 0 I am observing a game being played
-* initial time (in seconds) of the match
-* increment In seconds) of the match
-* White material strength
-* Black material strength
-* White's remaining time
-* Black's remaining time
-* the number of the move about to be made (standard chess numbering -- White's
-  and Black's first moves are both 1, etc.)
-* verbose coordinate notation for the previous move ("none" if there were
-  none) [note this used to be broken for examined games]
-* time taken to make previous move "(min:sec)".
-* pretty notation for the previous move ("none" if there is none)
-* flip field for board orientation: 1 = Black at bottom, 0 = White at bottom.
+ * the string "<12>" to identify this line.
+ * eight fields representing the board position.  The first one is White's
+   8th rank (also Black's 1st rank), then White's 7th rank (also Black's 2nd),
+   etc, regardless of who's move it is.
+ * colour whose turn it is to move ("B" or "W")
+ * -1 if the previous move was NOT a double pawn push, otherwise the chess
+   board file  (numbered 0--7 for a--h) in which the double push was made
+ * can White still castle short? (0=no, 1=yes)
+ * can White still castle long?
+ * can Black still castle short?
+ * can Black still castle long?
+ * the number of moves made since the last irreversible move.  (0 if last move
+   was irreversible.  If the value is >= 100, the game can be declared a draw
+   due to the 50 move rule.)
+ * The game number
+ * White's name
+ * Black's name
+ * my relation to this game:
+     -3 isolated position, such as for "ref 3" or the "sposition" command
+     -2 I am observing game being examined
+      2 I am the examiner of this game
+     -1 I am playing, it is my opponent's move
+      1 I am playing and it is my move
+      0 I am observing a game being played
+ * initial time (in seconds) of the match
+ * increment In seconds) of the match
+ * White material strength
+ * Black material strength
+ * White's remaining time
+ * Black's remaining time
+ * the number of the move about to be made (standard chess numbering -- White's
+   and Black's first moves are both 1, etc.)
+ * verbose coordinate notation for the previous move ("none" if there were
+   none) [note this used to be broken for examined games]
+ * time taken to make previous move "(min:sec)".
+ * pretty notation for the previous move ("none" if there is none)
+ * flip field for board orientation: 1 = Black at bottom, 0 = White at bottom.
 
-In the future, new fields may be added to the end of the data string, so
-programs should parse from left to right.
-
-
-*/
-
-//<12> rnbqkb-r pppppppp -----n-- -------- ----P--- -------- PPPPKPPP RNBQ-BNR B -1 0 0 1 1 0 7 Newton Einstein 1 2 12 39 39 119 122 2 K/e1-e2 (0:06) Ke2 0
-
-#define STYLE_12_PATTERN "%71c %c %d %d %d %d %d %d %d %s %s %d %d %d %d %d %d %d %d %s %s %s %d %d"
-// NB: 71 comes from 64 characters + 7 spaces
+ In the future, new fields may be added to the end of the data string, so programs should parse from left to right.
+ */
 
 /* Note: we have removed the '<12> ' when we reach this function so we get sth like
 -nr---k- r---qpp- --p----p p--pN--- -p-PN--- ----P--- PPQ--PPP R-R---K- B -1 0 0 0 0 0 307 pgayet radmanilko 0 3 0 32 29 140 128 20 N/c5-e4 (0:03) Nxe4 0 1 477
 */
 
+#define STYLE_12_PATTERN "%71c %c %d %d %d %d %d %d %d %s %s %d %d %d %d %d %d %d %d %s %s %s %d %d"
+// NB: 71 comes from 64 characters + 7 spaces
+
 int parse_board_tries = 0;
 char first_board_chunk[256]; // board is about 150 chars on average so 256 is safe
+
+static char last_board_chars[72];
+
+bool check_board12_game_consistency() {
+	int i, j;
+	unsigned short board_char_index = 0;
+	for (j = 7; j > -1; j--) {
+		for (i = 0; i < 8; i++) {
+			chess_piece *piece = main_game->squares[i][j].piece;
+			char bc = last_board_chars[board_char_index++];
+			if (bc == '-') {
+				if (piece != NULL && !piece->dead) {
+					printf("[!!] Board12 and game are inconsistent!\nlast_board_chars: %s\n", last_board_chars);
+					printf("Unexpected piece at '%c%d' type: %c\n", ('a' + i), j + 1, type_to_fen_char(piece->type));
+					return false;
+				}
+			} else if (piece == NULL || piece->dead || bc != type_to_fen_char(piece->type)) {
+				printf("[!!] Board12 and game are inconsistent!\nlast_board_chars: %s\n", last_board_chars);
+				printf("Unexpected type or missing piece at '%c%d' expected %c but got %c\n", ('a' + i), j + 1, bc,
+				       piece == NULL ? '0' : type_to_fen_char(piece->type));
+				return false;
+			}
+		}
+		board_char_index++;
+	}
+	debug("Board12 and game are consistent [ok]\n");
+	return true;
+}
 
 int parse_board12(char *string_chunk) {
 	int gamenum, relation, basetime, increment, ics_flip = 0;
 	int n, moveNum, white_stren, black_stren, white_time, black_time;
 	int double_push, castle_ws, castle_wl, castle_bs, castle_bl, fifty_move_count;
-	char to_play, board_chars[72];
+	char to_play;
 	char str[MOVE_BUFF_SIZE], san_move[MOVE_BUFF_SIZE], elapsed_time[MOVE_BUFF_SIZE];
 	char b_name[121], w_name[121];
 	int ticking = 2;
 
 	char *board12_string;
 
-	memset(board_chars, 0, sizeof(board_chars));
+	memset(last_board_chars, 0, sizeof(last_board_chars));
 	if (parse_board_tries) { // second chunk came in
 		board12_string = first_board_chunk;
 		strcat(board12_string, string_chunk);
@@ -134,7 +158,7 @@ int parse_board12(char *string_chunk) {
 	debug("Board 12 string: '%s'\n", board12_string);
 
 	n = sscanf(board12_string, STYLE_12_PATTERN,
-	           board_chars, &to_play, &double_push,
+	           last_board_chars, &to_play, &double_push,
 	           &castle_ws, &castle_wl, &castle_bs,
 	           &castle_bl, &fifty_move_count, &gamenum,
 	           w_name, b_name, &relation,
@@ -165,7 +189,7 @@ int parse_board12(char *string_chunk) {
 		debug("\tWhite's time: %ds\n", white_time);
 		debug("\tBlack's time: %ds\n", black_time);
 		debug("\tMy relation: %d\n", relation);
-		debug("\tBoard chars: '%s'\n", board_chars);
+		debug("\tBoard chars: '%s'\n", last_board_chars);
 		debug("\tSAN move: '%s'\n\n", san_move);
 
 		// Did we ask for times?
@@ -193,7 +217,6 @@ int parse_board12(char *string_chunk) {
 			}
 		}
 
-
 		/* NOTE: on ICS the clock starts after black's first move.
 		 * This is for obvious reasons due to the nature of online games
 		 * and the challenging/seek system.
@@ -204,7 +227,6 @@ int parse_board12(char *string_chunk) {
 			start_one_clock(main_clock, 0);
 			clock_started = 1;
 		}
-
 
 		/*
 		 * my relation to this game:
