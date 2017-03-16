@@ -153,6 +153,7 @@ static int last_release_x, last_release_y;
 static double dragging_prev_x = 0;
 static double dragging_prev_y = 0;
 static bool board_flipped = 0;
+static int pre_move[4];
 
 bool playing = false;
 static guint de_scale_timer = 0;
@@ -213,6 +214,10 @@ double highlight_move_r;
 double highlight_move_g;
 double highlight_move_b;
 double highlight_move_a = 0.5;
+double highlight_pre_move_r;
+double highlight_pre_move_g;
+double highlight_pre_move_b;
+double highlight_pre_move_a = 0.5;
 double check_warn_r = 1.0;
 double check_warn_g = 0.1;
 double check_warn_b = 0.1;
@@ -254,6 +259,7 @@ pthread_mutex_t moveit_flag_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t running_flag_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t more_events_flag_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t board_flipped_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t pre_move_lock = PTHREAD_MUTEX_INITIALIZER;
 
 void cleanup_mutexes(void) {
 	pthread_mutex_destroy(&mutex_last_move);
@@ -264,6 +270,7 @@ void cleanup_mutexes(void) {
 	pthread_mutex_destroy(&running_flag_lock);
 	pthread_mutex_destroy(&more_events_flag_lock);
 	pthread_mutex_destroy(&board_flipped_lock);
+	pthread_mutex_destroy(&pre_move_lock);
 }
 
 char last_move[MOVE_BUFF_SIZE];
@@ -365,7 +372,6 @@ bool is_more_events_flag() {
 }
 
 void set_board_flipped(bool val) {
-	debug("-------------------------- Set board flip called! %i\n", val);
 	pthread_mutex_lock(&board_flipped_lock);
 	board_flipped = val;
 	pthread_mutex_unlock(&board_flipped_lock);
@@ -377,6 +383,30 @@ bool is_board_flipped() {
 	val = board_flipped;
 	pthread_mutex_unlock(&board_flipped_lock);
 	return val;
+}
+
+void get_pre_move(int premove[4]) {
+	pthread_mutex_lock(&pre_move_lock);
+	for (int i = 0; i < 4; ++i) {
+		premove[i] = pre_move[i];
+	}
+	pthread_mutex_unlock(&pre_move_lock);
+}
+
+void set_pre_move(int premove[4]) {
+	pthread_mutex_lock(&pre_move_lock);
+	for (int i = 0; i < 4; ++i) {
+		pre_move[i] = premove[i];
+	}
+	pthread_mutex_unlock(&pre_move_lock);
+}
+
+void unset_pre_move() {
+	pthread_mutex_lock(&pre_move_lock);
+	for (int i = 0; i < 4; ++i) {
+		pre_move[i] = -1;
+	}
+	pthread_mutex_unlock(&pre_move_lock);
 }
 
 /************************ </MULTITHREAD STUFF> *****************************/
@@ -1618,6 +1648,16 @@ gboolean auto_play_one_ics_move(gpointer data) {
 			debug("Move resolved to %c%d-%c%d\n", resolved_move[0] + 'a', resolved_move[1] + 1, resolved_move[2] + 'a', resolved_move[3] + 1);
 			auto_move(main_game->squares[resolved_move[0]][resolved_move[1]].piece, resolved_move[2], resolved_move[3], 0, AUTO_SOURCE, false);
 			check_board12_game_consistency();
+			int premove[4];
+			get_pre_move(premove);
+			if (premove[0] != -1) {
+				if (auto_move(main_game->squares[premove[0]][premove[1]].piece, premove[2], premove[3], 1, AUTO_SOURCE, false) > 0) {
+					printf("Pre-move was accepted\n");
+					unset_pre_move();
+				} else {
+					printf("Pre-move was rejected\n");
+				}
+			}
 			return true;
 		} else {
 			fprintf(stderr, "Could not resolve move %c%s\n", type_to_char(type), currentMoveString);
@@ -2311,10 +2351,16 @@ int main (int argc, char **argv) {
 	highlight_selected_g = (dg + lg) / 3.0;
 	highlight_selected_b = (db + lb) / 3.0;
 	highlight_selected_a = 0.3;
+
 	highlight_move_r = (dr + lr) / 3.0;
 	highlight_move_g = 1;
 	highlight_move_b = (db + lb) / 3.0;
 	highlight_move_a = 0.3;
+
+	highlight_pre_move_r = 1;
+	highlight_pre_move_g = (dg + lg) / 3.0;
+	highlight_pre_move_b = (db + lb) / 3.0;
+	highlight_pre_move_a = 0.5;
 
 	debug("Debug info enabled\n");
 	if (ics_mode) {

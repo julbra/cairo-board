@@ -34,9 +34,12 @@ static void logical_promote(int last_promote);
 static const char *FONT_FACE = "Sans";
 
 enum layer_id {
-	LAYER_0 = 0,
-	LAYER_1,
-	LAYER_2,
+	BOARD_LAYER = 0,
+	HIGHLIGHT_UNDER_LAYER,
+	COORDINATES_LAYER,
+	PIECES_LAYER,
+	HIGHLIGHT_OVER_LAYER,
+
 	CACHE_LAYER,
 	DRAGGING_BACKGROUND
 };
@@ -50,8 +53,6 @@ cairo_surface_t *highlight_over_layer = NULL;
 cairo_surface_t *cache_layer = NULL;
 cairo_surface_t *dragging_background = NULL;
 
-cairo_surface_t *ds_surf = NULL;
-cairo_surface_t *ls_surf = NULL;
 RsvgHandle *piecesSvg[12];
 cairo_surface_t *piece_surfaces[12];
 
@@ -62,6 +63,8 @@ static gboolean is_scaled = false;
 // Show last move variables
 int prev_highlighted_move[4] = {-1};
 
+int prev_highlighted_pre_move[4] = {-1};
+
 void init_anims_map(void) {
 	anims_map = g_hash_table_new(g_direct_hash, g_direct_equal);
 }
@@ -71,15 +74,15 @@ struct anim_data *get_anim_for_piece(chess_piece *piece) {
 }
 
 void update_pieces_surfaces(int wi, int hi) {
-	cairo_t* dc;
+	cairo_t *dc;
 	int i;
-	for (i = 0 ; i < 12 ; i++) {
-		cairo_surface_destroy (piece_surfaces[i]);
-		piece_surfaces[i] = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, (int) (((double)wi) / 8.0f),
-												   (int) (((double)hi) / 8.0f));
-		dc = cairo_create (piece_surfaces[i]);
-		cairo_scale(dc, wi*svg_w, hi*svg_h);
-		rsvg_handle_render_cairo (piecesSvg[i], dc);
+	for (i = 0; i < 12; i++) {
+		cairo_surface_destroy(piece_surfaces[i]);
+		piece_surfaces[i] = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, (int) (((double) wi) / 8.0f),
+		                                               (int) (((double) hi) / 8.0f));
+		dc = cairo_create(piece_surfaces[i]);
+		cairo_scale(dc, wi * svg_w, hi * svg_h);
+		rsvg_handle_render_cairo(piecesSvg[i], dc);
 		cairo_destroy(dc);
 	}
 	assign_surfaces();
@@ -441,6 +444,10 @@ void draw_full_update(cairo_t *cdr, int wi, int hi) {
 		if (prev_highlighted_move[0] > -1) {
 			highlight_move(prev_highlighted_move[0], prev_highlighted_move[1], prev_highlighted_move[2], prev_highlighted_move[3], wi, hi);
 		}
+	}
+
+	if (prev_highlighted_pre_move[0] > -1) {
+		highlight_pre_move(prev_highlighted_pre_move, wi, hi);
 	}
 
 	// FIXME: is this the best place for this?
@@ -1053,6 +1060,17 @@ static gboolean animate_one_step(gpointer data) {
 
 }
 
+void highlight_pre_move(int pre_move[4], int wi, int hi) {
+	for (int i = 0; i < 4; ++i) {
+		prev_highlighted_pre_move[i] = pre_move[i];
+	}
+
+	cairo_t *high_cr = cairo_create(highlight_under_layer);
+	highlight_square(high_cr, pre_move[0], pre_move[1], highlight_pre_move_r, highlight_pre_move_g, highlight_pre_move_b, highlight_pre_move_a, wi, hi);
+	highlight_square(high_cr, pre_move[2], pre_move[3], highlight_pre_move_r, highlight_pre_move_g, highlight_pre_move_b, highlight_pre_move_a, wi, hi);
+	cairo_destroy(high_cr);
+}
+
 void highlight_move(int source_col, int source_row, int dest_col, int dest_row, int wi, int hi) {
 	prev_highlighted_move[0] = source_col;
 	prev_highlighted_move[1] = source_row;
@@ -1540,6 +1558,9 @@ void handle_button_release(void) {
 		loc_to_xy(p_old_col, p_old_row, old_xy, wi, hi);
 
 		gboolean piece_moved = false;
+		bool is_pre_move = false;
+		int old_pre_move[4] = {-1};
+
 		// if piece NOT moved or not allowed to move, don't bother trying the move
 		if ((p_old_row != ij[1] || p_old_col != ij[0]) && can_i_move_piece(mouse_dragged_piece)) {
 
@@ -1592,6 +1613,27 @@ void handle_button_release(void) {
 
 				// only redraw pieces we need to redraw!
 				update_pieces_surface(wi, hi, p_old_col, p_old_row, mouse_dragged_piece);
+			} else {
+				// Is this a valid pre-move candidate ?
+				if (mouse_dragged_piece->colour != main_game->whose_turn) {
+					if (is_move_possible(main_game, mouse_dragged_piece, ij[0], ij[1])) {
+						printf("Move is possible! Making pre-move!\n");
+						is_pre_move = true;
+						get_pre_move(old_pre_move);
+						int pre_move[4];
+						pre_move[0] = mouse_dragged_piece->pos.column;
+						pre_move[1] = mouse_dragged_piece->pos.row;
+						pre_move[2] = ij[0];
+						pre_move[3] = ij[1];
+						set_pre_move(pre_move);
+						if (old_pre_move[0] != -1) {
+							clean_highlight_surface(old_pre_move[0], old_pre_move[1], wi, hi);
+							clean_highlight_surface(old_pre_move[2], old_pre_move[3], wi, hi);
+						}
+						highlight_pre_move(pre_move, wi, hi);
+					}
+				}
+
 			}
 		}
 		if (!piece_moved) {
@@ -1617,6 +1659,29 @@ void handle_button_release(void) {
 		cairo_clip(cache_dc);
 		paint_layers(cache_dc);
 		cairo_restore(cache_dc);
+
+		if (is_pre_move) {
+			cairo_save(cache_dc);
+			square_to_rectangle(cache_dc, prev_highlighted_pre_move[0], prev_highlighted_pre_move[1], wi, hi);
+			square_to_rectangle(cache_dc, prev_highlighted_pre_move[2], prev_highlighted_pre_move[3], wi, hi);
+			if (old_pre_move[0] > -1) {
+				square_to_rectangle(cache_dc, old_pre_move[0], old_pre_move[1], wi, hi);
+				square_to_rectangle(cache_dc, old_pre_move[2], old_pre_move[3], wi, hi);
+			}
+			cairo_clip(cache_dc);
+			paint_layers(cache_dc);
+			cairo_restore(cache_dc);
+			cairo_t *drag_cr = cairo_create(dragging_background);
+			square_to_rectangle(drag_cr, prev_highlighted_pre_move[0], prev_highlighted_pre_move[1], wi, hi);
+			square_to_rectangle(drag_cr, prev_highlighted_pre_move[2], prev_highlighted_pre_move[3], wi, hi);
+			if (old_pre_move[0] > -1) {
+				square_to_rectangle(drag_cr, old_pre_move[0], old_pre_move[1], wi, hi);
+				square_to_rectangle(drag_cr, old_pre_move[2], old_pre_move[3], wi, hi);
+			}
+			cairo_clip(drag_cr);
+			paint_layers(drag_cr);
+			cairo_destroy(drag_cr);
+		}
 
 		// if was castle move, handle rook
 		int oc = -1;
@@ -1785,6 +1850,17 @@ void handle_button_release(void) {
 		cairo_rectangle(cdr, dragged_x - wi / 16.0f, dragged_y - hi / 16.0f, ww, hh);
 		cairo_rectangle(cdr, floor(xy[0] - wi / 16.0f), floor(xy[1] - hi / 16.0f), ceil(ww + 1), ceil(hh + 1));
 
+		if (is_pre_move) {
+			printf("Is Pre-move\n");
+			square_to_rectangle(cdr, prev_highlighted_pre_move[0], prev_highlighted_pre_move[1], wi, hi);
+			square_to_rectangle(cdr, prev_highlighted_pre_move[2], prev_highlighted_pre_move[3], wi, hi);
+			if (old_pre_move[0] != -1) {
+				printf("Clean old pre-move\n");
+				square_to_rectangle(cdr, old_pre_move[0], old_pre_move[1], wi, hi);
+				square_to_rectangle(cdr, old_pre_move[2], old_pre_move[3], wi, hi);
+			}
+		}
+
 		// Add special clipping squares in case of castling
 		if (move_result > 0 && move_result & CASTLE) {
 			loc_to_xy(oc, or, rook_xy, wi, hi);
@@ -1815,8 +1891,8 @@ void handle_button_release(void) {
 
 		// Clean last move highlight
 		if (old_highlights[0] > -1) {
-			square_to_rectangle(cache_dc, old_highlights[0], old_highlights[1], wi, hi);
-			square_to_rectangle(cache_dc, old_highlights[2], old_highlights[3], wi, hi);
+			square_to_rectangle(cdr, old_highlights[0], old_highlights[1], wi, hi);
+			square_to_rectangle(cdr, old_highlights[2], old_highlights[3], wi, hi);
 		}
 
 		// Actual clip
