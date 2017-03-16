@@ -108,7 +108,8 @@ typedef struct {
 	char white_rating[32];
 	char black_rating[32];
 
-	char *moves_list;
+	char *moves_list; // String of the current moves list in SAN notation
+
 	unsigned int ply_num;
 
 } chess_game;
@@ -264,6 +265,7 @@ extern double dr,dg, db;
 extern double lr, lg, lb;
 extern double highlight_selected_r, highlight_selected_g, highlight_selected_b, highlight_selected_a;
 extern double highlight_move_r, highlight_move_g, highlight_move_b, highlight_move_a;
+extern double highlight_pre_move_r, highlight_pre_move_g, highlight_pre_move_b, highlight_pre_move_a;
 extern GdkRGBA chat_handle_colour;
 extern bool invert_fig_colours;
 extern double check_warn_r, check_warn_g, check_warn_b, check_warn_a;
@@ -307,6 +309,9 @@ bool is_more_events_flag();
 void set_more_events_flag(bool);
 void set_board_flipped(bool val);
 bool is_board_flipped();
+void get_pre_move(int premove[4]);
+void set_pre_move(int premove[4]);
+void unset_pre_move();
 
 extern chess_piece *to_promote;
 

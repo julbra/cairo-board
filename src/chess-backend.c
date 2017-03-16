@@ -504,33 +504,32 @@ int is_move_en_passant(chess_game *game, chess_piece *piece, int col, int row) {
 	return 0;
 }
 
-int is_move_legal(chess_game *game, chess_piece *piece, int col, int row) {
+bool is_move_possible(chess_game *game, chess_piece *piece, int col, int row) {
+	int selected[64][2];
+	int count = get_possible_moves(game, piece, selected, 1);
+	for (int i = 0; i < count; i++) {
+		if (selected[i][0] == col && selected[i][1] == row) {
+			return true;
+		}
+	}
+	return false;
+}
+
+bool is_move_legal(chess_game *game, chess_piece *piece, int col, int row) {
 
 	// Player can't move if not his turn
 	if (piece->colour != game->whose_turn) {
-		return 0;
+		return false;
 	}
 
 	int start_col = piece->pos.column;
 	int start_row = piece->pos.row;
 	int colour = piece->colour;
-	int i;
 
-	int selected[64][2];
-
-	int count = get_possible_moves(game, piece, selected, 1);
-
-	int possible = 0;
-	for (i = 0; i < count; i++) {
-		if (selected[i][0] == col && selected[i][1] == row) {
-			possible = 1;
-			break;
-		}
-	}
-	if (!possible) {
+	if (!is_move_possible(game, piece, col, row)) {
 		// Move not even possible for that piece
 		// Don't bother checking for legality
-		return possible;
+		return false;
 	}
 
 	/* The move is possible but might not be legal
@@ -568,12 +567,12 @@ int is_move_legal(chess_game *game, chess_piece *piece, int col, int row) {
 	if (would_check) {
 		// Move not possible as would put/leave our king in check
 		//printf("Proposed move would check our king\n");
-		return 0;
+		return false;
 	}
 
 	game_free(trans_game);
 
-	return possible;
+	return true;
 }
 
 /* marks a square as selected for the current operation */
@@ -1219,7 +1218,7 @@ void game_free(chess_game *game) {
 	free(game);
 }
 
-void append_san_move(chess_game *game, char *san_move) {
+void append_san_move(chess_game *game, const char *san_move) {
 	// Whose-turn has already been swapped
 	char *append = calloc(SAN_MOVE_SIZE, sizeof(char));
 	if (game->ply_num == 1) {

@@ -15,7 +15,7 @@ void game_free(chess_game *game);
 
 int get_square_colour(int col, int row);
 
-void append_san_move(chess_game *game, char *san_move);
+void append_san_move(chess_game *game, const char *san_move);
 
 int get_possible_moves(chess_game *game, chess_piece *, int[64][2], int);
 
@@ -31,7 +31,9 @@ void count_alive_pieces_by_type(int alive[12], chess_piece w_set[16], chess_piec
 
 int is_material_draw(chess_piece w_set[16], chess_piece b_set[16]);
 
-int is_move_legal(chess_game *game, chess_piece *piece, int col, int row);
+bool is_move_possible(chess_game *game, chess_piece *piece, int col, int row);
+
+bool is_move_legal(chess_game *game, chess_piece *piece, int col, int row);
 
 chess_piece *get_king(int, chess_square[8][8]);
 
