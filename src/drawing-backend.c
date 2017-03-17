@@ -1068,6 +1068,8 @@ void highlight_pre_move(int pre_move[4], int wi, int hi) {
 	}
 
 	cairo_t *high_cr = cairo_create(highlight_under_layer);
+	clean_highlight_surface(pre_move[0], pre_move[1], wi, hi);
+	clean_highlight_surface(pre_move[2], pre_move[3], wi, hi);
 	highlight_square(high_cr, pre_move[0], pre_move[1], highlight_pre_move_r, highlight_pre_move_g, highlight_pre_move_b, highlight_pre_move_a, wi, hi);
 	highlight_square(high_cr, pre_move[2], pre_move[3], highlight_pre_move_r, highlight_pre_move_g, highlight_pre_move_b, highlight_pre_move_a, wi, hi);
 	cairo_destroy(high_cr);
@@ -1966,13 +1968,41 @@ void handle_left_mouse_up(void) {
 	}
 }
 
+bool same_move(int m1_col, int m1_row, int m2_col, int m2_row) {
+	return m1_col == m2_col && m1_row == m2_row;
+}
+
+bool moves_overlap(int m1[4], int m2[4]) {
+	return same_move(m1[0], m1[1], m2[0], m2[1]) || same_move(m1[2], m1[3], m2[0], m2[1]) ||
+	       same_move(m1[0], m1[1], m2[2], m2[3]) || same_move(m1[2], m1[3], m2[2], m2[3]);
+}
+
 void cancel_pre_move(int wi, int hi, bool lock_threads) {
 	int old_pre_move[4] = {-1};
 	get_pre_move(old_pre_move);
+	if (lock_threads) {
+		gdk_threads_enter();
+	}
 	if (old_pre_move[0] > -1) {
 		unset_pre_move();
 		clean_highlight_surface(old_pre_move[0], old_pre_move[1], wi, hi);
 		clean_highlight_surface(old_pre_move[2], old_pre_move[3], wi, hi);
+
+		// Re-highlight the last move if it overlaps with the cancelled pre-move
+		if (moves_overlap(prev_highlighted_move, old_pre_move)) {
+			cairo_t *high_cr = cairo_create(highlight_under_layer);
+			if (same_move(prev_highlighted_move[0], prev_highlighted_move[1], old_pre_move[0], old_pre_move[1]) ||
+			    same_move(prev_highlighted_move[2], prev_highlighted_move[3], old_pre_move[0], old_pre_move[1])) {
+				highlight_square(high_cr, old_pre_move[0], old_pre_move[1], highlight_move_r, highlight_move_g,
+				                 highlight_move_b, highlight_move_a, wi, hi);
+			}
+			if (same_move(prev_highlighted_move[0], prev_highlighted_move[1], old_pre_move[2], old_pre_move[3]) ||
+			    same_move(prev_highlighted_move[2], prev_highlighted_move[3], old_pre_move[2], old_pre_move[3])) {
+				highlight_square(high_cr, old_pre_move[2], old_pre_move[3], highlight_move_r, highlight_move_g,
+				                 highlight_move_b, highlight_move_a, wi, hi);
+			}
+			cairo_destroy(high_cr);
+		}
 
 		cairo_t *cache_dc = cairo_create(cache_layer);
 		square_to_rectangle(cache_dc, old_pre_move[0], old_pre_move[1], wi, hi);
@@ -1996,6 +2026,9 @@ void cancel_pre_move(int wi, int hi, bool lock_threads) {
 		cairo_set_operator (cdr, CAIRO_OPERATOR_SOURCE);
 		cairo_paint(cdr);
 		cairo_destroy(cdr);
+	}
+	if (lock_threads) {
+		gdk_threads_leave();
 	}
 }
 
@@ -2287,7 +2320,7 @@ static void square_to_rectangle(cairo_t *dc, int col, int row, int wi, int hi) {
 	cairo_rectangle(dc, xy[0] - half_width, xy[1] - half_height, square_width, square_height);
 }
 
-// Highlight a square, e.g. to mark a selection
+// Highlight a square, e.g. to mark a selection or last move
 static void highlight_square(cairo_t *dc, int col, int row, double r, double g, double b, double a, int wi, int hi) {
 	double xy[2];
 	loc_to_xy(col, row, xy, wi, hi);
