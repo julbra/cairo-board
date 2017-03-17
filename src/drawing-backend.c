@@ -446,6 +446,8 @@ void draw_full_update(cairo_t *cdr, int wi, int hi) {
 		}
 	}
 
+	int prev_highlighted_pre_move[4];
+	get_pre_move(prev_highlighted_pre_move);
 	if (prev_highlighted_pre_move[0] > -1) {
 		highlight_pre_move(prev_highlighted_pre_move, wi, hi);
 	}
@@ -597,7 +599,7 @@ void highlightPotentialMoves(GtkWidget *pWidget, chess_piece *piece, int wi, int
 
 }
 
-void de_highlight_square(cairo_t *dc, int col, int row, int wi, int hi) {
+void paint_layers_at_square(cairo_t *dc, int col, int row, int wi, int hi) {
 	double xy[2];
 	double square_width = wi / 8.0f;
 	double square_height = hi / 8.0f;
@@ -1162,7 +1164,7 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 
 		// send move ASAP
 		if (!delay_from_promotion) {
-			if (move_source == MANUAL_SOURCE) {
+			if (move_source == MANUAL_SOURCE || move_source == PRE_MOVE) {
 				char ics_mv[MOVE_BUFF_SIZE];
 				if (move_result & PROMOTE) {
 					sprintf(ics_mv, "%c%c%c%c=%c\n",
@@ -1177,14 +1179,14 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 			}
 			char uci_mv[MOVE_BUFF_SIZE];
 			if (move_result & PROMOTE) {
-				if (!play_vs_machine || move_source == MANUAL_SOURCE) {
+				if (!play_vs_machine || move_source == MANUAL_SOURCE || move_source == PRE_MOVE) {
 					sprintf(uci_mv, "%c%c%c%c%c\n",
 					        'a' + old_col, '1' + old_row, 'a' + new_col, '1' + new_row,
 					        (char) (type_to_char(main_game->promo_type) + 32));
 					send_to_uci(uci_mv);
 				}
 			} else {
-				if (!play_vs_machine || move_source == MANUAL_SOURCE) {
+				if (!play_vs_machine || move_source == MANUAL_SOURCE || move_source == PRE_MOVE) {
 					sprintf(uci_mv, "%c%c%c%c\n",
 					        'a' + old_col, '1' + old_row, 'a' + new_col, '1' + new_row);
 					send_to_uci(uci_mv);
@@ -1541,6 +1543,39 @@ void handle_button_release(void) {
 
 	int move_result = -1;
 
+	int old_pre_move[4] = {-1};
+	get_pre_move(old_pre_move);
+
+	// Cancel any old pre-move on mouse up
+	if (old_pre_move[0] > -1) {
+		unset_pre_move();
+		clean_highlight_surface(old_pre_move[0], old_pre_move[1], wi, hi);
+		clean_highlight_surface(old_pre_move[2], old_pre_move[3], wi, hi);
+
+		cairo_t *cache_dc = cairo_create(cache_layer);
+		square_to_rectangle(cache_dc, old_pre_move[0], old_pre_move[1], wi, hi);
+		square_to_rectangle(cache_dc, old_pre_move[2], old_pre_move[3], wi, hi);
+		cairo_clip(cache_dc);
+		paint_layers(cache_dc);
+		cairo_destroy(cache_dc);
+
+		cairo_t *drag_cr = cairo_create(dragging_background);
+		square_to_rectangle(drag_cr, old_pre_move[0], old_pre_move[1], wi, hi);
+		square_to_rectangle(drag_cr, old_pre_move[2], old_pre_move[3], wi, hi);
+		cairo_clip(drag_cr);
+		paint_layers(drag_cr);
+		cairo_destroy(drag_cr);
+
+		cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
+		square_to_rectangle(cdr, old_pre_move[0], old_pre_move[1], wi, hi);
+		square_to_rectangle(cdr, old_pre_move[2], old_pre_move[3], wi, hi);
+		cairo_clip(cdr);
+		cairo_set_source_surface(cdr, cache_layer, 0.0f, 0.0f);
+		cairo_set_operator (cdr, CAIRO_OPERATOR_SOURCE);
+		cairo_paint(cdr);
+		cairo_destroy(cdr);
+	}
+
 	if (mouse_dragged_piece != NULL) {
 
 		set_moveit_flag(false);
@@ -1559,7 +1594,6 @@ void handle_button_release(void) {
 
 		gboolean piece_moved = false;
 		bool is_pre_move = false;
-		int old_pre_move[4] = {-1};
 
 		// if piece NOT moved or not allowed to move, don't bother trying the move
 		if ((p_old_row != ij[1] || p_old_col != ij[0]) && can_i_move_piece(mouse_dragged_piece)) {
@@ -1616,20 +1650,15 @@ void handle_button_release(void) {
 			} else {
 				// Is this a valid pre-move candidate ?
 				if (mouse_dragged_piece->colour != main_game->whose_turn) {
-					if (is_move_possible(main_game, mouse_dragged_piece, ij[0], ij[1])) {
+					if (is_pre_move_possible(main_game, mouse_dragged_piece, ij[0], ij[1])) {
 						printf("Move is possible! Making pre-move!\n");
 						is_pre_move = true;
-						get_pre_move(old_pre_move);
 						int pre_move[4];
 						pre_move[0] = mouse_dragged_piece->pos.column;
 						pre_move[1] = mouse_dragged_piece->pos.row;
 						pre_move[2] = ij[0];
 						pre_move[3] = ij[1];
 						set_pre_move(pre_move);
-						if (old_pre_move[0] != -1) {
-							clean_highlight_surface(old_pre_move[0], old_pre_move[1], wi, hi);
-							clean_highlight_surface(old_pre_move[2], old_pre_move[3], wi, hi);
-						}
 						highlight_pre_move(pre_move, wi, hi);
 					}
 				}
@@ -1664,20 +1693,12 @@ void handle_button_release(void) {
 			cairo_save(cache_dc);
 			square_to_rectangle(cache_dc, prev_highlighted_pre_move[0], prev_highlighted_pre_move[1], wi, hi);
 			square_to_rectangle(cache_dc, prev_highlighted_pre_move[2], prev_highlighted_pre_move[3], wi, hi);
-			if (old_pre_move[0] > -1) {
-				square_to_rectangle(cache_dc, old_pre_move[0], old_pre_move[1], wi, hi);
-				square_to_rectangle(cache_dc, old_pre_move[2], old_pre_move[3], wi, hi);
-			}
 			cairo_clip(cache_dc);
 			paint_layers(cache_dc);
 			cairo_restore(cache_dc);
 			cairo_t *drag_cr = cairo_create(dragging_background);
 			square_to_rectangle(drag_cr, prev_highlighted_pre_move[0], prev_highlighted_pre_move[1], wi, hi);
 			square_to_rectangle(drag_cr, prev_highlighted_pre_move[2], prev_highlighted_pre_move[3], wi, hi);
-			if (old_pre_move[0] > -1) {
-				square_to_rectangle(drag_cr, old_pre_move[0], old_pre_move[1], wi, hi);
-				square_to_rectangle(drag_cr, old_pre_move[2], old_pre_move[3], wi, hi);
-			}
 			cairo_clip(drag_cr);
 			paint_layers(drag_cr);
 			cairo_destroy(drag_cr);
@@ -1854,11 +1875,6 @@ void handle_button_release(void) {
 			printf("Is Pre-move\n");
 			square_to_rectangle(cdr, prev_highlighted_pre_move[0], prev_highlighted_pre_move[1], wi, hi);
 			square_to_rectangle(cdr, prev_highlighted_pre_move[2], prev_highlighted_pre_move[3], wi, hi);
-			if (old_pre_move[0] != -1) {
-				printf("Clean old pre-move\n");
-				square_to_rectangle(cdr, old_pre_move[0], old_pre_move[1], wi, hi);
-				square_to_rectangle(cdr, old_pre_move[2], old_pre_move[3], wi, hi);
-			}
 		}
 
 		// Add special clipping squares in case of castling
@@ -1993,7 +2009,7 @@ void handle_left_button_press(GtkWidget *pWidget, int wi, int hi, int x, int y) 
 		}
 
 		cairo_t *board_cr = gdk_cairo_create(gtk_widget_get_window(pWidget));
-		de_highlight_square(board_cr, mouse_clicked[0], mouse_clicked[1], wi, hi);
+		paint_layers_at_square(board_cr, mouse_clicked[0], mouse_clicked[1], wi, hi);
 		cairo_destroy(board_cr);
 	}
 
@@ -2249,46 +2265,6 @@ static void free_anim_data(struct anim_data *anim) {
 	}
 	free(anim->plots);
 	free(anim);
-}
-
-enum EDGE {
-	TOP,
-	RIGHT,
-	BOTTOM,
-	LEFT
-};
-
-static void create_trapeze_path(cairo_t *dc, double x, double y, double w, double h, double line_width, enum EDGE edge) {
-
-	switch (edge) {
-
-	case TOP:
-		cairo_move_to(dc, x, y);
-		cairo_rel_line_to(dc, line_width, line_width);
-		cairo_rel_line_to(dc, w-2*line_width, 0);
-		cairo_rel_line_to(dc, line_width, -line_width);
-		break;
-	case RIGHT:
-		cairo_move_to(dc, x+w, y);
-		cairo_rel_line_to(dc, -line_width, line_width);
-		cairo_rel_line_to(dc, 0, h-2*line_width);
-		cairo_rel_line_to(dc, line_width, line_width);
-		break;
-	case BOTTOM:
-		cairo_move_to(dc, x, y+h);
-		cairo_rel_line_to(dc, line_width, -line_width);
-		cairo_rel_line_to(dc, w-2*line_width, 0);
-		cairo_rel_line_to(dc, line_width, line_width);
-		break;
-	case LEFT:
-		cairo_move_to(dc, x, y);
-		cairo_rel_line_to(dc, line_width, line_width);
-		cairo_rel_line_to(dc, 0, h-2*line_width);
-		cairo_rel_line_to(dc, -line_width, line_width);
-		break;
-	}
-
-	cairo_close_path(dc);
 }
 
 static void clip_to_square(cairo_t *dc, int col, int row, int wi, int hi) {

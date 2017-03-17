@@ -29,6 +29,7 @@ void init_highlight_over_surface(int wi, int hi);
 void draw_board_surface(int wi, int hi);
 void draw_pieces_surface(int wi, int hi);
 void highlight_move(int source_col, int source_row, int dest_col, int dest_row, int wi, int hi);
+void highlight_pre_move(int pre_move[4], int wi, int hi);
 void warn_check(int wi, int hi);
 
 void choose_promote(int last_promote, bool only_surfaces, bool only_logical, int ocol, int orow, int ncol, int nrow);

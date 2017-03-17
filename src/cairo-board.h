@@ -236,7 +236,8 @@ enum {
 enum {
 	MANUAL_SOURCE = 0,
 	AUTO_SOURCE,
-	AUTO_SOURCE_NO_ANIM
+	AUTO_SOURCE_NO_ANIM,
+	PRE_MOVE
 };
 
 enum {

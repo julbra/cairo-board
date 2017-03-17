@@ -153,7 +153,7 @@ static int last_release_x, last_release_y;
 static double dragging_prev_x = 0;
 static double dragging_prev_y = 0;
 static bool board_flipped = 0;
-static int pre_move[4];
+static int pre_move[4] = {-1};
 
 bool playing = false;
 static guint de_scale_timer = 0;
@@ -864,7 +864,7 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 		// NOTE: no need to reset 50 counter as done already
 		if (was_promotion) {
 			to_promote = piece;
-			if (move_source == MANUAL_SOURCE) {
+			if (move_source == MANUAL_SOURCE || move_source == PRE_MOVE) {
 				if (!always_promote_to_queen) {
 					get_int_from_popup();
 					delay_from_promotion = true;
@@ -892,10 +892,6 @@ int move_piece(chess_piece *piece, int col, int row, int check_legality, int mov
 			}
 		} else {
 			delay_from_promotion = false;
-		}
-
-		if (!delay_from_promotion) {
-
 		}
 
 		if (san_move != NULL) {
@@ -1651,12 +1647,12 @@ gboolean auto_play_one_ics_move(gpointer data) {
 			int premove[4];
 			get_pre_move(premove);
 			if (premove[0] != -1) {
-				if (auto_move(main_game->squares[premove[0]][premove[1]].piece, premove[2], premove[3], 1, AUTO_SOURCE, false) > 0) {
+				if (auto_move(main_game->squares[premove[0]][premove[1]].piece, premove[2], premove[3], 1, PRE_MOVE, false) > 0) {
 					printf("Pre-move was accepted\n");
-					unset_pre_move();
 				} else {
 					printf("Pre-move was rejected\n");
 				}
+				unset_pre_move();
 			}
 			return true;
 		} else {

@@ -504,6 +504,17 @@ int is_move_en_passant(chess_game *game, chess_piece *piece, int col, int row) {
 	return 0;
 }
 
+bool is_pre_move_possible(chess_game *game, chess_piece *piece, int col, int row) {
+	int selected[64][2];
+	int count = get_possible_pre_moves(game, piece, selected, 1);
+	for (int i = 0; i < count; i++) {
+		if (selected[i][0] == col && selected[i][1] == row) {
+			return true;
+		}
+	}
+	return false;
+}
+
 bool is_move_possible(chess_game *game, chess_piece *piece, int col, int row) {
 	int selected[64][2];
 	int count = get_possible_moves(game, piece, selected, 1);
@@ -598,28 +609,34 @@ int get_possible_moves(chess_game *game, chess_piece *piece, int selected[64][2]
 
 		case W_PAWN:
 			if (start_row == 4) {
-				if (start_col > 0 && game->en_passant[start_col-1]) {
-					select_square(selected, &count, start_col-1, start_row + 1);
+				if (start_col > 0 && game->en_passant[start_col - 1]) {
+					select_square(selected, &count, start_col - 1, start_row + 1);
 				}
-				if (start_col < 7 && game->en_passant[start_col+1]) {
-					select_square(selected, &count, start_col+1, start_row + 1);
+				if (start_col < 7 && game->en_passant[start_col + 1]) {
+					select_square(selected, &count, start_col + 1, start_row + 1);
 				}
 			}
 			if (start_row < 7) {
-				if (game->squares[start_col][start_row+1].piece == NULL) {
+				if (game->squares[start_col][start_row + 1].piece == NULL) {
 					select_square(selected, &count, start_col, start_row + 1);
-					if (start_row == 1)
-						if (game->squares[start_col][start_row + 2].piece == NULL)
+					if (start_row == 1) {
+						if (game->squares[start_col][start_row + 2].piece == NULL) {
 							select_square(selected, &count, start_col, start_row + 2);
+						}
+					}
 				}
-				if (start_col > 0)
-				if (game->squares[start_col - 1][start_row + 1].piece != NULL && game->squares[start_col - 1][start_row + 1].piece->colour)
-					select_square(selected, &count, start_col - 1, start_row + 1);
-				if (start_col < 7)
-				if (game->squares[start_col + 1][start_row + 1].piece != NULL && game->squares[start_col + 1][start_row + 1].piece->colour)
-					select_square(selected, &count, start_col + 1, start_row + 1);
+				if (start_col > 0) {
+					if (game->squares[start_col - 1][start_row + 1].piece != NULL && game->squares[start_col - 1][start_row + 1].piece->colour) {
+						select_square(selected, &count, start_col - 1, start_row + 1);
+					}
+				}
+				if (start_col < 7) {
+					if (game->squares[start_col + 1][start_row + 1].piece != NULL && game->squares[start_col + 1][start_row + 1].piece->colour) {
+						select_square(selected, &count, start_col + 1, start_row + 1);
+					}
+				}
 			}
-		break;
+			break;
 
 		case B_PAWN:
 			if (start_row == 3) {
@@ -649,84 +666,76 @@ int get_possible_moves(chess_game *game, chess_piece *piece, int selected[64][2]
 		case W_KNIGHT:
 		case B_KNIGHT:
 			if (start_row < 7) {
-				if (start_col - 2 >= 0 ) {
+				if (start_col - 2 >= 0) {
 					if (game->squares[start_col - 2][start_row + 1].piece == NULL) {
 						select_square(selected, &count, start_col - 2, start_row + 1);
-					}
-					else if (colour ?
-						! game->squares[start_col - 2][start_row + 1].piece->colour :
-						     game->squares[start_col - 2][start_row + 1].piece->colour)
-							select_square(selected, &count, start_col - 2, start_row + 1);
+					} else if (colour ?
+					           !game->squares[start_col - 2][start_row + 1].piece->colour :
+					           game->squares[start_col - 2][start_row + 1].piece->colour)
+						select_square(selected, &count, start_col - 2, start_row + 1);
 				}
-				if (start_col + 2 <= 7 ) {
+				if (start_col + 2 <= 7) {
 					if (game->squares[start_col + 2][start_row + 1].piece == NULL) {
 						select_square(selected, &count, start_col + 2, start_row + 1);
-					}
-					else if (colour ?
-						! game->squares[start_col + 2][start_row + 1].piece->colour :
-						     game->squares[start_col + 2][start_row + 1].piece->colour)
-							select_square(selected, &count, start_col + 2, start_row + 1);
+					} else if (colour ?
+					           !game->squares[start_col + 2][start_row + 1].piece->colour :
+					           game->squares[start_col + 2][start_row + 1].piece->colour)
+						select_square(selected, &count, start_col + 2, start_row + 1);
 				}
 
 				if (start_row < 6) {
-					if (start_col - 1 >= 0 ) {
+					if (start_col - 1 >= 0) {
 						if (game->squares[start_col - 1][start_row + 2].piece == NULL) {
 							select_square(selected, &count, start_col - 1, start_row + 2);
-						}
-					else if (colour ?
-						! game->squares[start_col - 1][start_row + 2].piece->colour :
-						     game->squares[start_col - 1][start_row + 2].piece->colour)
+						} else if (colour ?
+						           !game->squares[start_col - 1][start_row + 2].piece->colour :
+						           game->squares[start_col - 1][start_row + 2].piece->colour)
 							select_square(selected, &count, start_col - 1, start_row + 2);
 					}
-					if (start_col + 1 <= 7 ) {
+					if (start_col + 1 <= 7) {
 						if (game->squares[start_col + 1][start_row + 2].piece == NULL) {
 							select_square(selected, &count, start_col + 1, start_row + 2);
-						}
-						else if (colour ?
-							! game->squares[start_col + 1][start_row + 2].piece->colour :
-							     game->squares[start_col + 1][start_row + 2].piece->colour)
-								select_square(selected, &count, start_col + 1, start_row + 2);
+						} else if (colour ?
+						           !game->squares[start_col + 1][start_row + 2].piece->colour :
+						           game->squares[start_col + 1][start_row + 2].piece->colour)
+							select_square(selected, &count, start_col + 1, start_row + 2);
 					}
 				}
 			}
 			if (start_row > 0) {
-				if (start_col - 2 >= 0 ) {
+				if (start_col - 2 >= 0) {
 					if (game->squares[start_col - 2][start_row - 1].piece == NULL) {
 						select_square(selected, &count, start_col - 2, start_row - 1);
-					}
-					else if (colour ?
-						! game->squares[start_col - 2][start_row - 1].piece->colour :
-						     game->squares[start_col - 2][start_row - 1].piece->colour)
-							select_square(selected, &count, start_col - 2, start_row - 1);
+					} else if (colour ?
+					           !game->squares[start_col - 2][start_row - 1].piece->colour :
+					           game->squares[start_col - 2][start_row - 1].piece->colour)
+						select_square(selected, &count, start_col - 2, start_row - 1);
 				}
-				if (start_col + 2 <= 7 ) {
+				if (start_col + 2 <= 7) {
 					if (game->squares[start_col + 2][start_row - 1].piece == NULL) {
 						select_square(selected, &count, start_col + 2, start_row - 1);
-					}
-					else if (colour ?
-						! game->squares[start_col + 2][start_row - 1].piece->colour :
-						     game->squares[start_col + 2][start_row - 1].piece->colour)
-							select_square(selected, &count, start_col + 2, start_row - 1);
+					} else if (colour ?
+					           !game->squares[start_col + 2][start_row - 1].piece->colour :
+					           game->squares[start_col + 2][start_row - 1].piece->colour)
+						select_square(selected, &count, start_col + 2, start_row - 1);
 				}
 
 				if (start_row > 1) {
-					if (start_col - 1 >= 0 ) {
+					if (start_col - 1 >= 0) {
 						if (game->squares[start_col - 1][start_row - 2].piece == NULL) {
 							select_square(selected, &count, start_col - 1, start_row - 2);
-						}
-						else if (colour ?
-							! game->squares[start_col - 1][start_row - 2].piece->colour :
-							     game->squares[start_col - 1][start_row - 2].piece->colour)
-								select_square(selected, &count, start_col - 1, start_row - 2);
+						} else if (colour ?
+						           !game->squares[start_col - 1][start_row - 2].piece->colour :
+						           game->squares[start_col - 1][start_row - 2].piece->colour)
+							select_square(selected, &count, start_col - 1, start_row - 2);
 					}
-					if (start_col + 1 <= 7 ) {
+					if (start_col + 1 <= 7) {
 						if (game->squares[start_col + 1][start_row - 2].piece == NULL) {
 							select_square(selected, &count, start_col + 1, start_row - 2);
-						}
-						else if (colour ?
-							! game->squares[start_col + 1][start_row - 2].piece->colour :
-							     game->squares[start_col + 1][start_row - 2].piece->colour)
-								select_square(selected, &count, start_col + 1, start_row - 2);
+						} else if (colour ?
+						           !game->squares[start_col + 1][start_row - 2].piece->colour :
+						           game->squares[start_col + 1][start_row - 2].piece->colour)
+							select_square(selected, &count, start_col + 1, start_row - 2);
 					}
 				}
 			}
@@ -1104,6 +1113,279 @@ int get_possible_moves(chess_game *game, chess_piece *piece, int selected[64][2]
 	return count;
 }
 
+// TODO: for rooks, bishops and queens, check if a blocking piece could be removed next turn, similar check for knights and kings
+int get_possible_pre_moves(chess_game *game, chess_piece *piece, int selected[64][2], int consider_castling_moves) {
+
+//	debug("getting possible pre moves\n");
+	int i;
+
+	int start_col = piece->pos.column;
+	int start_row = piece->pos.row;
+	int colour = piece->colour;
+
+	int count = 0;
+	switch (piece->type) {
+
+		case W_PAWN:
+			if (start_row == 4) {
+				// TODO: check if it is possible for the enemy pawns to become en-passant candidates next turn
+				if (start_col > 0) {
+					chess_piece *en_passant_left = game->squares[start_col - 1][6].piece;
+					if (en_passant_left != NULL && en_passant_left->type == B_PAWN) {
+						select_square(selected, &count, start_col - 1, 5);
+					}
+				}
+				if (start_col < 7) {
+					chess_piece *en_passant_right = game->squares[start_col + 1][6].piece;
+					if (en_passant_right != NULL && en_passant_right->type == B_PAWN) {
+						select_square(selected, &count, start_col + 1, 5);
+					}
+				}
+			}
+			if (start_row < 7) {
+				chess_piece *piece_in_front = game->squares[start_col][start_row + 1].piece;
+				if (piece_in_front == NULL || piece_in_front->colour) {
+					select_square(selected, &count, start_col, start_row + 1);
+					if (start_row == 1) {
+						chess_piece *two_squares_ahead = game->squares[start_col][start_row + 2].piece;
+						if (two_squares_ahead == NULL || two_squares_ahead->colour) {
+							select_square(selected, &count, start_col, start_row + 2);
+						}
+					}
+				}
+				if (start_col > 0) {
+					// TODO: check if it is possible for a enemy piece to end up here next turn
+					select_square(selected, &count, start_col - 1, start_row + 1);
+				}
+				if (start_col < 7) {
+					// TODO: check if it is possible for a enemy piece to end up here next turn
+					select_square(selected, &count, start_col + 1, start_row + 1);
+				}
+			}
+			break;
+
+		case B_PAWN:
+			if (start_row == 3) {
+				if (start_col > 0) {
+					chess_piece *en_passant_left = game->squares[start_col - 1][1].piece;
+					if (en_passant_left != NULL && en_passant_left->type == W_PAWN) {
+						select_square(selected, &count, start_col - 1, 2);
+					}
+				}
+				if (start_col < 7) {
+					chess_piece *en_passant_right = game->squares[start_col + 1][1].piece;
+					if (en_passant_right != NULL && en_passant_right->type == W_PAWN) {
+						select_square(selected, &count, start_col + 1, 2);
+					}
+				}
+			}
+			if (start_row > 0) {
+				chess_piece *piece_in_front = game->squares[start_col][start_row - 1].piece;
+				if (piece_in_front == NULL || !piece_in_front->colour) {
+					select_square(selected, &count, start_col, start_row - 1);
+					if (start_row == 6) {
+						chess_piece *two_squares_ahead = game->squares[start_col][start_row - 2].piece;
+						if (two_squares_ahead == NULL || !two_squares_ahead->colour) {
+							select_square(selected, &count, start_col, start_row - 2);
+						}
+					}
+				}
+				if (start_col > 0)
+					// TODO: check if it is possible for a enemy piece to end up here next turn
+					select_square(selected, &count, start_col - 1, start_row - 1);
+				if (start_col < 7)
+					// TODO: check if it is possible for a enemy piece to end up here next turn
+					select_square(selected, &count, start_col + 1, start_row - 1);
+			}
+			break;
+
+		case W_KNIGHT:
+		case B_KNIGHT:
+			if (start_row < 7) {
+				if (start_col - 2 >= 0) {
+					select_square(selected, &count, start_col - 2, start_row + 1);
+				}
+				if (start_col + 2 <= 7) {
+					select_square(selected, &count, start_col + 2, start_row + 1);
+				}
+				if (start_row < 6) {
+					if (start_col - 1 >= 0) {
+						select_square(selected, &count, start_col - 1, start_row + 2);
+					}
+					if (start_col + 1 <= 7) {
+						select_square(selected, &count, start_col + 1, start_row + 2);
+					}
+				}
+			}
+			if (start_row > 0) {
+				if (start_col - 2 >= 0) {
+					select_square(selected, &count, start_col - 2, start_row - 1);
+				}
+				if (start_col + 2 <= 7) {
+					select_square(selected, &count, start_col + 2, start_row - 1);
+				}
+				if (start_row > 1) {
+					if (start_col - 1 >= 0) {
+						select_square(selected, &count, start_col - 1, start_row - 2);
+					}
+					if (start_col + 1 <= 7) {
+						select_square(selected, &count, start_col + 1, start_row - 2);
+					}
+				}
+			}
+			break;
+
+		case W_BISHOP:
+		case B_BISHOP:
+			for (i = 1;; i++) {
+				if (start_col + i > 7 || start_row + i > 7) {
+					break;
+				}
+				select_square(selected, &count, start_col + i, start_row + i);
+			}
+			for (i = 1;; i++) {
+				if (start_col - i < 0 || start_row + i > 7) {
+					break;
+				}
+				select_square(selected, &count, start_col - i, start_row + i);
+			}
+			for (i = 1;; i++) {
+				if (start_col - i < 0 || start_row - i < 0) {
+					break;
+				}
+				select_square(selected, &count, start_col - i, start_row - i);
+			}
+			for (i = 1;; i++) {
+				if (start_col + i > 7 || start_row - i < 0) {
+					break;
+				}
+				select_square(selected, &count, start_col + i, start_row - i);
+			}
+			break;
+
+		case W_ROOK:
+		case B_ROOK:
+			for (i = 1;; i++) {
+				if (start_row + i > 7) {
+					break;
+				}
+				select_square(selected, &count, start_col, start_row + i);
+			}
+			for (i = 1;; i++) {
+				if (start_col - i < 0) {
+					break;
+				}
+				select_square(selected, &count, start_col - i, start_row);
+			}
+			for (i = 1;; i++) {
+				if (start_row - i < 0) {
+					break;
+				}
+				select_square(selected, &count, start_col, start_row - i);
+			}
+			for (i = 1;; i++) {
+				if (start_col + i > 7) {
+					break;
+				}
+				select_square(selected, &count, start_col + i, start_row);
+			}
+			break;
+
+		case W_QUEEN:
+		case B_QUEEN:
+			for (i = 1;; i++) {
+				if (start_col + i > 7 || start_row + i > 7) {
+					break;
+				}
+				select_square(selected, &count, start_col + i, start_row + i);
+			}
+			for (i = 1;; i++) {
+				if (start_col - i < 0 || start_row + i > 7) {
+					break;
+				}
+				select_square(selected, &count, start_col - i, start_row + i);
+			}
+			for (i = 1;; i++) {
+				if (start_col - i < 0 || start_row - i < 0) {
+					break;
+				}
+				select_square(selected, &count, start_col - i, start_row - i);
+			}
+			for (i = 1;; i++) {
+				if (start_col + i > 7 || start_row - i < 0) {
+					break;
+				}
+				select_square(selected, &count, start_col + i, start_row - i);
+			}
+			for (i = 1;; i++) {
+				if (start_row + i > 7) {
+					break;
+				}
+				select_square(selected, &count, start_col, start_row + i);
+			}
+			for (i = 1;; i++) {
+				if (start_col - i < 0) {
+					break;
+				}
+				select_square(selected, &count, start_col - i, start_row);
+			}
+			for (i = 1;; i++) {
+				if (start_row - i < 0) {
+					break;
+				}
+				select_square(selected, &count, start_col, start_row - i);
+			}
+			for (i = 1;; i++) {
+				if (start_col + i > 7) {
+					break;
+				}
+				select_square(selected, &count, start_col + i, start_row);
+			}
+			break;
+
+		case W_KING:
+		case B_KING:
+			if (consider_castling_moves) {
+				if (game->castle_state[colour][0]) {
+					select_square(selected, &count, start_col - 2, start_row);
+				}
+				if (game->castle_state[colour][1]) {
+					select_square(selected, &count, start_col + 2, start_row);
+				}
+			}
+			if (start_col > 0) {
+				select_square(selected, &count, start_col - 1, start_row);
+			}
+			if (start_col < 7) {
+				select_square(selected, &count, start_col + 1, start_row);
+			}
+			if (start_row < 7) {
+				select_square(selected, &count, start_col, start_row + 1);
+				if (start_col > 0) {
+					select_square(selected, &count, start_col - 1, start_row + 1);
+				}
+				if (start_col < 7) {
+					select_square(selected, &count, start_col + 1, start_row + 1);
+				}
+			}
+			if (start_row > 0) {
+				select_square(selected, &count, start_col, start_row - 1);
+				if (start_col > 0) {
+					select_square(selected, &count, start_col - 1, start_row - 1);
+				}
+				if (start_col < 7) {
+					select_square(selected, &count, start_col + 1, start_row - 1);
+				}
+			}
+			break;
+
+		default:
+			/* can't happen */
+			break;
+	}
+
+	return count;
+}
 
 // Hash related functions
 

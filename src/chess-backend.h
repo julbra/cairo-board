@@ -19,6 +19,8 @@ void append_san_move(chess_game *game, const char *san_move);
 
 int get_possible_moves(chess_game *game, chess_piece *, int[64][2], int);
 
+int get_possible_pre_moves(chess_game *game, chess_piece *, int[64][2], int);
+
 bool is_piece_under_attack_raw(chess_game *game, chess_piece *piece);
 
 bool is_king_checked(chess_game *game, int colour);
@@ -30,6 +32,8 @@ int is_stale_mate(chess_game *game);
 void count_alive_pieces_by_type(int alive[12], chess_piece w_set[16], chess_piece b_set[16]);
 
 int is_material_draw(chess_piece w_set[16], chess_piece b_set[16]);
+
+bool is_pre_move_possible(chess_game *game, chess_piece *piece, int col, int row);
 
 bool is_move_possible(chess_game *game, chess_piece *piece, int col, int row);
 
