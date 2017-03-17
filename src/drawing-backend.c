@@ -1532,7 +1532,7 @@ static void clean_last_drag_step(cairo_t *cdc, double wi, double hi) {
 	cairo_restore(cdc);
 }
 
-void handle_button_release(void) {
+void handle_left_mouse_up(void) {
 	double old_xy[2];
 	int new_x, new_y;
 	get_last_release_xy(&new_x, &new_y);
@@ -1543,38 +1543,8 @@ void handle_button_release(void) {
 
 	int move_result = -1;
 
-	int old_pre_move[4] = {-1};
-	get_pre_move(old_pre_move);
-
 	// Cancel any old pre-move on mouse up
-	if (old_pre_move[0] > -1) {
-		unset_pre_move();
-		clean_highlight_surface(old_pre_move[0], old_pre_move[1], wi, hi);
-		clean_highlight_surface(old_pre_move[2], old_pre_move[3], wi, hi);
-
-		cairo_t *cache_dc = cairo_create(cache_layer);
-		square_to_rectangle(cache_dc, old_pre_move[0], old_pre_move[1], wi, hi);
-		square_to_rectangle(cache_dc, old_pre_move[2], old_pre_move[3], wi, hi);
-		cairo_clip(cache_dc);
-		paint_layers(cache_dc);
-		cairo_destroy(cache_dc);
-
-		cairo_t *drag_cr = cairo_create(dragging_background);
-		square_to_rectangle(drag_cr, old_pre_move[0], old_pre_move[1], wi, hi);
-		square_to_rectangle(drag_cr, old_pre_move[2], old_pre_move[3], wi, hi);
-		cairo_clip(drag_cr);
-		paint_layers(drag_cr);
-		cairo_destroy(drag_cr);
-
-		cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
-		square_to_rectangle(cdr, old_pre_move[0], old_pre_move[1], wi, hi);
-		square_to_rectangle(cdr, old_pre_move[2], old_pre_move[3], wi, hi);
-		cairo_clip(cdr);
-		cairo_set_source_surface(cdr, cache_layer, 0.0f, 0.0f);
-		cairo_set_operator (cdr, CAIRO_OPERATOR_SOURCE);
-		cairo_paint(cdr);
-		cairo_destroy(cdr);
-	}
+	cancel_pre_move(wi, hi, false);
 
 	if (mouse_dragged_piece != NULL) {
 
@@ -1993,6 +1963,39 @@ void handle_button_release(void) {
 		// 4. no piece selected OR valid move occurred: de-selecting
 		mouse_clicked[0] = -1;
 		mouse_clicked[1] = -1;
+	}
+}
+
+void cancel_pre_move(int wi, int hi, bool lock_threads) {
+	int old_pre_move[4] = {-1};
+	get_pre_move(old_pre_move);
+	if (old_pre_move[0] > -1) {
+		unset_pre_move();
+		clean_highlight_surface(old_pre_move[0], old_pre_move[1], wi, hi);
+		clean_highlight_surface(old_pre_move[2], old_pre_move[3], wi, hi);
+
+		cairo_t *cache_dc = cairo_create(cache_layer);
+		square_to_rectangle(cache_dc, old_pre_move[0], old_pre_move[1], wi, hi);
+		square_to_rectangle(cache_dc, old_pre_move[2], old_pre_move[3], wi, hi);
+		cairo_clip(cache_dc);
+		paint_layers(cache_dc);
+		cairo_destroy(cache_dc);
+
+		cairo_t *drag_cr = cairo_create(dragging_background);
+		square_to_rectangle(drag_cr, old_pre_move[0], old_pre_move[1], wi, hi);
+		square_to_rectangle(drag_cr, old_pre_move[2], old_pre_move[3], wi, hi);
+		cairo_clip(drag_cr);
+		paint_layers(drag_cr);
+		cairo_destroy(drag_cr);
+
+		cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
+		square_to_rectangle(cdr, old_pre_move[0], old_pre_move[1], wi, hi);
+		square_to_rectangle(cdr, old_pre_move[2], old_pre_move[3], wi, hi);
+		cairo_clip(cdr);
+		cairo_set_source_surface(cdr, cache_layer, 0.0f, 0.0f);
+		cairo_set_operator (cdr, CAIRO_OPERATOR_SOURCE);
+		cairo_paint(cdr);
+		cairo_destroy(cdr);
 	}
 }
 

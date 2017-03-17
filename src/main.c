@@ -308,7 +308,7 @@ void get_last_release_xy(int *x, int *y) {
 	pthread_mutex_unlock(&last_release_xy_lock);
 }
 
-void set_last_release_xy(int x, int y) {
+void set_last_left_mouse_up(int x, int y) {
 	pthread_mutex_lock(&last_release_xy_lock);
 	last_release_x = x;
 	last_release_y = y;
@@ -1107,8 +1107,8 @@ static gboolean on_button_press(GtkWidget *pWidget, GdkEventButton *pButton, Gdk
 static gboolean on_button_release (GtkWidget *pWidget, GdkEventButton *pButton, GdkWindowEdge edge) {
 	if (pButton->type == GDK_BUTTON_RELEASE) {
 		if (pButton->button == 1) {
-			set_last_release_xy((int) pButton->x, (int) pButton->y);
-			handle_button_release();
+			set_last_left_mouse_up((int) pButton->x, (int) pButton->y);
+			handle_left_mouse_up();
 		}
 	}
 	return TRUE;
@@ -1652,7 +1652,7 @@ gboolean auto_play_one_ics_move(gpointer data) {
 				} else {
 					printf("Pre-move was rejected\n");
 				}
-				unset_pre_move();
+				cancel_pre_move(old_wi, old_hi, true);
 			}
 			return true;
 		} else {
