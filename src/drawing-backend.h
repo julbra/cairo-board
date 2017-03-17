@@ -18,7 +18,7 @@ void reset_board(void);
 void draw_full_update(cairo_t *cdr, int wi, int hi);
 void draw_scaled(cairo_t *cdr, int wi, int hi);
 void draw_cheap_repaint(cairo_t *cdr, int wi, int hi);
-void handle_button_release(void);
+void handle_left_mouse_up(void);
 void handle_left_button_press(GtkWidget *pWidget, int wi, int hi, int x, int y);
 void handle_right_button_press(GtkWidget *pWidget, int wi, int hi);
 void handle_middle_button_press(GtkWidget *pWidget, int wi, int hi);
@@ -30,6 +30,7 @@ void draw_board_surface(int wi, int hi);
 void draw_pieces_surface(int wi, int hi);
 void highlight_move(int source_col, int source_row, int dest_col, int dest_row, int wi, int hi);
 void highlight_pre_move(int pre_move[4], int wi, int hi);
+void cancel_pre_move(int wi, int hi, bool lock_threads);
 void warn_check(int wi, int hi);
 
 void choose_promote(int last_promote, bool only_surfaces, bool only_logical, int ocol, int orow, int ncol, int nrow);
