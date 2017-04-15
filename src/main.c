@@ -2356,7 +2356,7 @@ int main (int argc, char **argv) {
 	highlight_pre_move_r = 1;
 	highlight_pre_move_g = (dg + lg) / 3.0;
 	highlight_pre_move_b = (db + lb) / 3.0;
-	highlight_pre_move_a = 0.5;
+	highlight_pre_move_a = 0.6;
 
 	debug("Debug info enabled\n");
 	if (ics_mode) {
