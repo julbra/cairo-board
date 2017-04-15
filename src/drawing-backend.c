@@ -24,6 +24,7 @@ static void clean_last_drag_step(cairo_t *cdc, double wi, double hi);
 static void plot_coords(double start[2], double mid[2], double end[2], int points_to_plot, double **plots, int *nPlots);
 static void free_anim_data(struct anim_data *anim);
 static void square_to_rectangle(cairo_t *dc, int col, int row, int wi, int hi);
+static void squares_for_move(cairo_t *dc, int move[4], int wi, int hi);
 static void clip_to_square(cairo_t *dc, int col, int row, int wi, int hi);
 static void highlight_square(cairo_t *dc, int col, int row, double r, double g, double b, double a, int wi, int hi);
 static void highlight_check_square(cairo_t *dc, int col, int row, double r, double g, double b, double a, int wi, int hi);
@@ -1227,12 +1228,9 @@ gboolean auto_move(chess_piece *piece, int new_col, int new_row, int check_legal
 			cairo_t *drag_cr = cairo_create(dragging_background);
 			if (prev_highlighted_move[0] > -1) {
 				// Clip to clean previous last move
-				square_to_rectangle(drag_cr, prev_highlighted_move[0], prev_highlighted_move[1], wi, hi);
-				square_to_rectangle(drag_cr, prev_highlighted_move[2], prev_highlighted_move[3], wi, hi);
-				square_to_rectangle(cache_dc, prev_highlighted_move[0], prev_highlighted_move[1], wi, hi);
-				square_to_rectangle(cache_dc, prev_highlighted_move[2], prev_highlighted_move[3], wi, hi);
-				square_to_rectangle(cdr, prev_highlighted_move[0], prev_highlighted_move[1], wi, hi);
-				square_to_rectangle(cdr, prev_highlighted_move[2], prev_highlighted_move[3], wi, hi);
+				squares_for_move(drag_cr, prev_highlighted_move, wi, hi);
+				squares_for_move(cache_dc, prev_highlighted_move, wi, hi);
+				squares_for_move(cdr, prev_highlighted_move, wi, hi);
 			}
 
 			// paint to highlight layer
@@ -1534,6 +1532,11 @@ static void clean_last_drag_step(cairo_t *cdc, double wi, double hi) {
 	cairo_restore(cdc);
 }
 
+void squares_for_move(cairo_t *dc, int move[4], int wi, int hi) {
+	square_to_rectangle(dc, move[0], move[1], wi, hi);
+	square_to_rectangle(dc, move[2], move[3], wi, hi);
+}
+
 void handle_left_mouse_up(void) {
 	double old_xy[2];
 	int new_x, new_y;
@@ -1546,7 +1549,7 @@ void handle_left_mouse_up(void) {
 	int move_result = -1;
 
 	// Cancel any old pre-move on mouse up
-	cancel_pre_move(wi, hi, false);
+	//cancel_pre_move(wi, hi, false);
 
 	if (mouse_dragged_piece != NULL) {
 
@@ -1663,14 +1666,12 @@ void handle_left_mouse_up(void) {
 
 		if (is_pre_move) {
 			cairo_save(cache_dc);
-			square_to_rectangle(cache_dc, prev_highlighted_pre_move[0], prev_highlighted_pre_move[1], wi, hi);
-			square_to_rectangle(cache_dc, prev_highlighted_pre_move[2], prev_highlighted_pre_move[3], wi, hi);
+			squares_for_move(cache_dc, prev_highlighted_pre_move, wi, hi);
 			cairo_clip(cache_dc);
 			paint_layers(cache_dc);
 			cairo_restore(cache_dc);
 			cairo_t *drag_cr = cairo_create(dragging_background);
-			square_to_rectangle(drag_cr, prev_highlighted_pre_move[0], prev_highlighted_pre_move[1], wi, hi);
-			square_to_rectangle(drag_cr, prev_highlighted_pre_move[2], prev_highlighted_pre_move[3], wi, hi);
+			squares_for_move(drag_cr, prev_highlighted_move, wi, hi);
 			cairo_clip(drag_cr);
 			paint_layers(drag_cr);
 			cairo_destroy(drag_cr);
@@ -2058,10 +2059,44 @@ void handle_left_button_press(GtkWidget *pWidget, int wi, int hi, int x, int y) 
 			mouse_clicked_piece = NULL;
 			return; // only return if move was successful
 		}
-		// NB: when automove fails we don't return to allow user to grab the piece for dragging
+		// Is this a valid pre-move candidate ?
+		if (mouse_clicked_piece->colour != main_game->whose_turn) {
+			if (is_pre_move_possible(main_game, mouse_clicked_piece, ij[0], ij[1])) {
+				printf("CLICK MOVE: Move is possible! Making pre-move!\n");
+				int pre_move[4];
+				pre_move[0] = mouse_clicked_piece->pos.column;
+				pre_move[1] = mouse_clicked_piece->pos.row;
+				pre_move[2] = ij[0];
+				pre_move[3] = ij[1];
+				set_pre_move(pre_move);
+				highlight_pre_move(pre_move, wi, hi);
+
+				cairo_t *cache_dc = cairo_create(cache_layer);
+				squares_for_move(cache_dc, pre_move, wi, hi);
+				cairo_clip(cache_dc);
+				paint_layers(cache_dc);
+
+				cairo_t *drag_cr = cairo_create(dragging_background);
+				squares_for_move(drag_cr, pre_move, wi, hi);
+				cairo_clip(drag_cr);
+				paint_layers(drag_cr);
+				cairo_destroy(drag_cr);
+
+				cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
+				squares_for_move(cdr, pre_move, wi, hi);
+				cairo_clip(cdr);
+				cairo_set_source_surface(cdr, cache_layer, 0.0f, 0.0f);
+				cairo_set_operator(cdr, CAIRO_OPERATOR_SOURCE);
+				cairo_paint(cdr);
+				cairo_destroy(cdr);
+
+				return;
+			}
+		}
+		// NB: when automove and pre-move both fail we don't return to allow user to grab the piece for dragging
 	}
 
-	if (square->piece != NULL && main_game->whose_turn == square->piece->colour && can_i_move_piece(square->piece)) {
+	if (square->piece != NULL && can_i_move_piece(square->piece)) {
 		mouse_clicked_piece = square->piece;
 	} else {
 		mouse_clicked_piece = NULL;
