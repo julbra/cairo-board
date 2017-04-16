@@ -1089,7 +1089,7 @@ static gboolean on_button_press(GtkWidget *pWidget, GdkEventButton *pButton, Gdk
 		int hi = gtk_widget_get_allocated_height(pWidget);
 
 		if (pButton->button == 1) {
-			handle_left_button_press(pWidget, wi, hi, pButton->x, pButton->y);
+			handle_left_mouse_down(pWidget, wi, hi, pButton->x, pButton->y);
 		}
 		else if (pButton->button == 3) {
 			handle_right_button_press(pWidget, wi, hi);

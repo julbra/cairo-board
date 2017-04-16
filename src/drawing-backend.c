@@ -2033,7 +2033,14 @@ void cancel_pre_move(int wi, int hi, bool lock_threads) {
 	}
 }
 
-void handle_left_button_press(GtkWidget *pWidget, int wi, int hi, int x, int y) {
+void handle_left_mouse_down(GtkWidget *pWidget, int wi, int hi, int x, int y) {
+	// Cancel any old pre-move on mouse down
+	int current_pre_move[4];
+	get_pre_move(current_pre_move);
+	if (current_pre_move[0] > -1) {
+		cancel_pre_move(wi, hi, false);
+	}
+
 	// clean out any previous highlight
 	if (mouse_clicked[0] >= 0) {
 		// clean out old highlight surface
