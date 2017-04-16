@@ -1547,10 +1547,6 @@ void handle_left_mouse_up(void) {
 	int hi = gtk_widget_get_allocated_height(board);
 
 	int move_result = -1;
-
-	// Cancel any old pre-move on mouse up
-	//cancel_pre_move(wi, hi, false);
-
 	if (mouse_dragged_piece != NULL) {
 
 		set_moveit_flag(false);
@@ -1626,7 +1622,7 @@ void handle_left_mouse_up(void) {
 				// Is this a valid pre-move candidate ?
 				if (mouse_dragged_piece->colour != main_game->whose_turn) {
 					if (is_pre_move_possible(main_game, mouse_dragged_piece, ij[0], ij[1])) {
-						printf("Move is possible! Making pre-move!\n");
+						debug("Move is possible! Making pre-move!\n");
 						is_pre_move = true;
 						int pre_move[4];
 						pre_move[0] = mouse_dragged_piece->pos.column;
@@ -1845,7 +1841,6 @@ void handle_left_mouse_up(void) {
 		cairo_rectangle(cdr, floor(xy[0] - wi / 16.0f), floor(xy[1] - hi / 16.0f), ceil(ww + 1), ceil(hh + 1));
 
 		if (is_pre_move) {
-			printf("Is Pre-move\n");
 			square_to_rectangle(cdr, prev_highlighted_pre_move[0], prev_highlighted_pre_move[1], wi, hi);
 			square_to_rectangle(cdr, prev_highlighted_pre_move[2], prev_highlighted_pre_move[3], wi, hi);
 		}
@@ -2069,7 +2064,7 @@ void handle_left_mouse_down(GtkWidget *pWidget, int wi, int hi, int x, int y) {
 		// Is this a valid pre-move candidate ?
 		if (mouse_clicked_piece->colour != main_game->whose_turn) {
 			if (is_pre_move_possible(main_game, mouse_clicked_piece, ij[0], ij[1])) {
-				printf("CLICK MOVE: Move is possible! Making pre-move!\n");
+				debug("Click-to-move: Pre-move accepted!\n");
 				int pre_move[4];
 				pre_move[0] = mouse_clicked_piece->pos.column;
 				pre_move[1] = mouse_clicked_piece->pos.row;
