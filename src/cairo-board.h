@@ -279,10 +279,6 @@ extern int old_wi, old_hi;
 extern double w_ratio;
 extern double h_ratio;
 
-extern chess_piece *mouse_dragged_piece;
-extern chess_piece *mouse_clicked_piece;
-extern chess_piece *king_in_check_piece;
-
 extern int game_mode;
 extern bool play_vs_machine;
 extern bool playing;

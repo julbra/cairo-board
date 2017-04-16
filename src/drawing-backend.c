@@ -60,10 +60,14 @@ cairo_surface_t *piece_surfaces[12];
 GHashTable *anims_map;
 
 static gboolean is_scaled = false;
+static bool just_made_premove = false;
+
+static chess_piece *mouse_clicked_piece = NULL;
+static chess_piece *mouse_dragged_piece = NULL;
+static chess_piece *king_in_check_piece = NULL;
 
 // Show last move variables
 int prev_highlighted_move[4] = {-1};
-
 int prev_highlighted_pre_move[4] = {-1};
 
 void init_anims_map(void) {
@@ -1546,6 +1550,15 @@ void handle_left_mouse_up(void) {
 	int wi = gtk_widget_get_allocated_width(board);
 	int hi = gtk_widget_get_allocated_height(board);
 
+	if (!just_made_premove) {
+		// Cancel any old pre-move on mouse up
+		int current_pre_move[4];
+		get_pre_move(current_pre_move);
+		if (current_pre_move[0] > -1) {
+			cancel_pre_move(wi, hi, false);
+		}
+	}
+
 	int move_result = -1;
 	if (mouse_dragged_piece != NULL) {
 
@@ -2029,12 +2042,7 @@ void cancel_pre_move(int wi, int hi, bool lock_threads) {
 }
 
 void handle_left_mouse_down(GtkWidget *pWidget, int wi, int hi, int x, int y) {
-	// Cancel any old pre-move on mouse down
-	int current_pre_move[4];
-	get_pre_move(current_pre_move);
-	if (current_pre_move[0] > -1) {
-		cancel_pre_move(wi, hi, false);
-	}
+	just_made_premove = false;
 
 	// clean out any previous highlight
 	if (mouse_clicked[0] >= 0) {
@@ -2092,6 +2100,7 @@ void handle_left_mouse_down(GtkWidget *pWidget, int wi, int hi, int x, int y) {
 				cairo_paint(cdr);
 				cairo_destroy(cdr);
 
+				just_made_premove = true;
 				return;
 			}
 		}

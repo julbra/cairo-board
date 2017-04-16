@@ -189,11 +189,6 @@ int game_mode = MANUAL_PLAY;
 
 /* *** </Current game State machine variables> *** */
 
-chess_piece *mouse_clicked_piece = NULL;
-chess_piece *mouse_dragged_piece = NULL;
-chess_piece *auto_selected_piece = NULL;
-chess_piece *king_in_check_piece = NULL;
-
 int needs_update;
 int needs_scale;
 
@@ -225,8 +220,6 @@ double check_warn_a = 1.0;
 
 /* Prototypes */
 char *get_eco_full(const char *san_moves_list);
-char *get_eco_long(const char *fen_key);
-char *get_eco_short(const char *fen_key);
 wint_t type_to_unicode_char(int type);
 
 int open_file(const char*);
@@ -1124,7 +1117,7 @@ static gboolean on_motion(GtkWidget *pWidget, GdkEventMotion *event) {
 }
 
 gboolean de_scale(gpointer data) {
-//	printf("De-scale\n");
+//	debug("De-scale\n");
 	needs_update = 1;
 	gtk_widget_queue_draw(GTK_WIDGET(data));
 	de_scale_timer = 0;
@@ -1648,9 +1641,9 @@ gboolean auto_play_one_ics_move(gpointer data) {
 			get_pre_move(premove);
 			if (premove[0] != -1) {
 				if (auto_move(main_game->squares[premove[0]][premove[1]].piece, premove[2], premove[3], 1, PRE_MOVE, false) > 0) {
-					printf("Pre-move was accepted\n");
+					debug("Pre-move was accepted\n");
 				} else {
-					printf("Pre-move was rejected\n");
+					debug("Pre-move was rejected\n");
 				}
 				cancel_pre_move(old_wi, old_hi, true);
 			}
