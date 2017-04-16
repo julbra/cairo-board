@@ -19,7 +19,7 @@ void draw_full_update(cairo_t *cdr, int wi, int hi);
 void draw_scaled(cairo_t *cdr, int wi, int hi);
 void draw_cheap_repaint(cairo_t *cdr, int wi, int hi);
 void handle_left_mouse_up(void);
-void handle_left_button_press(GtkWidget *pWidget, int wi, int hi, int x, int y);
+void handle_left_mouse_down(GtkWidget *pWidget, int wi, int hi, int x, int y);
 void handle_right_button_press(GtkWidget *pWidget, int wi, int hi);
 void handle_middle_button_press(GtkWidget *pWidget, int wi, int hi);
 void handle_flip_board(GtkWidget *pWidget, bool lock_threads);
