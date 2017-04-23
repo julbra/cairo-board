@@ -1705,10 +1705,14 @@ int init_ics() {
 }
 
 void cleanup_ics() {
-	pthread_cancel(ics_reader_thread);
-	pthread_cancel(ics_buff_parser_thread);
-	pthread_join(ics_reader_thread, NULL);
-	pthread_join(ics_buff_parser_thread, NULL);
+	if (ics_reader_thread != NULL) {
+		pthread_cancel(ics_reader_thread);
+		pthread_join(ics_reader_thread, NULL);
+	}
+	if (ics_buff_parser_thread != NULL) {
+		pthread_cancel(ics_buff_parser_thread);
+		pthread_join(ics_buff_parser_thread, NULL);
+	}
 	if (echo_is_off) {
 		toggle_echo(1);
 	}

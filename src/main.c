@@ -458,9 +458,8 @@ void assign_surfaces() {
 }
 
 static gboolean on_board_draw(GtkWidget *pWidget, cairo_t *cdr) {
-
-	double wi = (double) (gtk_widget_get_allocated_width(pWidget));
-	double hi = (double) (gtk_widget_get_allocated_height(pWidget));
+	int wi = gtk_widget_get_allocated_width(pWidget);
+	int hi = gtk_widget_get_allocated_height(pWidget);
 
 	if (needs_update) {
 		draw_full_update(cdr, wi, hi);
@@ -614,15 +613,8 @@ int is_move_promotion(chess_piece *piece, int col, int row) {
 		return 0;
 	}
 
-	if (!piece->colour) {
-		if (row == 7) {
-			return PROMOTE;
-		}
-	}
-	else {
-		if (row == 0) {
-			return PROMOTE;
-		}
+	if (piece->colour && row == 0 || !piece->colour && row == 7) {
+		return PROMOTE;
 	}
 	return 0;
 }
