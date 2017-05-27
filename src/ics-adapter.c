@@ -1,6 +1,5 @@
 #include "ics-adapter.h"
 #include "cairo-board.h"
-#include "crafty-adapter.h"
 #include "ics_scanner.h"
 #include "channels.h"
 #include "configuration.h"
@@ -22,7 +21,6 @@ static int increment;
 static char current_players[2][128];
 static char current_ratings[2][128];
 static int my_channels_number;
-static int parser_state = FREE_PARSER;
 static char last_user[32] = {[0 ... 31] = 0};
 static int last_channel_number;
 static char *last_message;
@@ -1285,7 +1283,6 @@ void parse_ics_buffer(void) {
 				}
 				break;
 			case CHANNEL_CHAT: {
-				parser_state = CAPTURING_CHAT;
 				last_message = calloc(ics_scanner_leng + 1, sizeof(char));
 				memset(last_user, 0, 32);
 				last_channel_number = parse_channel_chat(ics_scanner_text, last_user, last_message);
@@ -1294,7 +1291,6 @@ void parse_ics_buffer(void) {
 				break;
 			}
 			case PRIVATE_TELL: {
-				parser_state = CAPTURING_CHAT;
 				last_message = calloc(ics_scanner_leng + 1, sizeof(char));
 				memset(last_user, 0, 32);
 				parse_private_tell(ics_scanner_text, last_user, last_message);

@@ -3,12 +3,6 @@
 
 #include <stdbool.h>
 
-enum {
-	FREE_PARSER = 0,
-	CAPTURING_CHAT,
-	GETTING_USER_CHANNELS,
-};
-
 bool invalid_password;
 int ics_fd;
 
