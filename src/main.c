@@ -192,12 +192,12 @@ int game_mode = MANUAL_PLAY;
 int needs_update;
 int needs_scale;
 
-double dr = 181.0/255.0;
-double dg = 136.0/255.0;
-double db = 99.0/255.0;
-double lr = 240.0/255.0;
-double lg = 217.0/255.0;
-double lb = 181.0/255.0;
+double dr = 109.0/255.0;
+double dg = 129.0/255.0;
+double db = 179.0/255.0;
+double lr = 239.0/255.0;
+double lg = 239.0/255.0;
+double lb = 239.0/255.0;
 GdkRGBA chat_handle_colour;
 bool invert_fig_colours;
 
@@ -1067,9 +1067,7 @@ void check_ending_clause(chess_game *game) {
 }
 
 static gboolean on_button_press(GtkWidget *pWidget, GdkEventButton *pButton, GdkWindowEdge edge) {
-
 	if (pButton->type == GDK_BUTTON_PRESS) {
-
 		int wi = gtk_widget_get_allocated_width(pWidget);
 		int hi = gtk_widget_get_allocated_height(pWidget);
 
@@ -1155,7 +1153,6 @@ static int last_alloc_wi = 0;
 static int last_alloc_hi = 0;
 
 static gboolean on_configure_event(GtkWidget *pWidget, GdkEventConfigure *event) {
-
 	if (pWidget == board) {
 		// This is a board resize event
 
@@ -1199,7 +1196,6 @@ char theme_dir[] = "themes/commons/";
 //char theme_dir[] = "themes/fantasy/";
 
 static int load_piecesSvg() {
-
 	int i;
 
 	// relative or absolute
@@ -1325,8 +1321,6 @@ static void reset_game(bool lock_threads) {
 		gdk_threads_leave();
 	}
 }
-
-int crafty_data_pipe[2];
 
 static pthread_t move_event_processor_thread;
 
@@ -2679,15 +2673,6 @@ int main (int argc, char **argv) {
 	if (ics_mode) {
 		init_ics();
 	}
-
-//	if (crafty_mode) {
-//		spawn_crafty();
-//		debug("Spawned Crafty\n");
-//		if (pipe(crafty_data_pipe)) {
-//			perror("Pipe creation failed");
-//			return 1;
-//		}
-//	}
 
 	bool brainfish = false;
 	g_idle_add(spawn_uci_engine_idle, &brainfish);
