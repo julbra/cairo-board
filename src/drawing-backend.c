@@ -2515,6 +2515,18 @@ void choose_promote(int last_promote, bool only_surfaces, bool only_logical, int
 		                           (int) floor(xy[1] - old_hi / 16.0),
 		                           (int) ceil(old_wi / 8.0),
 		                           (int) ceil(old_hi / 8.0));
+
+		bool king_is_checked = is_king_checked(main_game, main_game->whose_turn);
+		if (king_is_checked) {
+			double king_xy[2];
+			warn_check(old_wi, old_hi);
+			loc_to_xy(king_in_check_piece->pos.column, king_in_check_piece->pos.row, king_xy, old_wi, old_wi);
+			gtk_widget_queue_draw_area(board,
+			                           (int) floor(king_xy[0] - old_wi / 16.0),
+			                           (int) floor(king_xy[1] - old_hi / 16.0),
+			                           (int) ceil(old_wi / 8.0),
+			                           (int) ceil(old_hi / 8.0));
+		}
 	}
 
 }
