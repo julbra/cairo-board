@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include <malloc.h>
+#include <malloc/malloc.h>
 
 #include "chess-backend.h"
 #include "cairo-board.h"
@@ -1516,11 +1516,11 @@ void append_san_move(chess_game *game, const char *san_move) {
 
 	size_t cur_len = strlen(game->moves_list);
 	size_t append_len = strlen(append);
-	size_t available = malloc_usable_size(game->moves_list);
+	size_t available = malloc_size(game->moves_list);
 	size_t required = cur_len + append_len;
 	while (available < required) {
-		game->moves_list = (char *) realloc(game->moves_list, malloc_usable_size(game->moves_list) * 2);
-		available = malloc_usable_size(game->moves_list);
+		game->moves_list = (char *) realloc(game->moves_list, malloc_size(game->moves_list) * 2);
+		available = malloc_size(game->moves_list);
 	}
 	memcpy(game->moves_list + cur_len, append, append_len);
 	free(append);

@@ -30,7 +30,7 @@
 #include "ics-adapter.h"
 
 /* check that C's multibyte output is supported for use with figurine characters */
-#ifndef __STDC_ISO_10646__
+#if !defined(__STDC_ISO_10646__) && !defined(__APPLE_CC__)
 #error "This compiler/libc doesn't support C's multibyte output!"
 #endif
 

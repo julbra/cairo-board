@@ -7,8 +7,8 @@
 int ics_scanner_lex(void);
 void ics_scanner_restart (FILE *input_file);
 
-extern int ics_scanner_leng;
-YY_BUFFER_STATE ics_scanner__scan_bytes(const char *bytes, int len);
+extern yy_size_t ics_scanner_leng;
+YY_BUFFER_STATE ics_scanner__scan_bytes(const char *bytes, yy_size_t len);
 
 enum _ics_match_type {
 	EOF_TYPE = -1,

@@ -46,7 +46,7 @@ gboolean test_random_flip(gpointer trash) {
 //	set_last_move("e4");
 //	g_signal_emit_by_name(board, "got_move");
 
-	usleep((__useconds_t) (rand() % (1000000)));
+	usleep((useconds_t) (rand() % (1000000)));
 	debug("Random flipping!\n");
 	g_signal_emit_by_name(board, "flip-board");
 

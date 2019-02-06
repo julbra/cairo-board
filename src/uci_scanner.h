@@ -11,7 +11,7 @@ void uci_scanner_restart (FILE *input_file);
 typedef unsigned int yy_size_t;
 #endif
 
-extern int uci_scanner_leng;
+extern yy_size_t uci_scanner_leng;
 extern char *uci_scanner_text;
 
 enum _uci_match_type {

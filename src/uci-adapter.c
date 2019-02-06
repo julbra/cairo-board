@@ -181,7 +181,7 @@ int spawn_uci_engine(bool brainfish) {
 	if (brainfish) {
 		argv[0] = "/usr/local/bin/brainfish";
 	} else {
-		argv[0] = "/usr/bin/stockfish";
+		argv[0] = "/usr/local/bin/stockfish";
 	}
 	argv[1] = NULL;
 
