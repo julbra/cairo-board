@@ -2189,13 +2189,45 @@ void handle_flip_board(GtkWidget *pWidget, bool lock_threads) {
 	}
 }
 
+typedef struct _paint_data {
+	double dragged_x;
+	double dragged_y;
+	int new_x;
+	int new_y;
+} paint_data;
+
+static gboolean scheduled_paint(gpointer data) {
+	// TODO: return TRUE while the piece is being dragged
+	int wi = gtk_widget_get_allocated_width(board);
+	int hi = gtk_widget_get_allocated_height(board);
+	double ww = wi/8.0f;
+	double hh = hi/8.0f;
+
+	paint_data *pd = (paint_data*)data;
+	// Efficient clip
+	cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
+	cairo_rectangle(cdr, floor(pd->dragged_x - wi / 16.0f), floor(pd->dragged_y - hi / 16.0f), ceil(ww), ceil(hh));
+	cairo_rectangle(cdr, floor(pd->new_x - wi / 16.0f), floor(pd->new_y - hi / 16.0f), ceil(ww), ceil(hh));
+	cairo_clip(cdr);
+
+	// Apply cache surface to visible canvas
+	cairo_set_operator(cdr, CAIRO_OPERATOR_OVER);
+	cairo_set_source_surface(cdr, cache_layer, 0.0f, 0.0f);
+	cairo_paint(cdr);
+	cairo_destroy(cdr);
+
+	// FIXME: clean this whole dragging_prev_x shite
+	set_dragging_prev_xy(pd->new_x, pd->new_y);
+	return FALSE;
+}
+
 void *process_moves(void *ptr) {
 	double dragged_x, dragged_y;
 	while (is_running_flag()) {
 
 		if (is_moveit_flag() && is_more_events_flag()) {
 
-			gdk_threads_enter();
+//			gdk_threads_enter();
 
 			int wi = gtk_widget_get_allocated_width(board);
 			int hi = gtk_widget_get_allocated_height(board);
@@ -2234,7 +2266,7 @@ void *process_moves(void *ptr) {
 
 				mouse_dragged_piece = NULL;
 
-				gdk_threads_leave();
+//				gdk_threads_leave();
 				continue;
 			}
 
@@ -2261,16 +2293,25 @@ void *process_moves(void *ptr) {
 			// destroy cache_dc
 			cairo_destroy(cache_dc);
 
-			// Efficient clip
-			cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
-			cairo_rectangle(cdr, floor(dragged_x - wi / 16.0f), floor(dragged_y - hi / 16.0f), ceil(ww), ceil(hh));
-			cairo_rectangle(cdr, floor(new_x - wi / 16.0f), floor(new_y - hi / 16.0f), ceil(ww), ceil(hh));
-			cairo_clip(cdr);
+			paint_data pd = {
+				.dragged_x = dragged_x,
+				.dragged_y = dragged_y,
+				.new_x = new_x,
+				.new_y = new_y
+			};
 
-			// Apply cache surface to visible canvas
-			cairo_set_operator(cdr, CAIRO_OPERATOR_OVER);
-			cairo_set_source_surface(cdr, cache_layer, 0.0f, 0.0f);
-			cairo_paint(cdr);
+			g_idle_add_full(G_PRIORITY_HIGH_IDLE + 19, scheduled_paint, (gpointer)&pd, NULL);
+
+//			// Efficient clip
+//			cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
+//			cairo_rectangle(cdr, floor(dragged_x - wi / 16.0f), floor(dragged_y - hi / 16.0f), ceil(ww), ceil(hh));
+//			cairo_rectangle(cdr, floor(new_x - wi / 16.0f), floor(new_y - hi / 16.0f), ceil(ww), ceil(hh));
+//			cairo_clip(cdr);
+//
+//			// Apply cache surface to visible canvas
+//			cairo_set_operator(cdr, CAIRO_OPERATOR_OVER);
+//			cairo_set_source_surface(cdr, cache_layer, 0.0f, 0.0f);
+//			cairo_paint(cdr);
 
 			// debug: uncomment to highlight repainted areas
 //			cairo_set_source_rgba(cdr, 1.0f, 0.0f, 0.0f, .4f);
@@ -2280,17 +2321,17 @@ void *process_moves(void *ptr) {
 //			cairo_rectangle(cdr, new_x - wi / 16.0f, new_y - hi / 16.0f, ww, hh);
 //			cairo_fill(cdr);
 
-			cairo_destroy(cdr);
+//			cairo_destroy(cdr);
 
 			// FIXME: clean this whole dragging_prev_x shite
-			set_dragging_prev_xy(new_x, new_y);
+//			set_dragging_prev_xy(new_x, new_y);
 
-			gdk_threads_leave();
+//			gdk_threads_leave();
 
 		}
-//		usleep(1000000/120);
+		usleep(1000000/120);
 //		usleep(1000000/60);
-		usleep(3000);
+//		usleep(3000);
 	}
 	return 0;
 }
