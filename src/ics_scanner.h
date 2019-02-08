@@ -7,8 +7,13 @@
 int ics_scanner_lex(void);
 void ics_scanner_restart (FILE *input_file);
 
+#ifndef __APPLE_CC__
+extern int ics_scanner_leng;
+YY_BUFFER_STATE ics_scanner__scan_bytes(const char *bytes, int len);
+#else
 extern yy_size_t ics_scanner_leng;
 YY_BUFFER_STATE ics_scanner__scan_bytes(const char *bytes, yy_size_t len);
+#endif
 
 enum _ics_match_type {
 	EOF_TYPE = -1,

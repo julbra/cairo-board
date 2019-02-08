@@ -11,7 +11,12 @@ void uci_scanner_restart (FILE *input_file);
 typedef unsigned int yy_size_t;
 #endif
 
+#ifndef __APPLE_CC__
+extern int uci_scanner_leng;
+#else
 extern yy_size_t uci_scanner_leng;
+#endif
+
 extern char *uci_scanner_text;
 
 enum _uci_match_type {

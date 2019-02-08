@@ -178,11 +178,18 @@ int spawn_uci_engine(bool brainfish) {
 	gchar *argv[2];
 
 	//TODO: can we discover these from $PATH?
-	if (brainfish) {
-		argv[0] = "/usr/local/bin/brainfish";
-	} else {
-		argv[0] = "/usr/local/bin/stockfish";
-	}
+    if (brainfish) {
+        argv[0] = "/usr/local/bin/brainfish";
+    } else {
+        if (access("/usr/bin/stockfish", F_OK) != -1) {
+            argv[0] = "/usr/bin/stockfish";
+        } else if (access("/usr/local/bin/stockfish", F_OK) != -1) {
+            argv[0] = "/usr/local/bin/stockfish";
+        } else {
+            perror("Failed to locate stockfish binary, looked in /usr/bin/stockfish and /usr/local/bin/stockfish");
+            exit(1);
+        }
+    }
 	argv[1] = NULL;
 
 	gboolean ret = g_spawn_async_with_pipes(g_get_home_dir(), argv, NULL, G_SPAWN_DEFAULT, NULL, NULL, &child_pid,

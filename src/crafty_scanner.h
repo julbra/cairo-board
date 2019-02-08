@@ -18,7 +18,12 @@ void crafty_scanner_restart (FILE *input_file);
 typedef unsigned int yy_size_t;
 #endif
 
+#ifndef __APPLE_CC__
+extern int crafty_scanner_leng;
+#else
 extern yy_size_t crafty_scanner_leng;
+#endif
+
 extern char *crafty_scanner_text;
 
 enum _crafty_match_type {
