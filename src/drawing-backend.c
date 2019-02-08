@@ -62,6 +62,9 @@ GHashTable *anims_map;
 static gboolean is_scaled = false;
 static bool just_made_premove = false;
 
+static bool main_thread_painter_active = false;
+static bool needs_main_repaint = false;
+
 static chess_piece *mouse_clicked_piece = NULL;
 static chess_piece *mouse_dragged_piece = NULL;
 static chess_piece *king_in_check_piece = NULL;
@@ -101,7 +104,6 @@ void apply_surface_at(cairo_t *cdc, cairo_surface_t *surf, double x, double y, d
 }
 
 void draw_board_surface(int width, int height) {
-
 	int j,k;
 	double tx = width / 8.0;
 	double ty = height / 8.0;
@@ -241,7 +243,6 @@ void draw_board_surface(int width, int height) {
 	cairo_pattern_destroy(light_gradient_pattern);
 }
 
-
 void rebuild_surfaces(int swi, int shi) {
 	// re-render source surfaces only if size has changed
 	if (needs_update) {
@@ -252,7 +253,6 @@ void rebuild_surfaces(int swi, int shi) {
 }
 
 void draw_pieces_surface(int width, int height) {
-
 	cairo_t* dc = NULL;
 	int i;
 
@@ -373,7 +373,6 @@ void kill_piece_from_surface(int width, int height, int col, int row) {
 
 // Restore piece to pieces_layer surface
 void restore_piece_to_surface(int width, int height, chess_piece *piece) {
-
 	// size of a square
 	double ww = width/8.0f;
 	double hh = height/8.0f;
@@ -428,7 +427,6 @@ void init_highlight_over_surface(int wi, int hi) {
 }
 
 void draw_full_update(cairo_t *cdr, int wi, int hi) {
-
 	rebuild_surfaces(wi, hi);
 	draw_pieces_surface(wi, hi);
 
@@ -500,7 +498,6 @@ void draw_scaled(cairo_t *cdr, int wi, int hi) {
 }
 
 void draw_cheap_repaint(cairo_t *cdr, int wi, int hi) {
-
 	// Just redraw layers
 	cairo_t *cache_cr = cairo_create(cache_layer);
 
@@ -550,7 +547,6 @@ static void preSelect(int on_off, cairo_t* dc, int i, int j, int wi, int hi) {
  * This is broken for now, low priority
  */
 void highlightPotentialMoves(GtkWidget *pWidget, chess_piece *piece, int wi, int hi, int on_off) {
-
 	int i;
 
 	if (main_game->whose_turn != piece->colour) {
@@ -644,7 +640,6 @@ void clean_highlight_surface(int col, int row, int wi, int hi) {
 }
 
 static gboolean animate_one_step(gpointer data) {
-
 	if (!is_running_flag()) {
 		return FALSE;
 	}
@@ -1403,7 +1398,6 @@ void init_dragging_background(int wi, int hi) {
 
 // Remove passed piece from dragging surface
 static void update_dragging_background(chess_piece *piece, int wi, int hi) {
-
 	double ww = wi / 8.0f;
 	double hh = hi / 8.0f;
 
@@ -1451,7 +1445,6 @@ static void update_dragging_background_with_piece(chess_piece *piece, int wi, in
 }
 
 static void restore_dragging_background(chess_piece *piece, int move_result, int wi, int hi) {
-
 	double ww = wi/8.0f;
 	double hh = hi/8.0f;
 
@@ -2196,8 +2189,20 @@ typedef struct _paint_data {
 	int new_y;
 } paint_data;
 
-static gboolean scheduled_paint(gpointer data) {
-	// TODO: return TRUE while the piece is being dragged
+static paint_data current_paint_data = {};
+
+/**
+ * Callback to the main thread to perform the actual paint to the screen
+ * @param data pointer to the paint_data containing coordinates of the dragged piece
+ * */
+static gboolean main_thread_drag_paint(gpointer data) {
+	if (!needs_main_repaint) {
+		if (is_moveit_flag()) {
+			return TRUE;
+		}
+		main_thread_painter_active = false;
+		return FALSE;
+	}
 	int wi = gtk_widget_get_allocated_width(board);
 	int hi = gtk_widget_get_allocated_height(board);
 	double ww = wi/8.0f;
@@ -2214,10 +2219,27 @@ static gboolean scheduled_paint(gpointer data) {
 	cairo_set_operator(cdr, CAIRO_OPERATOR_OVER);
 	cairo_set_source_surface(cdr, cache_layer, 0.0f, 0.0f);
 	cairo_paint(cdr);
+
+    // debug: uncomment to highlight repainted areas
+//    cairo_set_source_rgba(cdr, 1.0f, 0.0f, 0.0f, .4f);
+//    cairo_rectangle(cdr, pd->dragged_x - wi / 16.0f, pd->dragged_y - hi / 16.0f, ww, hh);
+//    cairo_fill(cdr);
+//    cairo_set_source_rgba(cdr, 0.0f, 1.0f, 0.0f, .4f);
+//    cairo_rectangle(cdr, pd->new_x - wi / 16.0f, pd->new_y - hi / 16.0f, ww, hh);
+//    cairo_fill(cdr);
+
 	cairo_destroy(cdr);
+
+	needs_main_repaint = FALSE;
 
 	// FIXME: clean this whole dragging_prev_x shite
 	set_dragging_prev_xy(pd->new_x, pd->new_y);
+
+	// Reschedule ourselves if we're still dragging
+	if (is_moveit_flag()) {
+	    return TRUE;
+	}
+	main_thread_painter_active = false;
 	return FALSE;
 }
 
@@ -2226,9 +2248,6 @@ void *process_moves(void *ptr) {
 	while (is_running_flag()) {
 
 		if (is_moveit_flag() && is_more_events_flag()) {
-
-//			gdk_threads_enter();
-
 			int wi = gtk_widget_get_allocated_width(board);
 			int hi = gtk_widget_get_allocated_height(board);
 			double ww = wi/8.0f;
@@ -2236,7 +2255,6 @@ void *process_moves(void *ptr) {
 
 			if (mouse_dragged_piece == NULL || !is_moveit_flag()) {
 				debug("Dragging animation interrupted\n");
-				gdk_threads_leave();
 				continue;
 			}
 
@@ -2266,7 +2284,6 @@ void *process_moves(void *ptr) {
 
 				mouse_dragged_piece = NULL;
 
-//				gdk_threads_leave();
 				continue;
 			}
 
@@ -2293,40 +2310,16 @@ void *process_moves(void *ptr) {
 			// destroy cache_dc
 			cairo_destroy(cache_dc);
 
-			paint_data pd = {
-				.dragged_x = dragged_x,
-				.dragged_y = dragged_y,
-				.new_x = new_x,
-				.new_y = new_y
-			};
+			current_paint_data.dragged_x = dragged_x;
+			current_paint_data.dragged_y = dragged_y;
+			current_paint_data.new_x = new_x;
+			current_paint_data.new_y = new_y;
 
-			g_idle_add_full(G_PRIORITY_HIGH_IDLE + 19, scheduled_paint, (gpointer)&pd, NULL);
-
-//			// Efficient clip
-//			cairo_t *cdr = gdk_cairo_create(gtk_widget_get_window(board));
-//			cairo_rectangle(cdr, floor(dragged_x - wi / 16.0f), floor(dragged_y - hi / 16.0f), ceil(ww), ceil(hh));
-//			cairo_rectangle(cdr, floor(new_x - wi / 16.0f), floor(new_y - hi / 16.0f), ceil(ww), ceil(hh));
-//			cairo_clip(cdr);
-//
-//			// Apply cache surface to visible canvas
-//			cairo_set_operator(cdr, CAIRO_OPERATOR_OVER);
-//			cairo_set_source_surface(cdr, cache_layer, 0.0f, 0.0f);
-//			cairo_paint(cdr);
-
-			// debug: uncomment to highlight repainted areas
-//			cairo_set_source_rgba(cdr, 1.0f, 0.0f, 0.0f, .4f);
-//			cairo_rectangle(cdr, dragged_x - wi / 16.0f, dragged_y - hi / 16.0f, ww, hh);
-//			cairo_fill(cdr);
-//			cairo_set_source_rgba(cdr, 0.0f, 1.0f, 0.0f, .4f);
-//			cairo_rectangle(cdr, new_x - wi / 16.0f, new_y - hi / 16.0f, ww, hh);
-//			cairo_fill(cdr);
-
-//			cairo_destroy(cdr);
-
-			// FIXME: clean this whole dragging_prev_x shite
-//			set_dragging_prev_xy(new_x, new_y);
-
-//			gdk_threads_leave();
+			needs_main_repaint = true;
+			if (!main_thread_painter_active) {
+                g_idle_add_full(G_PRIORITY_HIGH_IDLE + 21, main_thread_drag_paint, (gpointer) &current_paint_data, NULL);
+                main_thread_painter_active = true;
+			}
 
 		}
 		usleep(1000000/120);
