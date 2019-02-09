@@ -795,7 +795,9 @@ static void real_start_uci_game() {
 		case ENGINE_WHITE:
 			play_vs_machine = true;
 			relation = -1;
+			// FIXME: defer to main loop
 			start_game("You", engine_name, game_time, 0, relation, true);
+
 			// If engine is white, kick it now
 			sprintf(go, "position startpos\ngo wtime %ld btime %ld\n", get_remaining_time(main_clock, 0), get_remaining_time(main_clock, 1));
 			write_to_uci(go);
@@ -803,6 +805,7 @@ static void real_start_uci_game() {
 		case ENGINE_BLACK:
 			play_vs_machine = true;
 			relation = 1;
+			// FIXME: defer to main loop
 			start_game("You", engine_name, game_time, 0, relation, true);
 			break;
 		case ENGINE_ANALYSIS:

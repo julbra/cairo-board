@@ -1599,10 +1599,6 @@ void handle_left_mouse_up(void) {
 						send_to_ics(ics_mv);
 						send_to_uci(ics_mv);
 					}
-
-//					if (crafty_mode) {
-//						write_to_crafty(ics_mv);
-//					}
 				}
 
 				piece_moved = true;

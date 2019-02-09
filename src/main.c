@@ -1576,6 +1576,7 @@ gboolean auto_play_one_move(gpointer data) {
 	if (i != -1) {
 		if (!playing) {
 			playing = true;
+			// FIXME: defer to main loop
 			start_game(main_game->white_name, main_game->black_name, 0, 0, -2, true);
 			start_new_uci_game(0, ENGINE_ANALYSIS);
 			if (!strncmp("Kasparov, Gary", main_game->black_name, 16)) {
@@ -1805,7 +1806,6 @@ void set_header_label(const char *w_name, const char *b_name, const char *w_rati
 }
 
 void start_game(char *w_name, char *b_name, int seconds, int increment, int relation, bool should_lock) {
-
 	clock_reset(main_clock, seconds, increment, relation, should_lock);
 
 	if (should_lock) {

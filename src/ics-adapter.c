@@ -1103,6 +1103,20 @@ gboolean is_printable(char c) {
 	return FALSE;
 }
 
+typedef struct {
+	char *white_name;
+	char *black_name;
+	int init_time;
+	int increment;
+	int relation;
+} start_game_options;
+
+static gboolean start_game_idle(gpointer data) {
+	start_game_options* opts = (start_game_options*)data;
+	start_game(opts->white_name, opts->black_name, opts->init_time * 60, opts->increment, opts->relation, false);
+	return FALSE;
+}
+
 void parse_ics_buffer(void) {
 
 	static int chopped_len = 0;
@@ -1443,24 +1457,21 @@ void parse_ics_buffer(void) {
 						// determine relation
 						int relation = 1;
 						if (!strcmp(bn, my_handle)) relation = -1;
-						start_game(main_game->white_name, main_game->black_name, init_time * 60, increment, relation, true);
-						start_new_uci_game(init_time * 60, ENGINE_ANALYSIS);
+
+
+						start_game_options opts = {
+								.white_name = main_game->white_name,
+								.black_name = main_game->black_name,
+								.init_time = init_time,
+								.increment = increment,
+								.relation = relation
+						};
+						g_idle_add(start_game_idle, &opts);
+
+						start_new_uci_game((unsigned int) (init_time * 60), ENGINE_ANALYSIS);
 						start_uci_analysis();
 						requested_start = 0;
-//						if (crafty_mode) {
-//							write_to_crafty("new\n");
-//							write_to_crafty("log off\n");
-//							char crafty_command[256];
-//							sprintf(crafty_command, "level 0 %d %d\n", init_time, increment);
-//							write_to_crafty(crafty_command);
-//							if (relation == 1) {
-//								usleep(1000000);
-//								write_to_crafty("go\n");
-//							}
-//						}
 					}
-
-
 				}
 				break;
 			}
@@ -1478,13 +1489,6 @@ void parse_ics_buffer(void) {
 					insert_text_moves_list_view(bufstr, true);
 					end_game();
 				}
-//				if (crafty_mode) {
-//					write_to_crafty("force\n");
-//					if (!crafty_first_guest) {
-//						sleep(1);
-//						send_to_ics("match cairoguestone 1 0 u\n");
-//					}
-//				}
 				break;
 			}
 			case WILL_ECHO:
@@ -1524,7 +1528,16 @@ void parse_ics_buffer(void) {
 				memset(name2, 0, 256);
 				sprintf(name1, "%s (%s)", w_name, w_rating);
 				sprintf(name2, "%s (%s)", b_name, b_rating);
-				start_game(name1, name2, init_time * 60, increment, 0, true);
+
+				start_game_options opts = {
+						.white_name = w_name,
+						.black_name = b_name,
+						.init_time = init_time,
+						.increment = increment,
+						.relation = 0
+				};
+				g_idle_add(start_game_idle, &opts);
+
 				start_new_uci_game(init_time * 60, ENGINE_ANALYSIS);
 				if (!strcmp(b_name, following_player) && !is_board_flipped() || !strcmp(w_name, following_player) && is_board_flipped()) {
 					g_signal_emit_by_name(board, "flip-board");
@@ -1564,6 +1577,7 @@ void parse_ics_buffer(void) {
 				finished_parsing_moves = 1;
 
 				refresh_moves_list_view(main_list);
+
 				gdk_threads_enter();
 				draw_pieces_surface(old_wi, old_hi);
 				init_dragging_background(old_wi, old_hi);
@@ -1580,6 +1594,7 @@ void parse_ics_buffer(void) {
 
 				gtk_widget_queue_draw(GTK_WIDGET(board));
 				gdk_threads_leave();
+
 				if (parsed_plys > 1 && !clock_started) {
 					clock_started = 1;
 					start_one_clock(main_clock, (main_game->whose_turn));
@@ -1615,6 +1630,7 @@ void parse_ics_buffer(void) {
 					// determine relation
 					int relation = 1;
 					if (!strcmp(bn, my_handle)) relation = -1;
+					// FIXME: defer to main loop
 					start_game(main_game->white_name, main_game->black_name, init_time*60, increment, relation, true);
 					requested_start = 0;
 				}
