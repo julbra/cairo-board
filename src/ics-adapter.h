@@ -3,8 +3,8 @@
 
 #include <stdbool.h>
 
-bool invalid_password;
-int ics_fd;
+extern bool invalid_password;
+extern int ics_fd;
 
 int init_ics(void);
 void cleanup_ics(void);

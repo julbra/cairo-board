@@ -19,6 +19,8 @@
 #include "chess-backend.h"
 #include "crafty-adapter.h"
 
+chess_game *main_game;
+
 /* Prototypes */
 static void clean_last_drag_step(cairo_t *cdc, double wi, double hi);
 static void plot_coords(double start[2], double mid[2], double end[2], int points_to_plot, double **plots, int *nPlots);

@@ -317,7 +317,7 @@ extern gboolean has_chosen;
 extern bool highlight_last_move;
 
 extern chess_clock *main_clock;
-chess_game *main_game;
+extern chess_game *main_game;
 
 extern FILE *san_scanner_in;
 extern char *ics_scanner_text;
