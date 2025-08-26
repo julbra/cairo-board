@@ -1,8 +1,8 @@
+cmake_minimum_required(VERSION 3.6)
+
 project(cairo_board C)
 
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR})
-
-cmake_minimum_required(VERSION 3.6)
 
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
@@ -79,5 +79,5 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 add_executable(cairo_board ${SOURCE_FILES})
 
-target_link_libraries(cairo_board ${RSVG_LIBRARIES} ${GTK_LIBRARIES} ${FREETYPE_LIBRARIES} ${FONTCONFIG_LIBRARIES} ${GTHREAD_LIBRARIES} pthread)
+target_link_libraries(cairo_board ${RSVG_LIBRARIES} ${GTK_LIBRARIES} ${FREETYPE_LIBRARIES} ${FONTCONFIG_LIBRARIES} ${GTHREAD_LIBRARIES} pthread m)
 
