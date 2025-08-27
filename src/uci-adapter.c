@@ -695,12 +695,16 @@ void *parse_uci_function(void *ignored) {
 }
 
 void write_to_uci(char *message) {
+  char *message1;
 	pthread_mutex_lock(&uci_writer_lock);
 	if (write(uci_in, message, strlen(message)) == -1) {
 		perror("Failed to write to UCI engine ");
 	}
 	pthread_mutex_unlock(&uci_writer_lock);
-	debug("Wrote to UCI: '%s'", message);
+  message1 = (char *)malloc(strlen(message) - 1);
+  strncpy(message1, message, strlen(message) - 1);
+	debug("Wrote to UCI: '%s'\n", message1);
+  free(message1);
 }
 
 static void wait_for_engine_ready(void) {
