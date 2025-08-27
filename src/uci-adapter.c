@@ -181,7 +181,7 @@ int spawn_uci_engine(bool brainfish) {
 	if (brainfish) {
 		argv[0] = "/usr/local/bin/brainfish";
 	} else {
-		argv[0] = "/usr/bin/stockfish";
+		argv[0] = /*"/usr/bin/stockfish"*/"/home/roland/Applications/cheese/331/cheese-331-linux";
 	}
 	argv[1] = NULL;
 
@@ -204,10 +204,11 @@ int spawn_uci_engine(bool brainfish) {
 	write_to_uci("setoption name Threads value 7\n");
 	write_to_uci("setoption name Hash value 2048\n");
 	write_to_uci("setoption name Ponder value true\n");
-	write_to_uci("setoption name Skill Level value 20\n");
+/*write_to_uci("setoption name Skill Level value 20\n");*/
 	if (brainfish) {
 		// TODO: check if this needs to be an absolute path
-		write_to_uci("setoption name BookPath value /home/hts/brainfish/Cerebellum_Light.bin\n");
+	/*write_to_uci("setoption name BookPath value /home/hts/brainfish/Cerebellum_Light.bin\n");*/
+		write_to_uci("setoption name Book value /home/roland/Applications/cheese/cheesebook-30.bin\n");
 	}
 	wait_for_engine_ready();
 	return 0;
@@ -695,16 +696,16 @@ void *parse_uci_function(void *ignored) {
 }
 
 void write_to_uci(char *message) {
-  char *message1;
+	char *message1;
 	pthread_mutex_lock(&uci_writer_lock);
 	if (write(uci_in, message, strlen(message)) == -1) {
 		perror("Failed to write to UCI engine ");
 	}
 	pthread_mutex_unlock(&uci_writer_lock);
-  message1 = (char *)malloc(strlen(message) - 1);
-  strncpy(message1, message, strlen(message) - 1);
+	message1 = (char *)malloc(strlen(message));
+	strncpy(message1, message, strlen(message) - 1);
 	debug("Wrote to UCI: '%s'\n", message1);
-  free(message1);
+	free(message1);
 }
 
 static void wait_for_engine_ready(void) {
