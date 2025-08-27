@@ -195,19 +195,19 @@ int spawn_uci_engine(bool brainfish) {
 
 	init_uci_adapter();
 
-	write_to_uci("uci\n");
+	write_to_uci("uci");
 	while (!is_uci_ok()) {
 		usleep(500);
 	}
 	debug("UCI OK!\n");
 
-	write_to_uci("setoption name Threads value 7\n");
-	write_to_uci("setoption name Hash value 2048\n");
-	write_to_uci("setoption name Ponder value true\n");
-	write_to_uci("setoption name Skill Level value 20\n");
+	write_to_uci("setoption name Threads value 7");
+	write_to_uci("setoption name Hash value 2048");
+	write_to_uci("setoption name Ponder value true");
+	write_to_uci("setoption name Skill Level value 20");
 	if (brainfish) {
 		// TODO: check if this needs to be an absolute path
-		write_to_uci("setoption name BookPath value /home/hts/brainfish/Cerebellum_Light.bin\n");
+		write_to_uci("setoption name BookPath value /home/hts/brainfish/Cerebellum_Light.bin");
 	}
 	wait_for_engine_ready();
 	return 0;
@@ -346,12 +346,12 @@ void parse_move(char *moveText) {
 
 	char moves[8192];
 	pthread_mutex_lock(&all_moves_lock);
-	sprintf(moves, "%s\n", all_moves);
+	sprintf(moves, "%s", all_moves);
 	pthread_mutex_unlock(&all_moves_lock);
 
 	write_to_uci(moves);
-//	write_to_uci("go ponder\n");
-	write_to_uci("go infinite\n");
+//	write_to_uci("go ponder");
+	write_to_uci("go infinite");
 	set_analysing(true);
 }
 
@@ -400,8 +400,8 @@ void parse_move_with_ponder(char *moveText) {
 	pthread_mutex_unlock(&all_moves_lock);
 
 	write_to_uci(moves);
-//	write_to_uci("go ponder\n");
-	write_to_uci("go infinite\n");
+//	write_to_uci("go ponder");
+	write_to_uci("go infinite");
 	set_analysing(true);
 }
 
@@ -699,15 +699,18 @@ void write_to_uci(char *message) {
 	if (write(uci_in, message, strlen(message)) == -1) {
 		perror("Failed to write to UCI engine ");
 	}
+	if (write(uci_in, "\n", 1) == -1) {
+		perror("Failed to write newline to UCI engine ");
+	}
 	pthread_mutex_unlock(&uci_writer_lock);
-	debug("Wrote to UCI: '%s'", message);
+	debug("Wrote to UCI: '%s'\n", message);
 }
 
 static void wait_for_engine_ready(void) {
 	struct timeval start, now, diff;
 
 	set_uci_ready(false);
-	write_to_uci("isready\n");
+	write_to_uci("isready");
 
 	gettimeofday(&start, NULL);
 	while (!is_uci_ready()) {
@@ -725,7 +728,7 @@ static void stop_and_wait(void) {
 	struct timeval start, now, diff;
 
 	set_stop_requested(true);
-	write_to_uci("stop\n");
+	write_to_uci("stop");
 
 	gettimeofday(&start, NULL);
 	while (is_stop_requested()) {
@@ -746,10 +749,10 @@ static void real_start_uci_analysis() {
 
 	char moves[8192];
 	if (ply_num == 1) {
-		sprintf(moves, "%s\n", "position startpos");
+		sprintf(moves, "%s", "position startpos");
 	} else {
 		pthread_mutex_lock(&all_moves_lock);
-		sprintf(moves, "%s\n", all_moves);
+		sprintf(moves, "%s", all_moves);
 		pthread_mutex_unlock(&all_moves_lock);
 	}
 	if (is_analysing()) {
@@ -760,10 +763,10 @@ static void real_start_uci_analysis() {
 
 	char go[256];
 	if (uci_mode == ENGINE_ANALYSIS) {
-		sprintf(go, "go infinite\n");
+		sprintf(go, "go infinite");
 		set_analysing(true);
 	} else {
-		sprintf(go, "go wtime %ld btime %ld\n", get_remaining_time(main_clock, 0),
+		sprintf(go, "go wtime %ld btime %ld", get_remaining_time(main_clock, 0),
 		        get_remaining_time(main_clock, 1));
 	}
 	write_to_uci(go);
@@ -779,7 +782,7 @@ static void real_start_uci_game() {
 
 	set_analysing(false);
 
-	write_to_uci("ucinewgame\n");
+	write_to_uci("ucinewgame");
 	wait_for_engine_ready();
 
 	char go[256];
@@ -863,4 +866,3 @@ void *uci_manager_function(void *ignored) {
 	fprintf(stdout, "[UCI manager thread] - UCI manager terminated\n");
 	return 0;
 }
-
