@@ -93,6 +93,8 @@ char default_ics_handle1[] = "cairoboardone";
 char ics_test_opp_handle[32];
 char ics_handle2[32];
 char default_ics_handle2[] = "cairoboardtwo";
+char engine[256];
+char default_engine[] = "/usr/bin/stockfish";
 
 unsigned short ics_port;
 unsigned short default_ics_port = 5000;
@@ -105,6 +107,7 @@ bool ics_port_specified = false;
 bool load_file_specified = false;
 bool ics_handle1_specified = false;
 bool ics_handle2_specified = false;
+bool engine_specified = false;
 /* </Options variables> */
 
 bool delay_from_promotion = false;
@@ -2217,8 +2220,8 @@ static void get_theme_colours(GtkWidget *widget) {
 
 static gboolean spawn_uci_engine_idle(gpointer data) {
 	debug("Spawning UCI engine...\n");
-	bool brainfish = *(bool*)data;
-	spawn_uci_engine(brainfish);
+	char *engine = (char *)data;
+	spawn_uci_engine(engine);
 	debug("Spawned UCI engine [OK]\n");
 	if (!ics_mode) {
 		debug("Starting new UCI game...\n");
@@ -2253,6 +2256,7 @@ int main (int argc, char **argv) {
 			{"load",       required_argument, 0,                   LOAD_FILE_ARG},
 			{"gamenum",    required_argument, 0,                   LOAD_GAME_NUM_ARG},
 			{"delay",      required_argument, 0,                   AUTO_PLAY_DELAY_ARG},
+			{"engine",     required_argument, 0,                   ENGINE},
 			{0,            0,                 0,                   0}
 	};
 
@@ -2314,6 +2318,10 @@ int main (int argc, char **argv) {
 			case AUTO_PLAY_DELAY_ARG:
 				auto_play_delay = atoi(optarg);
 				break;
+			case ENGINE:
+				engine_specified = true;
+				strncpy(engine, optarg, sizeof(engine));
+				break;
 
 			default:
 				break;
@@ -2349,7 +2357,12 @@ int main (int argc, char **argv) {
 		}
 		debug("ICS mode enabled, will connect to %s on port %d\n", ics_host, ics_port);
 	}
-
+  
+	if (!engine_specified) {
+		debug("Engine not specified, will use default engine %s\n", default_engine);
+		strncpy(engine, default_engine, sizeof(engine));
+	}
+  
 	/* if the user requested unicode figurines, check we can actually print them */
 	if (use_fig) {
 		/* set LC_CTYPE from the environment variable */
@@ -2674,8 +2687,7 @@ int main (int argc, char **argv) {
 		init_ics();
 	}
 
-	bool brainfish = false;
-	g_idle_add(spawn_uci_engine_idle, &brainfish);
+	g_idle_add(spawn_uci_engine_idle, &engine);
 
 	spawn_mover();
 

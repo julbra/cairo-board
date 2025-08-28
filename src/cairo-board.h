@@ -39,6 +39,7 @@ void debug(format, ...) { if (debug_flag) fprintf(stdout, "%s:\033[31m%d\033[0m 
 #define ICS_TEST_HANDLE1	13
 #define ICS_TEST_HANDLE2	14
 #define ICS_TEST_PLAYER1	15
+#define ENGINE				16
 
 // base unicode char for chess fonts
 #define BASE_CHESS_UNICODE_CHAR 0x2654
