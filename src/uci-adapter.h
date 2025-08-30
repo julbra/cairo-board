@@ -8,7 +8,7 @@ typedef enum {
 } UCI_MODE;
 
 void cleanup_uci(void);
-int spawn_uci_engine(bool brainfish);
+int spawn_uci_engine(char *engine);
 void write_to_uci(char *message);
 void user_move_to_uci(char *move, bool analyse);
 void start_new_uci_game(unsigned int time, UCI_MODE mode);

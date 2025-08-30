@@ -171,18 +171,13 @@ void init_uci_adapter() {
 	pthread_create(&uci_manager_thread, NULL, uci_manager_function, NULL);
 }
 
-int spawn_uci_engine(bool brainfish) {
+int spawn_uci_engine(char *engine) {
 	GPid child_pid;
 	GError *spawnError = NULL;
 
 	gchar *argv[2];
-
-	//TODO: can we discover these from $PATH?
-	if (brainfish) {
-		argv[0] = "/usr/local/bin/brainfish";
-	} else {
-		argv[0] = "/usr/bin/stockfish";
-	}
+	argv[0] = (gchar *)malloc(strlen(engine));
+	strncpy(argv[0], engine, strlen(engine));
 	argv[1] = NULL;
 
 	gboolean ret = g_spawn_async_with_pipes(g_get_home_dir(), argv, NULL, G_SPAWN_DEFAULT, NULL, NULL, &child_pid,
@@ -205,10 +200,6 @@ int spawn_uci_engine(bool brainfish) {
 	write_to_uci("setoption name Hash value 2048");
 	write_to_uci("setoption name Ponder value true");
 	write_to_uci("setoption name Skill Level value 20");
-	if (brainfish) {
-		// TODO: check if this needs to be an absolute path
-		write_to_uci("setoption name BookPath value /home/hts/brainfish/Cerebellum_Light.bin");
-	}
 	wait_for_engine_ready();
 	return 0;
 }
