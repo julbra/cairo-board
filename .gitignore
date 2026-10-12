@@ -26,5 +26,6 @@ cairo-board
 # IDE
 .idea/
 cairo_board
+build/
 cmake-build-debug/
 cmake-build-release/

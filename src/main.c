@@ -69,7 +69,7 @@ void sig_handler(int sig) {
 /* <Options variables> */
 gboolean debug_flag = FALSE;
 gboolean ics_mode = FALSE;
-bool guest_mode = false;
+int guest_mode = false;
 
 gboolean use_fig = FALSE;
 gboolean show_last_move = FALSE;
