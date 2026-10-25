@@ -176,8 +176,7 @@ int spawn_uci_engine(char *engine) {
 	GError *spawnError = NULL;
 
 	gchar *argv[2];
-	argv[0] = (gchar *)malloc(strlen(engine));
-	strncpy(argv[0], engine, strlen(engine));
+	argv[0] = g_strdup(engine);
 	argv[1] = NULL;
 
 	gboolean ret = g_spawn_async_with_pipes(g_get_home_dir(), argv, NULL, G_SPAWN_DEFAULT, NULL, NULL, &child_pid,

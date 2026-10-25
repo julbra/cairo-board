@@ -227,7 +227,7 @@ int read_write_ics_fd(int input_fd, int output_fd, int ics_fd) {
 
 	// we can read from and write to ics
 	if (FD_ISSET(ics_fd, &r_fds) && FD_ISSET(ics_fd, &w_fds)) {
-		static int r_rd = 0;
+		static size_t r_rd = 0;
 		static char buff[BSIZE];
 
 		/* read from ics */

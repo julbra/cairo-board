@@ -69,7 +69,7 @@ void sig_handler(int sig) {
 /* <Options variables> */
 gboolean debug_flag = FALSE;
 gboolean ics_mode = FALSE;
-bool guest_mode = false;
+int guest_mode = false;
 
 gboolean use_fig = FALSE;
 gboolean show_last_move = FALSE;
@@ -2556,6 +2556,20 @@ int main (int argc, char **argv) {
 
 	/* create the board area */
 	board = gtk_drawing_area_new();
+
+	GdkMonitor *monitor = gdk_display_get_primary_monitor(display);
+	if (!monitor) {
+		monitor = gdk_display_get_monitor(display, 0);
+	}
+	if (monitor) {
+		GdkRectangle workarea;
+		gdk_monitor_get_workarea(monitor, &workarea);
+		double scale = fmin(0.9 * workarea.width / win_def_wi, 0.9 * workarea.height / win_def_hi);
+		if (scale < 1.0) {
+			win_def_wi = (int) (win_def_wi * scale);
+			win_def_hi = (int) (win_def_hi * scale);
+		}
+	}
 
 	gtk_window_set_default_size(GTK_WINDOW(main_window), win_def_wi, win_def_hi);
 	gtk_window_set_icon_from_file(GTK_WINDOW(main_window), "icon.png", NULL);

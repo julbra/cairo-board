@@ -255,7 +255,7 @@ extern long my_game;
 extern gboolean debug_flag;
 extern gboolean use_fig;
 extern gboolean ics_mode;
-extern bool guest_mode;
+extern int guest_mode;
 extern bool load_file_specified;
 
 extern char ics_host[256];
