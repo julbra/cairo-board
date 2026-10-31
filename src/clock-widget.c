@@ -182,46 +182,52 @@ gboolean draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 		pango_layout_get_pixel_size(layout, &w_pix_width, &w_pix_height);
 	} else {
 		// Calculating new font size since things have changed
-		float last_font_size = font_size;
-
 		int v_padding = 10;
 		int h_padding = 20;
 
 		hi_font_size = (float) (hi / 1.5);
 		wi_font_size = (float) (wi / 9.0);
-		font_size = (hi_font_size < wi_font_size) ? hi_font_size : wi_font_size;
+		float min_font_size = 1.0f;
+		float max_font_size = (hi_font_size < wi_font_size) ? hi_font_size : wi_font_size;
+		font_size = max_font_size;
 
-		sprintf(font_str, "%s %.1f", FONT_FACE, font_size);
+		// Find the largest font that fits without measuring every 0.1-point step.
+		for (int attempt = 0; attempt < 10; ++attempt) {
+			sprintf(font_str, "%s %.2f", FONT_FACE, font_size);
+			desc = pango_font_description_from_string(font_str);
+			pango_layout_set_font_description(layout, desc);
+			pango_font_description_free(desc);
+
+			pango_layout_set_text(layout, black, -1);
+			pango_layout_get_pixel_size(layout, &b_pix_width, &b_pix_height);
+			pango_layout_set_text(layout, white, -1);
+			pango_layout_get_pixel_size(layout, &w_pix_width, &w_pix_height);
+
+			if (b_pix_height <= hi - v_padding && b_pix_width <= halfWidth - h_padding &&
+			    w_pix_height <= hi - v_padding && w_pix_width <= halfWidth - h_padding) {
+				min_font_size = font_size;
+				if (font_size == max_font_size) {
+					break;
+				}
+			} else {
+				max_font_size = font_size;
+			}
+
+			if (max_font_size - min_font_size <= 0.1f) {
+				break;
+			}
+			font_size = (min_font_size + max_font_size) / 2.0f;
+		}
+
+		font_size = min_font_size;
+		sprintf(font_str, "%s %.2f", FONT_FACE, font_size);
 		desc = pango_font_description_from_string(font_str);
 		pango_layout_set_font_description(layout, desc);
 		pango_font_description_free(desc);
-
-		// Ensure both clocks fit
 		pango_layout_set_text(layout, black, -1);
 		pango_layout_get_pixel_size(layout, &b_pix_width, &b_pix_height);
-		while ((b_pix_height > hi - v_padding || b_pix_width > halfWidth - h_padding) && font_size > 1) {
-			font_size -= .1;
-			sprintf(font_str, "%s %.2f", FONT_FACE, font_size);
-			desc = pango_font_description_from_string(font_str);
-			pango_layout_set_font_description(layout, desc);
-			pango_font_description_free(desc);
-			pango_layout_get_pixel_size(layout, &b_pix_width, &b_pix_height);
-		}
 		pango_layout_set_text(layout, white, -1);
 		pango_layout_get_pixel_size(layout, &w_pix_width, &w_pix_height);
-		while ((w_pix_height > hi - v_padding || w_pix_width > halfWidth - h_padding) && font_size > 1) {
-			font_size -= .1;
-			sprintf(font_str, "%s %.2f", FONT_FACE, font_size);
-			desc = pango_font_description_from_string(font_str);
-			pango_layout_set_font_description(layout, desc);
-			pango_font_description_free(desc);
-			pango_layout_get_pixel_size(layout, &w_pix_width, &w_pix_height);
-		}
-
-		if (last_font_size > -1 && font_size != last_font_size) {
-			// Redraw whole clock as font size of both should change
-			gtk_widget_queue_draw(clock_face);
-		}
 	}
 
 	last_wi = wi;
