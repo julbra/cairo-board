@@ -466,7 +466,7 @@ static gboolean on_board_draw(GtkWidget *pWidget, cairo_t *cdr) {
 
 	if (needs_update) {
 		draw_full_update(cdr, wi, hi);
-	} else if (needs_scale) {
+	} else if (needs_scale || de_scale_timer) {
 		draw_scaled(cdr, wi, hi);
 	} else {
 		draw_cheap_repaint(cdr, wi, hi);
@@ -1155,24 +1155,14 @@ static int first_configure = 1;
 static int last_alloc_wi = 0;
 static int last_alloc_hi = 0;
 
-static gboolean on_configure_event(GtkWidget *pWidget, GdkEventConfigure *event) {
+static void on_board_size_allocate(GtkWidget *pWidget, GtkAllocation *allocation, gpointer data) {
 	if (pWidget == board) {
-		// This is a board resize event
-
-//		debug("Got resize: %d\n", gtk_widget_get_allocated_width(board));
-		// Check whether the board dimensions actually changed
-		// NB: because we enforce a 1:1 ratio we only need to check the width but
-		// for debug purposes we allow non-square boards in certain situations
-
-		if (last_alloc_wi == gtk_widget_get_allocated_width(board) && last_alloc_hi == gtk_widget_get_allocated_height(board)) {
-			// NO CHANGE: return
-			debug("No Change: last alloc wi %d hi %d\n", last_alloc_wi, last_alloc_hi);
-			return FALSE;
+		if (last_alloc_wi == allocation->width && last_alloc_hi == allocation->height) {
+			return;
 		}
 
-		// remember last alloc width
-		last_alloc_wi = gtk_widget_get_allocated_width(board);
-		last_alloc_hi = gtk_widget_get_allocated_height(board);
+		last_alloc_wi = allocation->width;
+		last_alloc_hi = allocation->height;
 
 		if (first_configure) {
 			needs_update = 1;
@@ -1186,12 +1176,8 @@ static gboolean on_configure_event(GtkWidget *pWidget, GdkEventConfigure *event)
 			de_scale_timer = g_timeout_add(100, de_scale, board);
 		}
 
-		// Force app to repaint the whole board
-		// as board will be scaled or updated
-		gtk_widget_queue_draw(board);
+		gtk_widget_queue_draw(pWidget);
 	}
-
-	return FALSE;
 }
 
 char theme_dir[] = "themes/commons/";
@@ -2668,7 +2654,7 @@ int main (int argc, char **argv) {
 	g_signal_connect (G_OBJECT(board), "button-press-event", G_CALLBACK(on_button_press), NULL);
 	g_signal_connect (G_OBJECT(board), "button-release-event", G_CALLBACK(on_button_release), NULL);
 	g_signal_connect (G_OBJECT(board), "motion_notify_event", G_CALLBACK(on_motion), NULL);
-	g_signal_connect (G_OBJECT(board), "configure_event", G_CALLBACK(on_configure_event), NULL);
+	g_signal_connect (G_OBJECT(board), "size-allocate", G_CALLBACK(on_board_size_allocate), NULL);
 	g_signal_connect (G_OBJECT(board), "got-move", G_CALLBACK(on_get_move), NULL);
 	g_signal_connect (G_OBJECT(board), "got-crafty-move", G_CALLBACK(on_get_crafty_move), NULL);
 	g_signal_connect (G_OBJECT(board), "got-uci-move", G_CALLBACK(on_get_uci_move), NULL);
