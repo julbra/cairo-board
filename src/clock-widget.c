@@ -110,6 +110,13 @@ void init_clock_colours(void) {
 	rgb_to_css(warn_fg_ghost_hex, WARN_FG_GHOST_R, WARN_FG_GHOST_G, WARN_FG_GHOST_B);
 }
 
+static void set_layout_font_size(PangoLayout *layout, float font_size) {
+	PangoFontDescription *desc = pango_font_description_from_string(FONT_FACE);
+	pango_font_description_set_size(desc, (gint) (font_size * PANGO_SCALE));
+	pango_layout_set_font_description(layout, desc);
+	pango_font_description_free(desc);
+}
+
 gboolean draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 
 	static int last_wi = -1;
@@ -142,12 +149,9 @@ gboolean draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 	clock_to_string(cf->clock, 0, white, white_ghost);
 	clock_to_string(cf->clock, 1, black, black_ghost);
 
-	PangoFontDescription *desc;
 	PangoLayout *layout;
 
 	layout = pango_cairo_create_layout(buff_crt);
-
-	char font_str[32];
 
 	float hi_font_size;
 	float wi_font_size;
@@ -170,10 +174,7 @@ gboolean draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 
 	if (last_wi == wi && last_hi == hi && last_white_len == white_len && last_black_len == black_len) {
 		// Reuse font size as previously calculated
-		sprintf(font_str, "%s %.1f", FONT_FACE, font_size);
-		desc = pango_font_description_from_string(font_str);
-		pango_layout_set_font_description(layout, desc);
-		pango_font_description_free(desc);
+		set_layout_font_size(layout, font_size);
 
 		pango_layout_set_text(layout, black, -1);
 		pango_layout_get_pixel_size(layout, &b_pix_width, &b_pix_height);
@@ -193,10 +194,7 @@ gboolean draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 
 		// Find the largest font that fits without measuring every 0.1-point step.
 		for (int attempt = 0; attempt < 10; ++attempt) {
-			sprintf(font_str, "%s %.2f", FONT_FACE, font_size);
-			desc = pango_font_description_from_string(font_str);
-			pango_layout_set_font_description(layout, desc);
-			pango_font_description_free(desc);
+			set_layout_font_size(layout, font_size);
 
 			pango_layout_set_text(layout, black, -1);
 			pango_layout_get_pixel_size(layout, &b_pix_width, &b_pix_height);
@@ -220,10 +218,7 @@ gboolean draw_clock_face(GtkWidget *clock_face, cairo_t *crt) {
 		}
 
 		font_size = min_font_size;
-		sprintf(font_str, "%s %.2f", FONT_FACE, font_size);
-		desc = pango_font_description_from_string(font_str);
-		pango_layout_set_font_description(layout, desc);
-		pango_font_description_free(desc);
+		set_layout_font_size(layout, font_size);
 		pango_layout_set_text(layout, black, -1);
 		pango_layout_get_pixel_size(layout, &b_pix_width, &b_pix_height);
 		pango_layout_set_text(layout, white, -1);

@@ -192,10 +192,9 @@ void draw_board_surface(int width, int height) {
 	PangoFontDescription *desc;
 	PangoLayout *layout;
 	layout = pango_cairo_create_layout(coordinates_cr);
-	char font_str[32];
 	float font_size = (float) (10 * tx / 100.0f);
-	sprintf(font_str, "%s %.1f", FONT_FACE, font_size);
-	desc = pango_font_description_from_string(font_str);
+	desc = pango_font_description_from_string(FONT_FACE);
+	pango_font_description_set_size(desc, (gint) (font_size * PANGO_SCALE));
 	pango_font_description_set_weight(desc, PANGO_WEIGHT_SEMIBOLD);
 	pango_layout_set_font_description(layout, desc);
 	pango_font_description_free(desc);
